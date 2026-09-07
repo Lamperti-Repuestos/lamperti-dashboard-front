@@ -11,6 +11,16 @@ export default function PickingListView() {
   const [corteFlex, setCorteFlex] = useState('14:00')
   const [corteColecta, setCorteColecta] = useState('11:00')
   const [hideChecked, setHideChecked] = useState(false)
+  const [expanded, setExpanded] = useState(() => new Set())
+
+  const toggleExpanded = (itemId) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }
 
   const fetchList = useCallback(() => {
     if (!API_URL) {
@@ -177,31 +187,55 @@ export default function PickingListView() {
             )}
 
             {filtered.map((item) => (
-              <label
-                className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}
-                key={item.item_id}
-              >
-                <input
-                  type="checkbox"
-                  className="pick-checkbox"
-                  checked={item.checked}
-                  onChange={() => toggleChecked(item)}
-                />
-                <div className="pick-title">{item.title}</div>
-                <div className="pick-badges">
-                  {item.cross_docking > 0 && (
-                    <span className="badge badge-colecta">
-                      Colecta ×{item.cross_docking}
-                    </span>
-                  )}
-                  {item.self_service > 0 && (
-                    <span className="badge badge-flex">
-                      Flex ×{item.self_service}
-                    </span>
-                  )}
-                </div>
-                <div className="pick-total mono">{item.total}</div>
-              </label>
+              <div key={item.item_id} className="pick-group">
+                <label
+                  className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    className="pick-checkbox"
+                    checked={item.checked}
+                    onChange={() => toggleChecked(item)}
+                  />
+                  <div className="pick-title">
+                    {item.title}
+                    <span className="id-cell mono">SKU: {item.sku}</span>
+                  </div>
+                  <div className="pick-badges">
+                    {item.cross_docking > 0 && (
+                      <span className="badge badge-colecta">
+                        Colecta ×{item.cross_docking}
+                      </span>
+                    )}
+                    {item.self_service > 0 && (
+                      <span className="badge badge-flex">
+                        Flex ×{item.self_service}
+                      </span>
+                    )}
+                  </div>
+                  <div className="pick-total mono">{item.total}</div>
+                </label>
+
+                <button
+                  type="button"
+                  className="detail-toggle"
+                  onClick={() => toggleExpanded(item.item_id)}
+                >
+                  {expanded.has(item.item_id) ? '▲ ocultar ventas' : `▼ ver ${item.ventas.length} venta(s)`}
+                </button>
+
+                {expanded.has(item.item_id) && (
+                  <div className="sale-detail">
+                    {item.ventas.map((venta, i) => (
+                      <div className="sale-line" key={i}>
+                        <span className="mono">{venta.fecha_hora}</span>
+                        <span>{venta.comprador}</span>
+                        <span className="mono">×{venta.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </>
         )}

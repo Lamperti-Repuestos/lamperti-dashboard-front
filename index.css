@@ -168,6 +168,41 @@ html, body {
   text-align: right;
 }
 
+.pick-group {
+  border-bottom: 1px solid var(--gray-line);
+}
+
+.pick-group .pick-row {
+  border-bottom: none;
+}
+
+.detail-toggle {
+  background: none;
+  border: none;
+  color: var(--gray-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 0 10px 38px;
+}
+
+.detail-toggle:hover {
+  color: var(--navy);
+}
+
+.sale-detail {
+  padding: 0 0 12px 38px;
+}
+
+.sale-line {
+  display: grid;
+  grid-template-columns: 90px 1fr 50px;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--charcoal);
+  padding: 4px 0;
+}
+
 /* Controls */
 .controls {
   padding: 20px 24px 0;
