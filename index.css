@@ -53,6 +53,121 @@ html, body {
   color: #C7CDEA;
 }
 
+.view-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.view-tab {
+  padding: 8px 16px;
+  border: 1px solid #3A4A8F;
+  background: transparent;
+  color: #C7CDEA;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: var(--navy);
+}
+
+/* Cortes (Flex / Colecta) */
+.corte-inputs {
+  display: flex;
+  gap: 16px;
+}
+
+.corte-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--gray-muted);
+  font-weight: 600;
+}
+
+.corte-input {
+  padding: 8px 10px;
+  border: 1px solid var(--gray-line);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  color: var(--charcoal);
+}
+
+.tab-colecta.active {
+  background: var(--navy);
+  border-color: var(--navy);
+}
+
+.tab-flex.active {
+  background: #B8860B;
+  border-color: #B8860B;
+}
+
+/* Picking rows */
+.pick-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto 50px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--gray-line);
+  cursor: pointer;
+}
+
+.pick-row-checked {
+  opacity: 0.45;
+}
+
+.pick-row-checked .pick-title {
+  text-decoration: line-through;
+}
+
+.pick-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #2E7D46;
+  cursor: pointer;
+}
+
+.pick-title {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.pick-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 3px 8px;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.badge-colecta {
+  background: var(--navy);
+}
+
+.badge-flex {
+  background: #B8860B;
+}
+
+.pick-total {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+}
+
 /* Controls */
 .controls {
   padding: 20px 24px 0;
@@ -204,6 +319,13 @@ html, body {
 
 .status-dot.active { background: #2E7D46; }
 .status-dot.paused { background: var(--gray-muted); }
+
+.hint-more {
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--gray-muted);
+  text-align: center;
+}
 
 .empty-state, .loading-state, .error-state {
   padding: 60px 0;
