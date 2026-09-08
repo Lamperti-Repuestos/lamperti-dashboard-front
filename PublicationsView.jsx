@@ -148,7 +148,7 @@ export default function PublicationsView({ onUnauthorized }) {
               <div className="row" key={item.id}>
                 <div className="title-cell">
                   {item.title}
-                  <span className="id-cell mono">{item.id}</span>
+                  <span className="id-cell mono">{item.id} · SKU: {item.sku}</span>
                 </div>
                 <div className="price-cell mono">{formatPrice(item.price)}</div>
                 <div className={`stock-cell mono ${item.available_quantity <= 3 ? 'low' : ''}`}>
