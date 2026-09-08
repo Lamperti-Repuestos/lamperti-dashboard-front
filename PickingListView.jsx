@@ -56,6 +56,7 @@ export default function PickingListView({ onUnauthorized }) {
   const [corteFlex, setCorteFlex] = useState('14:00')
   const [corteColecta, setCorteColecta] = useState('11:00')
   const [hideChecked, setHideChecked] = useState(false)
+  const [onlyChecked, setOnlyChecked] = useState(false)
   const [onlyFaltantes, setOnlyFaltantes] = useState(false)
   const [expanded, setExpanded] = useState(() => new Set())
 
@@ -99,44 +100,46 @@ export default function PickingListView({ onUnauthorized }) {
     return () => clearInterval(id)
   }, [fetchList])
 
-  // Actualiza un producto (suelto o dentro de un grupo) en el estado local
-  const patchItem = (itemId, patch) => {
+  // Actualiza un producto (suelto o dentro de un grupo) en el estado local,
+  // por su estado_id (identidad única de ESTA ocurrencia, no del producto
+  // en general - así un mismo SKU suelto y dentro de un combo no se pisan)
+  const patchItem = (estadoId, patch) => {
     setData((prev) => ({
       ...prev,
-      items: prev.items.map((it) => (it.item_id === itemId ? { ...it, ...patch } : it)),
+      items: prev.items.map((it) => (it.estado_id === estadoId ? { ...it, ...patch } : it)),
       grupos: prev.grupos.map((g) => ({
         ...g,
-        productos: g.productos.map((p) => (p.item_id === itemId ? { ...p, ...patch } : p)),
+        productos: g.productos.map((p) => (p.estado_id === estadoId ? { ...p, ...patch } : p)),
       })),
     }))
   }
 
   const toggleChecked = (item) => {
     const newChecked = !item.checked
-    patchItem(item.item_id, { checked: newChecked })
+    patchItem(item.estado_id, { checked: newChecked })
     apiFetch('/ml/picking-list/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        period_key: data.period_key,
-        item_id: item.item_id,
+        period_key: item.period_key,
+        item_id: item.estado_id,
         checked: newChecked,
       }),
-    }).catch(() => patchItem(item.item_id, { checked: !newChecked }))
+    }).catch(() => patchItem(item.estado_id, { checked: !newChecked }))
   }
 
   const toggleFaltante = (item) => {
     const newFaltante = !item.faltante
-    patchItem(item.item_id, { faltante: newFaltante })
+    patchItem(item.estado_id, { faltante: newFaltante })
     apiFetch('/ml/picking-list/faltante', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        period_key: data.period_key,
-        item_id: item.item_id,
+        period_key: item.period_key,
+        item_id: item.estado_id,
         faltante: newFaltante,
       }),
-    }).catch(() => patchItem(item.item_id, { faltante: !newFaltante }))
+    }).catch(() => patchItem(item.estado_id, { faltante: !newFaltante }))
   }
 
   const filtered = useMemo(() => {
@@ -150,7 +153,12 @@ export default function PickingListView({ onUnauthorized }) {
       grupos = grupos.filter((g) => g.tipo === typeFilter)
     }
 
-    if (hideChecked) {
+    if (onlyChecked) {
+      items = items.filter((it) => it.checked)
+      grupos = grupos
+        .map((g) => ({ ...g, productos: g.productos.filter((p) => p.checked) }))
+        .filter((g) => g.productos.length > 0)
+    } else if (hideChecked) {
       items = items.filter((it) => !it.checked)
       grupos = grupos.filter((g) => g.productos.some((p) => !p.checked))
     }
@@ -161,7 +169,7 @@ export default function PickingListView({ onUnauthorized }) {
     }
 
     return { items, grupos }
-  }, [data, typeFilter, hideChecked, onlyFaltantes])
+  }, [data, typeFilter, hideChecked, onlyChecked, onlyFaltantes])
 
   const pendingCount = data
     ? data.items.filter((it) => !it.checked).length +
@@ -221,7 +229,10 @@ export default function PickingListView({ onUnauthorized }) {
           </button>
         </div>
 
-        <button className="sort-btn" onClick={() => setHideChecked((v) => !v)}>
+        <button className="sort-btn" onClick={() => { setOnlyChecked((v) => !v); setHideChecked(false) }}>
+          {onlyChecked ? '✓ ' : ''}Ver separados
+        </button>
+        <button className="sort-btn" onClick={() => { setHideChecked((v) => !v); setOnlyChecked(false) }}>
           {hideChecked ? '✓ ' : ''}Ocultar separados
         </button>
         <button className="sort-btn" onClick={() => setOnlyFaltantes((v) => !v)}>
@@ -269,7 +280,7 @@ export default function PickingListView({ onUnauthorized }) {
                 </div>
                 {grupo.productos.map((p) => (
                   <ItemRow
-                    key={p.item_id}
+                    key={p.estado_id}
                     item={{ ...p, cross_docking: 0, self_service: 0, acordar: 0, total: p.cantidad }}
                     onToggleChecked={() => toggleChecked(p)}
                     onToggleFaltante={() => toggleFaltante(p)}
@@ -279,7 +290,7 @@ export default function PickingListView({ onUnauthorized }) {
             ))}
 
             {filtered.items.map((item) => (
-              <div key={item.item_id} className="pick-group">
+              <div key={item.estado_id} className="pick-group">
                 <ItemRow item={item} onToggleChecked={toggleChecked} onToggleFaltante={toggleFaltante} />
 
                 <button
