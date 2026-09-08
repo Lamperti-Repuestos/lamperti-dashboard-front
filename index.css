@@ -281,6 +281,73 @@ html, body {
   padding: 2px 0 2px;
 }
 
+/* Stock */
+.scan-btn {
+  padding: 9px 16px;
+  border: none;
+  background: var(--navy);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scan-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.scan-result {
+  padding: 10px 24px;
+  font-size: 13px;
+  color: var(--gray-muted);
+  border-bottom: 1px solid var(--gray-line);
+}
+
+.alert-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 120px 60px 90px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--gray-line);
+}
+
+.alert-row-revisada {
+  opacity: 0.4;
+}
+
+.alert-title {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.alert-change {
+  font-size: 13px;
+  color: var(--gray-muted);
+}
+
+.alert-diff {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.diff-neg {
+  color: #B23A2E;
+}
+
+.diff-pos {
+  color: #2E7D46;
+}
+
+.alert-time {
+  font-size: 12px;
+  color: var(--gray-muted);
+  text-align: right;
+}
+
 /* Login */
 .login-screen {
   min-height: 100vh;

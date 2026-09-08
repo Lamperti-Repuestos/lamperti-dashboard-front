@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import PublicationsView from './PublicationsView.jsx'
 import PickingListView from './PickingListView.jsx'
+import StockView from './StockView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 
 export default function App() {
-  const [view, setView] = useState('picking') // picking | publications
+  const [view, setView] = useState('picking') // picking | publications | stock
   const [authed, setAuthed] = useState(null) // null = todavía chequeando
 
   useEffect(() => {
@@ -13,7 +14,6 @@ export default function App() {
       setAuthed(false)
       return
     }
-    // Ya hay credenciales guardadas de una sesión anterior: las validamos.
     apiFetch('/auth/check', {}, () => setAuthed(false)).then((res) => {
       setAuthed(res.ok)
     })
@@ -51,17 +51,21 @@ export default function App() {
           >
             Publicaciones
           </button>
+          <button
+            className={`view-tab ${view === 'stock' ? 'active' : ''}`}
+            onClick={() => setView('stock')}
+          >
+            Stock
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
         </nav>
       </header>
 
-      {view === 'picking' ? (
-        <PickingListView onUnauthorized={handleUnauthorized} />
-      ) : (
-        <PublicationsView onUnauthorized={handleUnauthorized} />
-      )}
+      {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
+      {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
+      {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
     </>
   )
 }
