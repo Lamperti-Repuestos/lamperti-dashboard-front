@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-
-const API_URL = import.meta.env.VITE_API_URL
+import { apiFetch } from './api.js'
 
 function formatPrice(value) {
   return new Intl.NumberFormat('es-AR', {
@@ -10,7 +9,7 @@ function formatPrice(value) {
   }).format(value)
 }
 
-export default function PublicationsView() {
+export default function PublicationsView({ onUnauthorized }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -19,13 +18,7 @@ export default function PublicationsView() {
   const [sortByStockAsc, setSortByStockAsc] = useState(false)
 
   useEffect(() => {
-    if (!API_URL) {
-      setError('Falta configurar VITE_API_URL.')
-      setLoading(false)
-      return
-    }
-
-    fetch(`${API_URL}/ml/items`)
+    apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => {
         if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
         return res.json()
