@@ -3,14 +3,60 @@ import { apiFetch } from './api.js'
 
 const REFRESH_MS = 3 * 60 * 1000 // se actualiza sola cada 3 minutos
 
+const TIPO_LABELS = {
+  cross_docking: 'Colecta',
+  self_service: 'Flex',
+  acordar: 'Acordar entrega',
+}
+
+function ItemRow({ item, onToggleChecked, onToggleFaltante }) {
+  return (
+    <div
+      className={`pick-row ${item.checked ? 'pick-row-checked' : ''} ${item.faltante ? 'pick-row-faltante' : ''}`}
+    >
+      <input
+        type="checkbox"
+        className="pick-checkbox"
+        checked={item.checked}
+        onChange={() => onToggleChecked(item)}
+      />
+      <div className="pick-title">
+        {item.title}
+        <span className="id-cell mono">SKU: {item.sku}</span>
+      </div>
+      <div className="pick-badges">
+        {item.cross_docking > 0 && (
+          <span className="badge badge-colecta">Colecta ×{item.cross_docking}</span>
+        )}
+        {item.self_service > 0 && (
+          <span className="badge badge-flex">Flex ×{item.self_service}</span>
+        )}
+        {item.acordar > 0 && (
+          <span className="badge badge-acordar">Acordar ×{item.acordar}</span>
+        )}
+      </div>
+      <button
+        type="button"
+        className={`faltante-btn ${item.faltante ? 'faltante-btn-active' : ''}`}
+        onClick={() => onToggleFaltante(item)}
+        title="Marcar como faltante en el local"
+      >
+        {item.faltante ? '⚠ Faltante' : 'Faltante'}
+      </button>
+      <div className="pick-total mono">{item.total}</div>
+    </div>
+  )
+}
+
 export default function PickingListView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [typeFilter, setTypeFilter] = useState('all') // all | cross_docking | self_service
+  const [typeFilter, setTypeFilter] = useState('all') // all | cross_docking | self_service | acordar
   const [corteFlex, setCorteFlex] = useState('14:00')
   const [corteColecta, setCorteColecta] = useState('11:00')
   const [hideChecked, setHideChecked] = useState(false)
+  const [onlyFaltantes, setOnlyFaltantes] = useState(false)
   const [expanded, setExpanded] = useState(() => new Set())
 
   const toggleExpanded = (itemId) => {
@@ -53,18 +99,21 @@ export default function PickingListView({ onUnauthorized }) {
     return () => clearInterval(id)
   }, [fetchList])
 
-  const toggleChecked = (item) => {
-    if (!data) return
-    const newChecked = !item.checked
-
-    // Optimista: lo actualizamos en pantalla ya mismo
+  // Actualiza un producto (suelto o dentro de un grupo) en el estado local
+  const patchItem = (itemId, patch) => {
     setData((prev) => ({
       ...prev,
-      items: prev.items.map((it) =>
-        it.item_id === item.item_id ? { ...it, checked: newChecked } : it
-      ),
+      items: prev.items.map((it) => (it.item_id === itemId ? { ...it, ...patch } : it)),
+      grupos: prev.grupos.map((g) => ({
+        ...g,
+        productos: g.productos.map((p) => (p.item_id === itemId ? { ...p, ...patch } : p)),
+      })),
     }))
+  }
 
+  const toggleChecked = (item) => {
+    const newChecked = !item.checked
+    patchItem(item.item_id, { checked: newChecked })
     apiFetch('/ml/picking-list/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,35 +122,56 @@ export default function PickingListView({ onUnauthorized }) {
         item_id: item.item_id,
         checked: newChecked,
       }),
-    }).catch(() => {
-      // si falla, lo revertimos
-      setData((prev) => ({
-        ...prev,
-        items: prev.items.map((it) =>
-          it.item_id === item.item_id ? { ...it, checked: !newChecked } : it
-        ),
-      }))
-    })
+    }).catch(() => patchItem(item.item_id, { checked: !newChecked }))
+  }
+
+  const toggleFaltante = (item) => {
+    const newFaltante = !item.faltante
+    patchItem(item.item_id, { faltante: newFaltante })
+    apiFetch('/ml/picking-list/faltante', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_key: data.period_key,
+        item_id: item.item_id,
+        faltante: newFaltante,
+      }),
+    }).catch(() => patchItem(item.item_id, { faltante: !newFaltante }))
   }
 
   const filtered = useMemo(() => {
-    if (!data) return []
-    let result = data.items
+    if (!data) return { items: [], grupos: [] }
 
-    if (typeFilter === 'cross_docking') {
-      result = result.filter((it) => it.cross_docking > 0)
-    } else if (typeFilter === 'self_service') {
-      result = result.filter((it) => it.self_service > 0)
+    let items = data.items
+    let grupos = data.grupos
+
+    if (typeFilter !== 'all') {
+      items = items.filter((it) => it[typeFilter] > 0)
+      grupos = grupos.filter((g) => g.tipo === typeFilter)
     }
 
     if (hideChecked) {
-      result = result.filter((it) => !it.checked)
+      items = items.filter((it) => !it.checked)
+      grupos = grupos.filter((g) => g.productos.some((p) => !p.checked))
     }
 
-    return result
-  }, [data, typeFilter, hideChecked])
+    if (onlyFaltantes) {
+      items = items.filter((it) => it.faltante)
+      grupos = grupos.filter((g) => g.productos.some((p) => p.faltante))
+    }
 
-  const pendingCount = data ? data.items.filter((it) => !it.checked).length : 0
+    return { items, grupos }
+  }, [data, typeFilter, hideChecked, onlyFaltantes])
+
+  const pendingCount = data
+    ? data.items.filter((it) => !it.checked).length +
+      data.grupos.reduce((acc, g) => acc + g.productos.filter((p) => !p.checked).length, 0)
+    : 0
+
+  const faltantesCount = data
+    ? data.items.filter((it) => it.faltante).length +
+      data.grupos.reduce((acc, g) => acc + g.productos.filter((p) => p.faltante).length, 0)
+    : 0
 
   return (
     <>
@@ -128,10 +198,7 @@ export default function PickingListView({ onUnauthorized }) {
         </div>
 
         <div className="tabs">
-          <button
-            className={`tab ${typeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setTypeFilter('all')}
-          >
+          <button className={`tab ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
             Todos
           </button>
           <button
@@ -146,25 +213,35 @@ export default function PickingListView({ onUnauthorized }) {
           >
             Flex
           </button>
+          <button
+            className={`tab tab-acordar ${typeFilter === 'acordar' ? 'active' : ''}`}
+            onClick={() => setTypeFilter('acordar')}
+          >
+            Acordar
+          </button>
         </div>
 
-        <button
-          className="sort-btn"
-          onClick={() => setHideChecked((v) => !v)}
-        >
+        <button className="sort-btn" onClick={() => setHideChecked((v) => !v)}>
           {hideChecked ? '✓ ' : ''}Ocultar separados
+        </button>
+        <button className="sort-btn" onClick={() => setOnlyFaltantes((v) => !v)}>
+          {onlyFaltantes ? '✓ ' : ''}Solo faltantes
         </button>
       </div>
 
       {!loading && !error && data && (
         <div className="summary">
           <div className="summary-item">
-            <div className="value mono">{data.total_productos}</div>
-            <div className="label">Productos en esta tanda</div>
+            <div className="value mono">{data.total_productos + data.grupos.length}</div>
+            <div className="label">Productos / grupos</div>
           </div>
           <div className="summary-item warn">
             <div className="value mono">{pendingCount}</div>
             <div className="label">Sin separar</div>
+          </div>
+          <div className="summary-item warn">
+            <div className="value mono">{faltantesCount}</div>
+            <div className="label">Faltantes</div>
           </div>
         </div>
       )}
@@ -175,41 +252,35 @@ export default function PickingListView({ onUnauthorized }) {
 
         {!loading && !error && data && (
           <>
-            {filtered.length === 0 && (
-              <div className="empty-state">
-                No hay nada para separar con este filtro. 🎉
-              </div>
+            {filtered.items.length === 0 && filtered.grupos.length === 0 && (
+              <div className="empty-state">No hay nada para separar con este filtro. 🎉</div>
             )}
 
-            {filtered.map((item) => (
-              <div key={item.item_id} className="pick-group">
-                <label
-                  className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="pick-checkbox"
-                    checked={item.checked}
-                    onChange={() => toggleChecked(item)}
+            {/* Grupos multiproducto primero, bien destacados */}
+            {filtered.grupos.map((grupo) => (
+              <div key={grupo.pack_id} className="multi-group">
+                <div className="multi-group-header">
+                  <span className="badge badge-multi">Multiproducto</span>
+                  <span className="multi-meta mono">{grupo.fecha_hora}</span>
+                  <span className="multi-meta">{grupo.comprador}</span>
+                  <span className={`badge badge-${grupo.tipo === 'cross_docking' ? 'colecta' : grupo.tipo === 'self_service' ? 'flex' : 'acordar'}`}>
+                    {TIPO_LABELS[grupo.tipo]}
+                  </span>
+                </div>
+                {grupo.productos.map((p) => (
+                  <ItemRow
+                    key={p.item_id}
+                    item={{ ...p, cross_docking: 0, self_service: 0, acordar: 0, total: p.cantidad }}
+                    onToggleChecked={() => toggleChecked(p)}
+                    onToggleFaltante={() => toggleFaltante(p)}
                   />
-                  <div className="pick-title">
-                    {item.title}
-                    <span className="id-cell mono">SKU: {item.sku}</span>
-                  </div>
-                  <div className="pick-badges">
-                    {item.cross_docking > 0 && (
-                      <span className="badge badge-colecta">
-                        Colecta ×{item.cross_docking}
-                      </span>
-                    )}
-                    {item.self_service > 0 && (
-                      <span className="badge badge-flex">
-                        Flex ×{item.self_service}
-                      </span>
-                    )}
-                  </div>
-                  <div className="pick-total mono">{item.total}</div>
-                </label>
+                ))}
+              </div>
+            ))}
+
+            {filtered.items.map((item) => (
+              <div key={item.item_id} className="pick-group">
+                <ItemRow item={item} onToggleChecked={toggleChecked} onToggleFaltante={toggleFaltante} />
 
                 <button
                   type="button"
@@ -222,17 +293,10 @@ export default function PickingListView({ onUnauthorized }) {
                 {expanded.has(item.item_id) && (
                   <div className="sale-detail">
                     {item.ventas.map((venta, i) => (
-                      <div className="sale-line-wrap" key={i}>
-                        <div className="sale-line">
-                          <span className="mono">{venta.fecha_hora}</span>
-                          <span>{venta.comprador}</span>
-                          <span className="mono">×{venta.cantidad}</span>
-                        </div>
-                        {venta.vendido_junto_con && venta.vendido_junto_con.length > 0 && (
-                          <div className="sale-together">
-                            También se vendió con: {venta.vendido_junto_con.join(', ')}
-                          </div>
-                        )}
+                      <div className="sale-line" key={i}>
+                        <span className="mono">{venta.fecha_hora}</span>
+                        <span>{venta.comprador}</span>
+                        <span className="mono">×{venta.cantidad}</span>
                       </div>
                     ))}
                   </div>
