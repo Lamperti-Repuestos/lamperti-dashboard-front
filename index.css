@@ -323,6 +323,16 @@ html, body {
   line-height: 1.4;
 }
 
+.badge-explicada {
+  background: #2E7D46;
+  margin-left: 8px;
+}
+
+.badge-sin-explicar {
+  background: #B23A2E;
+  margin-left: 8px;
+}
+
 .alert-change {
   font-size: 13px;
   color: var(--gray-muted);

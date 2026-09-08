@@ -126,6 +126,17 @@ export default function StockView({ onUnauthorized }) {
                 <div className="alert-title">
                   {a.title}
                   <span className="id-cell mono">SKU: {a.sku}</span>
+                  {a.diferencia < 0 && (
+                    a.diferencia_no_explicada >= 0 ? (
+                      <span className="badge badge-explicada">
+                        ✅ Explicada por ventas ({a.ventas_periodo})
+                      </span>
+                    ) : (
+                      <span className="badge badge-sin-explicar">
+                        🚨 Sin explicar: {a.diferencia_no_explicada}
+                      </span>
+                    )
+                  )}
                 </div>
                 <div className="alert-change mono">
                   {a.stock_anterior} → {a.stock_nuevo}
