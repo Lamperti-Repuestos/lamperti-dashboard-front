@@ -42,7 +42,9 @@ export default function PublicationsView({ onUnauthorized }) {
 
     if (query.trim()) {
       const q = query.trim().toLowerCase()
-      result = result.filter((it) => it.title?.toLowerCase().includes(q))
+      result = result.filter(
+        (it) => it.title?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q)
+      )
     }
 
     if (sortByStockAsc) {
@@ -68,7 +70,7 @@ export default function PublicationsView({ onUnauthorized }) {
         <input
           className="search-input"
           type="text"
-          placeholder="Buscar por título..."
+          placeholder="Buscar por título o SKU..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
