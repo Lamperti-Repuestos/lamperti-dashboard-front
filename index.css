@@ -203,6 +203,99 @@ html, body {
   padding: 4px 0;
 }
 
+.sale-line-wrap {
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--gray-line);
+}
+
+.sale-line-wrap:last-child {
+  border-bottom: none;
+}
+
+.sale-line-wrap .sale-line {
+  padding: 0;
+}
+
+.sale-together {
+  font-size: 11px;
+  color: var(--gray-muted);
+  font-style: italic;
+  padding: 2px 0 2px;
+}
+
+/* Login */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--navy);
+  padding: 24px;
+}
+
+.login-card {
+  background: var(--white);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 6px solid var(--yellow);
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.login-card p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--gray-muted);
+}
+
+.login-card input {
+  padding: 11px 12px;
+  border: 1px solid var(--gray-line);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.login-card input:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: -1px;
+}
+
+.login-card button {
+  padding: 11px;
+  background: var(--navy);
+  color: var(--white);
+  border: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+.login-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-error {
+  font-size: 13px;
+  color: #B23A2E;
+}
+
+.logout-tab {
+  margin-left: auto;
+  border-color: transparent;
+}
+
 /* Controls */
 .controls {
   padding: 20px 24px 0;

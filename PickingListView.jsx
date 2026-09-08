@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { apiFetch } from './api.js'
 
-const API_URL = import.meta.env.VITE_API_URL
 const REFRESH_MS = 3 * 60 * 1000 // se actualiza sola cada 3 minutos
 
-export default function PickingListView() {
+export default function PickingListView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -23,16 +23,11 @@ export default function PickingListView() {
   }
 
   const fetchList = useCallback(() => {
-    if (!API_URL) {
-      setError('Falta configurar VITE_API_URL.')
-      setLoading(false)
-      return
-    }
     const params = new URLSearchParams({
       corte_flex: corteFlex,
       corte_colecta: corteColecta,
     })
-    fetch(`${API_URL}/ml/picking-list?${params}`)
+    apiFetch(`/ml/picking-list?${params}`, {}, onUnauthorized)
       .then((res) => {
         if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
         return res.json()
@@ -46,7 +41,7 @@ export default function PickingListView() {
         setError(err.message)
         setLoading(false)
       })
-  }, [corteFlex, corteColecta])
+  }, [corteFlex, corteColecta, onUnauthorized])
 
   useEffect(() => {
     setLoading(true)
@@ -70,7 +65,7 @@ export default function PickingListView() {
       ),
     }))
 
-    fetch(`${API_URL}/ml/picking-list/check`, {
+    apiFetch('/ml/picking-list/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -227,10 +222,17 @@ export default function PickingListView() {
                 {expanded.has(item.item_id) && (
                   <div className="sale-detail">
                     {item.ventas.map((venta, i) => (
-                      <div className="sale-line" key={i}>
-                        <span className="mono">{venta.fecha_hora}</span>
-                        <span>{venta.comprador}</span>
-                        <span className="mono">×{venta.cantidad}</span>
+                      <div className="sale-line-wrap" key={i}>
+                        <div className="sale-line">
+                          <span className="mono">{venta.fecha_hora}</span>
+                          <span>{venta.comprador}</span>
+                          <span className="mono">×{venta.cantidad}</span>
+                        </div>
+                        {venta.vendido_junto_con && venta.vendido_junto_con.length > 0 && (
+                          <div className="sale-together">
+                            También se vendió con: {venta.vendido_junto_con.join(', ')}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
