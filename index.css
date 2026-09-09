@@ -50,8 +50,24 @@ button {
 .header {
   background: var(--navy);
   color: var(--white);
-  padding: 20px var(--pad) 16px;
-  border-bottom: 6px solid var(--yellow);
+  padding: 20px var(--pad) 24px;
+  position: relative;
+}
+
+.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--yellow) 0px,
+    var(--yellow) 14px,
+    var(--charcoal) 14px,
+    var(--charcoal) 28px
+  );
 }
 
 .header h1 {
@@ -309,6 +325,19 @@ button {
   font-size: 22px;
   font-weight: 800;
   font-family: 'IBM Plex Mono', monospace;
+  position: relative;
+  display: inline-block;
+  padding-bottom: 6px;
+}
+
+.summary-item .value::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 26px;
+  height: 3px;
+  background: var(--navy);
 }
 
 .summary-item .label {
@@ -319,6 +348,10 @@ button {
 
 .summary-item.warn .value {
   color: #B23A2E;
+}
+
+.summary-item.warn .value::after {
+  background: #B23A2E;
 }
 
 /* List container */
@@ -739,13 +772,29 @@ button {
 
 .login-card {
   background: var(--white);
-  padding: 28px 24px;
+  padding: 32px 24px 28px;
   width: 100%;
   max-width: 340px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-top: 6px solid var(--yellow);
+  position: relative;
+}
+
+.login-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 8px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--yellow) 0px,
+    var(--yellow) 14px,
+    var(--charcoal) 14px,
+    var(--charcoal) 28px
+  );
 }
 
 .login-card h1 {
