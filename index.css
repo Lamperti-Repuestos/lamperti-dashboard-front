@@ -40,6 +40,12 @@ html, body {
   background: var(--cream);
 }
 
+@media (min-width: 1024px) {
+  #root {
+    max-width: 1280px;
+  }
+}
+
 .mono {
   font-family: 'IBM Plex Mono', monospace;
 }
