@@ -14,6 +14,8 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [cantidades, setCantidades] = useState({})
   const [agregando, setAgregando] = useState(null)
   const [pedidoDestino, setPedidoDestino] = useState('nuevo')
+  const [editandoCantidadId, setEditandoCantidadId] = useState(null)
+  const [cantidadDraft, setCantidadDraft] = useState('')
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -89,6 +91,34 @@ export default function PedidosFullView({ onUnauthorized }) {
     }, onUnauthorized)
       .then(() => fetchPipeline())
       .catch(() => fetchPipeline())
+  }
+
+  const empezarEdicionCantidad = (item) => {
+    setEditandoCantidadId(item.id)
+    setCantidadDraft(String(item.cantidad_total))
+  }
+
+  const guardarCantidad = (envioIdx, item) => {
+    const nuevoValor = parseInt(cantidadDraft, 10)
+    setEditandoCantidadId(null)
+    if (Number.isNaN(nuevoValor) || nuevoValor < 0) return
+
+    setEnvios((prev) => {
+      const copia = [...prev]
+      copia[envioIdx] = {
+        ...copia[envioIdx],
+        items: copia[envioIdx].items.map((it) =>
+          it.id === item.id ? { ...it, cantidad_total: nuevoValor } : it
+        ),
+      }
+      return copia
+    })
+
+    apiFetch(`/full/pipeline/${item.id}/cantidad`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cantidad: nuevoValor }),
+    }, onUnauthorized).catch(() => fetchPipeline())
   }
 
   const marcarEnviado = (envio) => {
@@ -206,7 +236,33 @@ export default function PedidosFullView({ onUnauthorized }) {
                   />
                   <div className="pick-title">
                     {item.titulo}
-                    <span className="id-cell mono">SKU: {item.sku} · Cantidad: {item.cantidad_total}</span>
+                    <span className="id-cell mono">
+                      SKU: {item.sku} · Cantidad:{' '}
+                      {editandoCantidadId === item.id ? (
+                        <span className="stock-edit">
+                          <input
+                            type="number"
+                            min="0"
+                            className="stock-input"
+                            value={cantidadDraft}
+                            autoFocus
+                            onChange={(e) => setCantidadDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') guardarCantidad(idx, item)
+                              if (e.key === 'Escape') setEditandoCantidadId(null)
+                            }}
+                          />
+                          <button className="stock-save-btn" onClick={() => guardarCantidad(idx, item)}>✓</button>
+                        </span>
+                      ) : (
+                        <span
+                          className="stock-value"
+                          onClick={(e) => { e.preventDefault(); empezarEdicionCantidad(item) }}
+                        >
+                          {item.cantidad_total} ✎
+                        </span>
+                      )}
+                    </span>
                   </div>
                 </div>
               ))}

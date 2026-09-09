@@ -27,6 +27,7 @@ export default function FullView({ onUnauthorized }) {
   const [textoPegado, setTextoPegado] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [resultadoPegado, setResultadoPegado] = useState(null)
+  const [cantidadesEditables, setCantidadesEditables] = useState({})
   const [enviosEnCurso, setEnviosEnCurso] = useState(null)
   const [pedidoElegido, setPedidoElegido] = useState('nuevo')
   const [agregandoLote, setAgregandoLote] = useState(false)
@@ -138,7 +139,7 @@ export default function FullView({ onUnauthorized }) {
       .map((r) => ({
         sku: r.sku,
         titulo: r.titulo,
-        cantidad: cantidadDeSugerencia(r.sugerencia_enviar),
+        cantidad: Number(cantidadesEditables[r.inventory_id]) || 1,
       }))
 
     if (items.length === 0) {
@@ -181,6 +182,11 @@ export default function FullView({ onUnauthorized }) {
       })
       .then((data) => {
         setResultadoPegado(data.items)
+        const iniciales = {}
+        data.items.forEach((r) => {
+          iniciales[r.inventory_id] = cantidadDeSugerencia(r.sugerencia_enviar)
+        })
+        setCantidadesEditables(iniciales)
         setProcesando(false)
       })
       .catch((err) => {
@@ -239,8 +245,24 @@ export default function FullView({ onUnauthorized }) {
                     SKU: {r.sku} {copiedSku === r.sku ? '✓' : '⧉'}
                   </button>
                 )}
-                {r.sugerencia_enviar && (
-                  <span className="badge badge-multi">Enviar {r.sugerencia_enviar}</span>
+                {r.encontrado && r.sku && (
+                  <span className="stock-edit">
+                    <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>Enviar:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className="stock-input"
+                      value={cantidadesEditables[r.inventory_id] ?? 1}
+                      onChange={(e) =>
+                        setCantidadesEditables((prev) => ({ ...prev, [r.inventory_id]: e.target.value }))
+                      }
+                    />
+                    {r.sugerencia_enviar && (
+                      <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>
+                        (ML sugería {r.sugerencia_enviar})
+                      </span>
+                    )}
+                  </span>
                 )}
               </div>
             ))}
