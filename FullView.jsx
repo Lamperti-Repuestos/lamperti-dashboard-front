@@ -52,21 +52,30 @@ export default function FullView({ onUnauthorized }) {
     )
   }, [items, query])
 
+  const [opsError, setOpsError] = useState({})
+
   const toggleExpand = (item) => {
     if (expandedId === item.item_id) {
       setExpandedId(null)
       return
     }
     setExpandedId(item.item_id)
-    if (!operaciones[item.inventory_id]) {
+    if (!operaciones[item.inventory_id] && !opsError[item.inventory_id]) {
       setLoadingOps(true)
       apiFetch(`/ml/full/operaciones/${item.inventory_id}`, {}, onUnauthorized)
-        .then((res) => res.json())
+        .then(async (res) => {
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
+          return data
+        })
         .then((data) => {
           setOperaciones((prev) => ({ ...prev, [item.inventory_id]: data.operaciones }))
           setLoadingOps(false)
         })
-        .catch(() => setLoadingOps(false))
+        .catch((err) => {
+          setOpsError((prev) => ({ ...prev, [item.inventory_id]: err.message }))
+          setLoadingOps(false)
+        })
     }
   }
 
@@ -143,6 +152,12 @@ export default function FullView({ onUnauthorized }) {
 
                     {loadingOps && !operaciones[item.inventory_id] && (
                       <div className="loading-state" style={{ padding: 12 }}>Cargando historial...</div>
+                    )}
+
+                    {opsError[item.inventory_id] && (
+                      <div className="error-state" style={{ padding: 12 }}>
+                        Error trayendo el historial: {opsError[item.inventory_id]}
+                      </div>
                     )}
 
                     {operaciones[item.inventory_id]?.length === 0 && (
