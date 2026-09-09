@@ -240,15 +240,17 @@ export default function PickingListView({ onUnauthorized }) {
           </button>
         </div>
 
-        <button className="sort-btn" onClick={() => { setOnlyChecked((v) => !v); setHideChecked(false) }}>
-          {onlyChecked ? '✓ ' : ''}Ver separados
-        </button>
-        <button className="sort-btn" onClick={() => { setHideChecked((v) => !v); setOnlyChecked(false) }}>
-          {hideChecked ? '✓ ' : ''}Ocultar separados
-        </button>
-        <button className="sort-btn" onClick={() => setOnlyFaltantes((v) => !v)}>
-          {onlyFaltantes ? '✓ ' : ''}Solo faltantes
-        </button>
+        <div className="toggle-group">
+          <button className="sort-btn" onClick={() => { setOnlyChecked((v) => !v); setHideChecked(false) }}>
+            {onlyChecked ? '✓ ' : ''}Ver separados
+          </button>
+          <button className="sort-btn" onClick={() => { setHideChecked((v) => !v); setOnlyChecked(false) }}>
+            {hideChecked ? '✓ ' : ''}Ocultar separados
+          </button>
+          <button className="sort-btn" onClick={() => setOnlyFaltantes((v) => !v)}>
+            {onlyFaltantes ? '✓ ' : ''}Solo faltantes
+          </button>
+        </div>
       </div>
 
       {!loading && !error && data && (

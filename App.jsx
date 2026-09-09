@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PublicationsView from './PublicationsView.jsx'
 import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
+
+const VIEWS = ['picking', 'publications', 'stock']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -27,6 +29,32 @@ export default function App() {
     setAuthed(false)
   }
 
+  // Swipe para cambiar de pestaña en celular (izquierda/derecha)
+  const touchStart = useRef(null)
+
+  const handleTouchStart = (e) => {
+    const t = e.touches[0]
+    touchStart.current = { x: t.clientX, y: t.clientY }
+  }
+
+  const handleTouchEnd = (e) => {
+    if (!touchStart.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - touchStart.current.x
+    const dy = t.clientY - touchStart.current.y
+    touchStart.current = null
+
+    // Ignoramos gestos cortos o mayormente verticales (eso es scroll normal)
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+
+    const currentIndex = VIEWS.indexOf(view)
+    if (dx < 0 && currentIndex < VIEWS.length - 1) {
+      setView(VIEWS[currentIndex + 1])
+    } else if (dx > 0 && currentIndex > 0) {
+      setView(VIEWS[currentIndex - 1])
+    }
+  }
+
   if (authed === null) {
     return <div className="loading-state">Cargando...</div>
   }
@@ -42,7 +70,6 @@ export default function App() {
           <img src={logo70} alt="Lamperti 70° Aniversario" className="header-logo" />
           <div className="header-text">
             <h1>Dashboard</h1>
-            <p className="header-tagline">Más de 70 años despachando repuestos en Warnes</p>
           </div>
         </div>
         <nav className="view-nav">
@@ -70,9 +97,11 @@ export default function App() {
         </nav>
       </header>
 
-      {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
-      {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
-      {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
+      <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
+        {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
+        {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
+      </div>
     </>
   )
 }
