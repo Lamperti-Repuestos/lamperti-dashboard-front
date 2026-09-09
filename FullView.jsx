@@ -24,6 +24,9 @@ export default function FullView({ onUnauthorized }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [sortMode, setSortMode] = useState('stock_asc') // stock_asc | stock_desc | alpha
+  const [ocultarSinStock, setOcultarSinStock] = useState(false)
+  const [soloSinStock, setSoloSinStock] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [operaciones, setOperaciones] = useState({})
   const [loadingOps, setLoadingOps] = useState(false)
@@ -45,12 +48,31 @@ export default function FullView({ onUnauthorized }) {
   }, [])
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return items
-    const q = query.trim().toLowerCase()
-    return items.filter(
-      (it) => it.title?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q)
-    )
-  }, [items, query])
+    let result = items
+
+    if (query.trim()) {
+      const q = query.trim().toLowerCase()
+      result = result.filter(
+        (it) => it.title?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q)
+      )
+    }
+
+    if (soloSinStock) {
+      result = result.filter((it) => it.available_quantity === 0)
+    } else if (ocultarSinStock) {
+      result = result.filter((it) => it.available_quantity > 0)
+    }
+
+    if (sortMode === 'stock_asc') {
+      result = [...result].sort((a, b) => a.available_quantity - b.available_quantity)
+    } else if (sortMode === 'stock_desc') {
+      result = [...result].sort((a, b) => b.available_quantity - a.available_quantity)
+    } else if (sortMode === 'alpha') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title, 'es'))
+    }
+
+    return result
+  }, [items, query, sortMode, ocultarSinStock, soloSinStock])
 
   const [opsError, setOpsError] = useState({})
 
@@ -91,6 +113,40 @@ export default function FullView({ onUnauthorized }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <div className="tabs">
+          <button
+            className={`tab ${sortMode === 'stock_asc' ? 'active' : ''}`}
+            onClick={() => setSortMode('stock_asc')}
+          >
+            Stock ↑
+          </button>
+          <button
+            className={`tab ${sortMode === 'stock_desc' ? 'active' : ''}`}
+            onClick={() => setSortMode('stock_desc')}
+          >
+            Stock ↓
+          </button>
+          <button
+            className={`tab ${sortMode === 'alpha' ? 'active' : ''}`}
+            onClick={() => setSortMode('alpha')}
+          >
+            A-Z
+          </button>
+        </div>
+        <div className="toggle-group">
+          <button
+            className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
+            onClick={() => { setSoloSinStock((v) => !v); setOcultarSinStock(false) }}
+          >
+            {soloSinStock ? '✓ ' : ''}Solo sin stock
+          </button>
+          <button
+            className={`sort-btn ${ocultarSinStock ? 'toggle-on-green' : ''}`}
+            onClick={() => { setOcultarSinStock((v) => !v); setSoloSinStock(false) }}
+          >
+            {ocultarSinStock ? '✓ ' : ''}Ocultar sin stock
+          </button>
+        </div>
       </div>
 
       {!loading && !error && (
