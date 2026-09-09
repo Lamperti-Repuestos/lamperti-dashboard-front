@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { setAuthHeader, clearAuthHeader } from './api.js'
+import logo70 from './logo-70.webp'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -37,7 +38,7 @@ export default function LoginForm({ onSuccess }) {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Lamperti · Dashboard ML</h1>
+        <img src={logo70} alt="Lamperti 70° Aniversario" className="login-logo" />
         <p>Ingresá con el usuario y contraseña del equipo.</p>
 
         <input

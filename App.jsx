@@ -4,6 +4,7 @@ import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
+import logo70 from './logo-70.webp'
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -37,7 +38,13 @@ export default function App() {
   return (
     <>
       <header className="header">
-        <h1>Lamperti · Dashboard ML</h1>
+        <div className="header-brand">
+          <img src={logo70} alt="Lamperti 70° Aniversario" className="header-logo" />
+          <div className="header-text">
+            <h1>Dashboard</h1>
+            <p className="header-tagline">Más de 70 años despachando repuestos en Warnes</p>
+          </div>
+        </div>
         <nav className="view-nav">
           <button
             className={`view-tab ${view === 'picking' ? 'active' : ''}`}
