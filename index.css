@@ -338,6 +338,61 @@ button {
   flex-shrink: 0;
   border: 1px solid var(--gray-line);
   background: var(--paused-bg);
+  cursor: pointer;
+}
+
+.row-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--gray-line);
+  background: var(--paused-bg);
+  cursor: pointer;
+}
+
+.title-cell a {
+  color: var(--charcoal);
+  text-decoration: none;
+}
+
+.title-cell a:hover {
+  color: var(--navy);
+  text-decoration: underline;
+}
+
+/* Lightbox */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 43, 107, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.lightbox-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: var(--white);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: var(--white);
+  color: var(--navy);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .pick-title {

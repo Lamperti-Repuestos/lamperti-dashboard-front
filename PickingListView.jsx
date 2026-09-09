@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 const REFRESH_MS = 3 * 60 * 1000 // se actualiza sola cada 3 minutos
 
@@ -9,7 +10,7 @@ const TIPO_LABELS = {
   acordar: 'Acordar entrega',
 }
 
-function ItemRow({ item, onToggleChecked, onToggleFaltante }) {
+function ItemRow({ item, onToggleChecked, onToggleFaltante, onZoom }) {
   return (
     <div
       className={`pick-row ${item.checked ? 'pick-row-checked' : ''} ${item.faltante ? 'pick-row-faltante' : ''}`}
@@ -21,7 +22,13 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante }) {
         onChange={() => onToggleChecked(item)}
       />
       {item.foto_url && (
-        <img src={item.foto_url} alt="" className="pick-thumb" loading="lazy" />
+        <img
+          src={item.foto_url}
+          alt=""
+          className="pick-thumb"
+          loading="lazy"
+          onClick={() => onZoom(item.foto_url)}
+        />
       )}
       <div className="pick-title">
         {item.title}
@@ -62,6 +69,7 @@ export default function PickingListView({ onUnauthorized }) {
   const [onlyChecked, setOnlyChecked] = useState(false)
   const [onlyFaltantes, setOnlyFaltantes] = useState(false)
   const [expanded, setExpanded] = useState(() => new Set())
+  const [zoomUrl, setZoomUrl] = useState(null)
 
   const toggleExpanded = (itemId) => {
     setExpanded((prev) => {
@@ -287,6 +295,7 @@ export default function PickingListView({ onUnauthorized }) {
                     item={{ ...p, cross_docking: 0, self_service: 0, acordar: 0, total: p.cantidad }}
                     onToggleChecked={() => toggleChecked(p)}
                     onToggleFaltante={() => toggleFaltante(p)}
+                    onZoom={setZoomUrl}
                   />
                 ))}
               </div>
@@ -294,7 +303,12 @@ export default function PickingListView({ onUnauthorized }) {
 
             {filtered.items.map((item) => (
               <div key={item.estado_id} className="pick-group">
-                <ItemRow item={item} onToggleChecked={toggleChecked} onToggleFaltante={toggleFaltante} />
+                <ItemRow
+                  item={item}
+                  onToggleChecked={toggleChecked}
+                  onToggleFaltante={toggleFaltante}
+                  onZoom={setZoomUrl}
+                />
 
                 <button
                   type="button"
@@ -320,6 +334,8 @@ export default function PickingListView({ onUnauthorized }) {
           </>
         )}
       </div>
+
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
     </>
   )
 }

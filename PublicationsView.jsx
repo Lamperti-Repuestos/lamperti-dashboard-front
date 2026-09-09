@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 function formatPrice(value) {
   return new Intl.NumberFormat('es-AR', {
@@ -16,6 +17,7 @@ export default function PublicationsView({ onUnauthorized }) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortByStockAsc, setSortByStockAsc] = useState(false)
+  const [zoomUrl, setZoomUrl] = useState(null)
 
   useEffect(() => {
     apiFetch('/ml/items', {}, onUnauthorized)
@@ -148,8 +150,23 @@ export default function PublicationsView({ onUnauthorized }) {
 
             {visible.map((item) => (
               <div className="row" key={item.id}>
+                {item.foto_url && (
+                  <img
+                    src={item.foto_url}
+                    alt=""
+                    className="row-thumb"
+                    loading="lazy"
+                    onClick={() => setZoomUrl(item.foto_url)}
+                  />
+                )}
                 <div className="title-cell">
-                  {item.title}
+                  {item.permalink ? (
+                    <a href={item.permalink} target="_blank" rel="noopener noreferrer">
+                      {item.title}
+                    </a>
+                  ) : (
+                    item.title
+                  )}
                   <span className="id-cell mono">{item.id} · SKU: {item.sku}</span>
                 </div>
                 <div className="price-cell mono">{formatPrice(item.price)}</div>
@@ -165,6 +182,8 @@ export default function PublicationsView({ onUnauthorized }) {
           </>
         )}
       </div>
+
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
     </>
   )
 }
