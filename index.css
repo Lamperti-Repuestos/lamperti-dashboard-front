@@ -235,6 +235,36 @@ button {
   color: #2E7D46;
 }
 
+/* Edición de stock */
+.stock-value {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--gray-muted);
+}
+
+.stock-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stock-input {
+  width: 56px;
+  padding: 4px 6px;
+  border: 1px solid var(--navy);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+}
+
+.stock-save-btn {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: none;
+  background: #2E7D46;
+  color: var(--white);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Cortes (Flex / Colecta) */
 .corte-inputs {
   display: flex;

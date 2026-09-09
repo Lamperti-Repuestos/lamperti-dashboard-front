@@ -116,6 +116,40 @@ export default function PublicationsView({ onUnauthorized }) {
       })
   }
 
+  const [editingStockId, setEditingStockId] = useState(null)
+  const [stockDraft, setStockDraft] = useState('')
+
+  const empezarEdicionStock = (item) => {
+    setEditingStockId(item.id)
+    setStockDraft(String(item.available_quantity))
+  }
+
+  const guardarStock = (item) => {
+    const nuevoValor = parseInt(stockDraft, 10)
+    if (Number.isNaN(nuevoValor) || nuevoValor < 0) {
+      setEditingStockId(null)
+      return
+    }
+    const anterior = item.available_quantity
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, available_quantity: nuevoValor } : it))
+    )
+    setEditingStockId(null)
+    apiFetch(`/ml/items/${item.id}/stock`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ available_quantity: nuevoValor }),
+    }, onUnauthorized)
+      .then((res) => {
+        if (!res.ok) throw new Error()
+      })
+      .catch(() => {
+        setItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, available_quantity: anterior } : it))
+        )
+      })
+  }
+
   const accionEnLote = (nuevoEstado) => {
     const ids = Array.from(selected)
     if (ids.length === 0) return
@@ -291,7 +325,27 @@ export default function PublicationsView({ onUnauthorized }) {
                 </div>
                 <div className="price-cell mono">{formatPrice(item.price)}</div>
                 <div className={`stock-cell mono ${item.available_quantity <= 3 ? 'low' : ''}`}>
-                  {item.available_quantity}
+                  {editingStockId === item.id ? (
+                    <span className="stock-edit">
+                      <input
+                        type="number"
+                        min="0"
+                        className="stock-input"
+                        value={stockDraft}
+                        autoFocus
+                        onChange={(e) => setStockDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') guardarStock(item)
+                          if (e.key === 'Escape') setEditingStockId(null)
+                        }}
+                      />
+                      <button className="stock-save-btn" onClick={() => guardarStock(item)}>✓</button>
+                    </span>
+                  ) : (
+                    <span onClick={() => empezarEdicionStock(item)} className="stock-value">
+                      {item.available_quantity} ✎
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
