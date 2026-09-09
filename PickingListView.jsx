@@ -27,7 +27,7 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante, onZoom }) {
           alt=""
           className="pick-thumb"
           loading="lazy"
-          onClick={() => onZoom(item.foto_url)}
+          onClick={() => onZoom(item.foto_grande || item.foto_url)}
         />
       )}
       <div className="pick-title">
