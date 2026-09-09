@@ -20,6 +20,9 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante }) {
         checked={item.checked}
         onChange={() => onToggleChecked(item)}
       />
+      {item.foto_url && (
+        <img src={item.foto_url} alt="" className="pick-thumb" loading="lazy" />
+      )}
       <div className="pick-title">
         {item.title}
         <span className="id-cell mono">SKU: {item.sku}</span>

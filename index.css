@@ -331,6 +331,15 @@ button {
   cursor: pointer;
 }
 
+.pick-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--gray-line);
+  background: var(--paused-bg);
+}
+
 .pick-title {
   flex: 1 1 auto;
   min-width: 160px;
