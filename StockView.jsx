@@ -74,6 +74,8 @@ export default function StockView({ onUnauthorized }) {
   const [revirtiendoId, setRevirtiendoId] = useState(null)
   const [revertirError, setRevertirError] = useState(null)
 
+  const [revertirInfo, setRevertirInfo] = useState(null)
+
   const revertirCambio = (alerta) => {
     if (!confirm(
       `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades ` +
@@ -82,16 +84,28 @@ export default function StockView({ onUnauthorized }) {
 
     setRevirtiendoId(alerta.id)
     setRevertirError(null)
+    setRevertirInfo(null)
     apiFetch(`/ml/stock/alerts/${alerta.id}/revertir`, { method: 'POST' }, onUnauthorized)
       .then((res) => {
         if (!res.ok) return res.json().then((data) => { throw new Error(data.detail || 'Error') })
         return res.json()
       })
-      .then(() => {
+      .then((data) => {
         setAlerts((prev) =>
           prev.map((a) => (a.id === alerta.id ? { ...a, revisado: true, revertido: true } : a))
         )
         setRevirtiendoId(null)
+
+        const c = data.contabilium
+        if (!c || !c.intentado) {
+          setRevertirInfo('Revertido en ML. Contabilium no está conectado todavía - actualizalo a mano ahí.')
+        } else if (c.ok && c.simulado) {
+          setRevertirInfo(`Revertido en ML. Contabilium en modo simulación (no escribió nada real).`)
+        } else if (c.ok) {
+          setRevertirInfo('Revertido en ML y en Contabilium. ✅')
+        } else {
+          setRevertirInfo(`Revertido en ML, pero Contabilium dio error: ${c.error}`)
+        }
       })
       .catch((err) => {
         setRevertirError(`No se pudo revertir "${alerta.title}": ${err.message}`)
@@ -134,6 +148,7 @@ export default function StockView({ onUnauthorized }) {
         {loading && <div className="loading-state">Cargando alertas...</div>}
         {error && <div className="error-state">Error: {error}</div>}
         {revertirError && <div className="error-state">{revertirError}</div>}
+        {revertirInfo && <div className="scan-result">{revertirInfo}</div>}
 
         {!loading && !error && (
           <>
