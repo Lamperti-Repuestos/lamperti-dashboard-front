@@ -15,6 +15,7 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [importando, setImportando] = useState(false)
+  const [diasImport, setDiasImport] = useState(45)
   const [importMsg, setImportMsg] = useState(null)
   const [enviandoTodo, setEnviandoTodo] = useState(false)
 
@@ -40,7 +41,7 @@ export default function PedidosFullView({ onUnauthorized }) {
   const importar = () => {
     setImportando(true)
     setImportMsg(null)
-    apiFetch('/full/pipeline/importar', { method: 'POST' }, onUnauthorized)
+    apiFetch(`/full/pipeline/importar?dias=${diasImport}`, { method: 'POST' }, onUnauthorized)
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.detail || 'Error')
@@ -107,6 +108,17 @@ export default function PedidosFullView({ onUnauthorized }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <label className="corte-label">
+          Días hacia atrás
+          <input
+            type="number"
+            className="corte-input"
+            value={diasImport}
+            onChange={(e) => setDiasImport(Number(e.target.value))}
+            min={1}
+            style={{ width: 70 }}
+          />
+        </label>
         <button className="scan-btn" onClick={importar} disabled={importando}>
           {importando ? 'Importando...' : '📥 Importar del Sheet'}
         </button>
