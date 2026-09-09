@@ -16,6 +16,7 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [pedidoDestino, setPedidoDestino] = useState('nuevo')
   const [editandoCantidadId, setEditandoCantidadId] = useState(null)
   const [cantidadDraft, setCantidadDraft] = useState('')
+  const [vistaGrande, setVistaGrande] = useState({})
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -33,6 +34,7 @@ export default function PedidosFullView({ onUnauthorized }) {
   useEffect(() => {
     setLoading(true)
     fetchPipeline()
+    cargarCatalogo()
   }, [])
 
   const cargarCatalogo = () => {
@@ -52,6 +54,12 @@ export default function PedidosFullView({ onUnauthorized }) {
       .filter((it) => it.title?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q))
       .slice(0, 15)
   }, [catalogo, buscarQuery])
+
+  const fotoPorSku = useMemo(() => {
+    const mapa = {}
+    catalogo.forEach((it) => { if (it.sku) mapa[it.sku] = it.foto_url })
+    return mapa
+  }, [catalogo])
 
   const agregarProducto = (item) => {
     const cantidad = cantidades[item.id] || 1
@@ -211,11 +219,18 @@ export default function PedidosFullView({ onUnauthorized }) {
 
         {!loading && !error && envios.map((envio, idx) => {
           const embalados = envio.items.filter((it) => it.estado === 'embalado').length
+          const grande = vistaGrande[envio.pedido_id]
           return (
             <div key={envio.pedido_id} className="multi-group">
               <div className="multi-group-header">
                 <span className="badge badge-multi">{envio.nombre}</span>
                 <span className="multi-meta mono">{embalados}/{envio.items.length} embalados</span>
+                <button
+                  className="sort-btn"
+                  onClick={() => setVistaGrande((prev) => ({ ...prev, [envio.pedido_id]: !prev[envio.pedido_id] }))}
+                >
+                  {grande ? '↙ Vista normal' : '🔍 Vista grande'}
+                </button>
                 <button
                   className="scan-btn"
                   style={{ marginLeft: 'auto' }}
@@ -227,13 +242,23 @@ export default function PedidosFullView({ onUnauthorized }) {
               </div>
 
               {envio.items.map((item) => (
-                <div key={item.id} className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''}`}>
+                <div
+                  key={item.id}
+                  className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''} ${grande ? 'pick-row-grande' : ''}`}
+                >
                   <input
                     type="checkbox"
-                    className="pick-checkbox"
+                    className={`pick-checkbox ${grande ? 'pick-checkbox-grande' : ''}`}
                     checked={item.estado === 'embalado'}
                     onChange={() => toggleEmbalado(idx, item)}
                   />
+                  {fotoPorSku[item.sku] && (
+                    <img
+                      src={fotoPorSku[item.sku]}
+                      alt=""
+                      className={grande ? 'pick-thumb-grande' : 'pick-thumb'}
+                    />
+                  )}
                   <div className="pick-title">
                     {item.titulo}
                     <span className="id-cell mono">
