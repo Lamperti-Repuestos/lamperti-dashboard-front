@@ -127,6 +127,9 @@ export default function StockView({ onUnauthorized }) {
             style={{ width: 90 }}
           />
         </label>
+        <span className="umbral-hint">
+          Las pausas por quedar en 0 sin venta que lo explique se avisan siempre, aunque sean chicas
+        </span>
 
         <button className="scan-btn" onClick={handleScan} disabled={scanning}>
           {scanning ? 'Escaneando...' : '🔍 Escanear ahora'}
@@ -171,7 +174,12 @@ export default function StockView({ onUnauthorized }) {
                   {a.title}
                   <span className="id-cell mono">SKU: {a.sku}</span>
                   {a.revertido && <span className="badge badge-revertido">↩ Revertido</span>}
-                  {!a.revertido && a.diferencia < 0 && (
+                  {!a.revertido && a.motivo === 'pausa' && (
+                    <span className="badge badge-sin-explicar">
+                      ⏸ Se pausó sola - sin venta que lo justifique
+                    </span>
+                  )}
+                  {!a.revertido && a.motivo !== 'pausa' && a.diferencia < 0 && (
                     a.diferencia_no_explicada >= 0 ? (
                       <span className="badge badge-explicada">
                         ✅ Explicada por ventas ({a.ventas_periodo})

@@ -775,6 +775,13 @@ button {
   cursor: default;
 }
 
+.umbral-hint {
+  font-size: 11px;
+  color: var(--gray-muted);
+  max-width: 260px;
+  line-height: 1.3;
+}
+
 .scan-result {
   padding: 10px var(--pad);
   font-size: 13px;
