@@ -16,10 +16,16 @@ export default function PublicationsView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortByStockAsc, setSortByStockAsc] = useState(false)
+  const [soloSinStock, setSoloSinStock] = useState(false)
+  const [sortMode, setSortMode] = useState('none') // none | stock | price | alpha
   const [zoomUrl, setZoomUrl] = useState(null)
+  const [selected, setSelected] = useState(() => new Set())
+  const [copiedId, setCopiedId] = useState(null)
+  const [bulkWorking, setBulkWorking] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState(null)
 
-  useEffect(() => {
+  const fetchItems = () => {
+    setLoading(true)
     apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => {
         if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
@@ -33,13 +39,19 @@ export default function PublicationsView({ onUnauthorized }) {
         setError(err.message)
         setLoading(false)
       })
-  }, [])
+  }
+
+  useEffect(fetchItems, [])
 
   const filtered = useMemo(() => {
     let result = items
 
     if (statusFilter !== 'all') {
       result = result.filter((it) => it.status === statusFilter)
+    }
+
+    if (soloSinStock) {
+      result = result.filter((it) => it.available_quantity === 0)
     }
 
     if (query.trim()) {
@@ -49,14 +61,16 @@ export default function PublicationsView({ onUnauthorized }) {
       )
     }
 
-    if (sortByStockAsc) {
-      result = [...result].sort(
-        (a, b) => a.available_quantity - b.available_quantity
-      )
+    if (sortMode === 'stock') {
+      result = [...result].sort((a, b) => a.available_quantity - b.available_quantity)
+    } else if (sortMode === 'price') {
+      result = [...result].sort((a, b) => a.price - b.price)
+    } else if (sortMode === 'alpha') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title, 'es'))
     }
 
     return result
-  }, [items, query, statusFilter, sortByStockAsc])
+  }, [items, query, statusFilter, soloSinStock, sortMode])
 
   // Sin búsqueda, mostramos solo las primeras 20 para no abrumar.
   // Apenas escriben algo en el buscador, se busca sobre TODAS las publicaciones.
@@ -64,7 +78,73 @@ export default function PublicationsView({ onUnauthorized }) {
 
   const activeCount = items.filter((it) => it.status === 'active').length
   const pausedCount = items.filter((it) => it.status === 'paused').length
-  const lowStockCount = items.filter((it) => it.available_quantity <= 3).length
+  const sinStockCount = items.filter((it) => it.available_quantity === 0).length
+
+  const toggleSelected = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const copySku = (item) => {
+    navigator.clipboard.writeText(item.sku).then(() => {
+      setCopiedId(item.id)
+      setTimeout(() => setCopiedId(null), 1500)
+    })
+  }
+
+  const cambiarEstado = (item, nuevoEstado) => {
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, status: nuevoEstado } : it))
+    )
+    apiFetch(`/ml/items/${item.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nuevoEstado }),
+    }, onUnauthorized)
+      .then((res) => {
+        if (!res.ok) throw new Error()
+      })
+      .catch(() => {
+        // revertimos si falló
+        setItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, status: item.status } : it))
+        )
+      })
+  }
+
+  const accionEnLote = (nuevoEstado) => {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setBulkWorking(true)
+    setBulkMsg(null)
+    apiFetch('/ml/items/bulk-status', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: ids, status: nuevoEstado }),
+    }, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => {
+        setItems((prev) =>
+          prev.map((it) =>
+            data.exitosos.includes(it.id) ? { ...it, status: nuevoEstado } : it
+          )
+        )
+        setBulkMsg(
+          `${data.exitosos.length} actualizadas` +
+          (data.fallidos.length > 0 ? `, ${data.fallidos.length} fallaron` : '')
+        )
+        setSelected(new Set())
+        setBulkWorking(false)
+      })
+      .catch(() => {
+        setBulkMsg('Error al aplicar los cambios.')
+        setBulkWorking(false)
+      })
+  }
 
   return (
     <>
@@ -97,11 +177,31 @@ export default function PublicationsView({ onUnauthorized }) {
           </button>
         </div>
         <button
-          className="sort-btn"
-          onClick={() => setSortByStockAsc((v) => !v)}
+          className={`sort-btn ${soloSinStock ? 'active-outline' : ''}`}
+          onClick={() => setSoloSinStock((v) => !v)}
         >
-          {sortByStockAsc ? '✓ ' : ''}Ordenar por stock ↑
+          {soloSinStock ? '✓ ' : ''}Sin stock
         </button>
+        <div className="tabs">
+          <button
+            className={`tab ${sortMode === 'stock' ? 'active' : ''}`}
+            onClick={() => setSortMode((m) => (m === 'stock' ? 'none' : 'stock'))}
+          >
+            Stock ↑
+          </button>
+          <button
+            className={`tab ${sortMode === 'price' ? 'active' : ''}`}
+            onClick={() => setSortMode((m) => (m === 'price' ? 'none' : 'price'))}
+          >
+            Precio ↑
+          </button>
+          <button
+            className={`tab ${sortMode === 'alpha' ? 'active' : ''}`}
+            onClick={() => setSortMode((m) => (m === 'alpha' ? 'none' : 'alpha'))}
+          >
+            A-Z
+          </button>
+        </div>
       </div>
 
       {!loading && !error && (
@@ -119,9 +219,25 @@ export default function PublicationsView({ onUnauthorized }) {
             <div className="label">Pausadas</div>
           </div>
           <div className="summary-item warn">
-            <div className="value mono">{lowStockCount}</div>
-            <div className="label">Stock ≤ 3 unidades</div>
+            <div className="value mono">{sinStockCount}</div>
+            <div className="label">Sin stock</div>
           </div>
+        </div>
+      )}
+
+      {selected.size > 0 && (
+        <div className="bulk-bar">
+          <span>{selected.size} seleccionada(s)</span>
+          <button className="scan-btn" disabled={bulkWorking} onClick={() => accionEnLote('paused')}>
+            Pausar seleccionadas
+          </button>
+          <button className="scan-btn" disabled={bulkWorking} onClick={() => accionEnLote('active')}>
+            Activar seleccionadas
+          </button>
+          <button className="sort-btn" onClick={() => setSelected(new Set())}>
+            Cancelar
+          </button>
+          {bulkMsg && <span className="bulk-msg">{bulkMsg}</span>}
         </div>
       )}
 
@@ -131,13 +247,6 @@ export default function PublicationsView({ onUnauthorized }) {
 
         {!loading && !error && (
           <>
-            <div className="row row-head">
-              <span>Publicación</span>
-              <span style={{ textAlign: 'right' }}>Precio</span>
-              <span style={{ textAlign: 'right' }}>Stock</span>
-              <span></span>
-            </div>
-
             {visible.length === 0 && (
               <div className="empty-state">No hay publicaciones para este filtro.</div>
             )}
@@ -150,13 +259,19 @@ export default function PublicationsView({ onUnauthorized }) {
 
             {visible.map((item) => (
               <div className="row" key={item.id}>
+                <input
+                  type="checkbox"
+                  className="pick-checkbox"
+                  checked={selected.has(item.id)}
+                  onChange={() => toggleSelected(item.id)}
+                />
                 {item.foto_url && (
                   <img
                     src={item.foto_url}
                     alt=""
                     className="row-thumb"
                     loading="lazy"
-                    onClick={() => setZoomUrl(item.foto_grande || item.foto_url)}
+                    onClick={() => setZoomUrl(item.foto_url)}
                   />
                 )}
                 <div className="title-cell">
@@ -167,12 +282,24 @@ export default function PublicationsView({ onUnauthorized }) {
                   ) : (
                     item.title
                   )}
-                  <span className="id-cell mono">{item.id} · SKU: {item.sku}</span>
+                  <span className="id-cell mono">
+                    {item.id} · SKU: {item.sku}
+                    <button className="copy-sku-btn" onClick={() => copySku(item)}>
+                      {copiedId === item.id ? '✓' : '⧉'}
+                    </button>
+                  </span>
                 </div>
                 <div className="price-cell mono">{formatPrice(item.price)}</div>
                 <div className={`stock-cell mono ${item.available_quantity <= 3 ? 'low' : ''}`}>
                   {item.available_quantity}
                 </div>
+                <button
+                  type="button"
+                  className={`pause-btn ${item.status === 'paused' ? 'pause-btn-paused' : ''}`}
+                  onClick={() => cambiarEstado(item, item.status === 'active' ? 'paused' : 'active')}
+                >
+                  {item.status === 'active' ? 'Pausar' : 'Activar'}
+                </button>
                 <div className="status-badge">
                   <span className={`status-dot ${item.status}`}></span>
                   {item.status === 'active' ? 'Activa' : 'Pausada'}

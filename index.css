@@ -177,6 +177,64 @@ button {
   border-color: var(--navy);
 }
 
+.sort-btn.active-outline {
+  border-color: var(--navy);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+/* Selección múltiple y acción en lote */
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px var(--pad);
+  background: #FFF9D6;
+  border-bottom: 1px solid var(--gray-line);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bulk-msg {
+  font-size: 12px;
+  color: var(--gray-muted);
+  font-weight: 400;
+}
+
+/* Copiar SKU */
+.copy-sku-btn {
+  background: none;
+  border: none;
+  color: var(--gray-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 0 0 6px;
+  vertical-align: middle;
+}
+
+.copy-sku-btn:hover {
+  color: var(--navy);
+}
+
+/* Pausar/activar */
+.pause-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--navy);
+  background: var(--white);
+  color: var(--navy);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pause-btn-paused {
+  border-color: #2E7D46;
+  color: #2E7D46;
+}
+
 /* Cortes (Flex / Colecta) */
 .corte-inputs {
   display: flex;
