@@ -71,6 +71,34 @@ export default function StockView({ onUnauthorized }) {
     })
   }
 
+  const [revirtiendoId, setRevirtiendoId] = useState(null)
+  const [revertirError, setRevertirError] = useState(null)
+
+  const revertirCambio = (alerta) => {
+    if (!confirm(
+      `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades ` +
+      `(el valor de antes del cambio)?`
+    )) return
+
+    setRevirtiendoId(alerta.id)
+    setRevertirError(null)
+    apiFetch(`/ml/stock/alerts/${alerta.id}/revertir`, { method: 'POST' }, onUnauthorized)
+      .then((res) => {
+        if (!res.ok) return res.json().then((data) => { throw new Error(data.detail || 'Error') })
+        return res.json()
+      })
+      .then(() => {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === alerta.id ? { ...a, revisado: true, revertido: true } : a))
+        )
+        setRevirtiendoId(null)
+      })
+      .catch((err) => {
+        setRevertirError(`No se pudo revertir "${alerta.title}": ${err.message}`)
+        setRevirtiendoId(null)
+      })
+  }
+
   return (
     <>
       <div className="controls">
@@ -105,6 +133,7 @@ export default function StockView({ onUnauthorized }) {
       <div className="list">
         {loading && <div className="loading-state">Cargando alertas...</div>}
         {error && <div className="error-state">Error: {error}</div>}
+        {revertirError && <div className="error-state">{revertirError}</div>}
 
         {!loading && !error && (
           <>
@@ -126,7 +155,8 @@ export default function StockView({ onUnauthorized }) {
                 <div className="alert-title">
                   {a.title}
                   <span className="id-cell mono">SKU: {a.sku}</span>
-                  {a.diferencia < 0 && (
+                  {a.revertido && <span className="badge badge-revertido">↩ Revertido</span>}
+                  {!a.revertido && a.diferencia < 0 && (
                     a.diferencia_no_explicada >= 0 ? (
                       <span className="badge badge-explicada">
                         ✅ Explicada por ventas ({a.ventas_periodo})
@@ -144,6 +174,15 @@ export default function StockView({ onUnauthorized }) {
                 <div className={`alert-diff mono ${a.diferencia < 0 ? 'diff-neg' : 'diff-pos'}`}>
                   {a.diferencia > 0 ? '+' : ''}{a.diferencia}
                 </div>
+                {!a.revertido && (
+                  <button
+                    className="revert-btn"
+                    onClick={() => revertirCambio(a)}
+                    disabled={revirtiendoId === a.id}
+                  >
+                    {revirtiendoId === a.id ? 'Revirtiendo...' : `↩ Volver a ${a.stock_anterior}`}
+                  </button>
+                )}
                 <div className="alert-time mono">
                   {new Date(a.detected_at).toLocaleString('es-AR', {
                     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',

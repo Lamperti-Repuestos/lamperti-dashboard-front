@@ -816,6 +816,31 @@ button {
   white-space: nowrap;
 }
 
+.badge-revertido {
+  background: var(--navy);
+  margin-left: 0;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.revert-btn {
+  padding: 7px 10px;
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--navy);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.revert-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Login */
 .login-screen {
   min-height: 100vh;
