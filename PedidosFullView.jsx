@@ -129,6 +129,12 @@ export default function PedidosFullView({ onUnauthorized }) {
     }, onUnauthorized).catch(() => fetchPipeline())
   }
 
+  const borrarEnvio = (envio) => {
+    if (!confirm(`¿Borrar "${envio.nombre}" entero (${envio.items.length} productos)? No se puede deshacer.`)) return
+    apiFetch(`/full/envios/${envio.pedido_id}`, { method: 'DELETE' }, onUnauthorized)
+      .then(() => fetchPipeline())
+  }
+
   const marcarEnviado = (envio) => {
     const faltan = envio.items.filter((it) => it.estado !== 'embalado').length
     if (faltan > 0) {
@@ -238,6 +244,9 @@ export default function PedidosFullView({ onUnauthorized }) {
                   onClick={() => marcarEnviado(envio)}
                 >
                   🚚 Marcar como enviado
+                </button>
+                <button className="revert-btn" onClick={() => borrarEnvio(envio)}>
+                  🗑 Borrar
                 </button>
               </div>
 
