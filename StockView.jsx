@@ -176,17 +176,17 @@ export default function StockView({ onUnauthorized }) {
                   {a.revertido && <span className="badge badge-revertido">↩ Revertido</span>}
                   {!a.revertido && a.motivo === 'pausa' && (
                     <span className="badge badge-sin-explicar">
-                      ⏸ Se pausó sola - sin venta que lo justifique
+                      ⏸ Se pausó al quedar en 0 - revisar (¿venta de mostrador?)
                     </span>
                   )}
                   {!a.revertido && a.motivo !== 'pausa' && a.diferencia < 0 && (
                     a.diferencia_no_explicada >= 0 ? (
                       <span className="badge badge-explicada">
-                        ✅ Explicada por ventas ({a.ventas_periodo})
+                        ✅ Coincide con ventas ML ({a.ventas_periodo})
                       </span>
                     ) : (
                       <span className="badge badge-sin-explicar">
-                        🚨 Sin explicar: {a.diferencia_no_explicada}
+                        ⚠️ No coincide con ventas ML ({a.diferencia_no_explicada}) - revisar
                       </span>
                     )
                   )}
