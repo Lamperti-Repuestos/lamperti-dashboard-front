@@ -47,10 +47,17 @@ export default function PedidosFullView({ onUnauthorized }) {
         return data
       })
       .then((data) => {
-        setImportMsg(
-          `${data.nuevos_agregados} producto(s) nuevo(s) importado(s)` +
+        let msg = `${data.nuevos_agregados} producto(s) nuevo(s) importado(s)` +
           (data.para_revisar_a_mano > 0 ? ` (${data.para_revisar_a_mano} para revisar a mano)` : '')
-        )
+
+        const raros = data.estados_raros_por_proveedor || {}
+        const proveedoresConRaros = Object.keys(raros)
+        if (proveedoresConRaros.length > 0) {
+          msg += '. ⚠ Estados raros encontrados (revisá el typo en el Sheet): ' +
+            proveedoresConRaros.map((p) => `${p}: "${raros[p].join('", "')}"`).join(' · ')
+        }
+
+        setImportMsg(msg)
         setImportando(false)
         fetchPipeline()
       })
@@ -143,6 +150,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                 {item.titulo}
                 <span className="id-cell mono">
                   SKU: {item.sku} · Total: {item.cantidad_total}
+                  {item.proveedor && ` · ${item.proveedor}`}
                   {item.cantidad_full != null && ` (${item.cantidad_full} Full / ${item.cantidad_local} local)`}
                   {item.revisar_manual && ' · ⚠ revisar reparto Full/local a mano'}
                 </span>
