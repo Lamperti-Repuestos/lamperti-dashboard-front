@@ -18,6 +18,8 @@ export default function PublicationsView({ onUnauthorized }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [soloSinStock, setSoloSinStock] = useState(false)
   const [sortMode, setSortMode] = useState('none') // none | stock | price | alpha
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
   const [zoomUrl, setZoomUrl] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
   const [copiedId, setCopiedId] = useState(null)
@@ -74,7 +76,13 @@ export default function PublicationsView({ onUnauthorized }) {
 
   // Sin búsqueda, mostramos solo las primeras 20 para no abrumar.
   // Apenas escriben algo en el buscador, se busca sobre TODAS las publicaciones.
-  const visible = query.trim() ? filtered : filtered.slice(0, 20)
+  // Volvemos a la página 1 cada vez que cambia un filtro, búsqueda u orden
+  useEffect(() => {
+    setPage(1)
+  }, [query, statusFilter, soloSinStock, sortMode])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const activeCount = items.filter((it) => it.status === 'active').length
   const pausedCount = items.filter((it) => it.status === 'paused').length
@@ -285,9 +293,25 @@ export default function PublicationsView({ onUnauthorized }) {
               <div className="empty-state">No hay publicaciones para este filtro.</div>
             )}
 
-            {!query.trim() && filtered.length > 20 && (
-              <div className="hint-more">
-                Mostrando 20 de {filtered.length}. Escribí en el buscador para encontrar cualquier otra.
+            {filtered.length > 0 && (
+              <div className="pagination">
+                <button
+                  className="sort-btn"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  ← Anterior
+                </button>
+                <span className="pagination-label">
+                  Página {page} de {totalPages} ({filtered.length} publicaciones)
+                </span>
+                <button
+                  className="sort-btn"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Siguiente →
+                </button>
               </div>
             )}
 
@@ -360,6 +384,28 @@ export default function PublicationsView({ onUnauthorized }) {
                 </div>
               </div>
             ))}
+
+            {filtered.length > PAGE_SIZE && (
+              <div className="pagination">
+                <button
+                  className="sort-btn"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  ← Anterior
+                </button>
+                <span className="pagination-label">
+                  Página {page} de {totalPages}
+                </span>
+                <button
+                  className="sort-btn"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

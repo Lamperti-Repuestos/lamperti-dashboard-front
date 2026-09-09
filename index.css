@@ -410,6 +410,26 @@ button {
   text-align: center;
 }
 
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.pagination-label {
+  font-size: 13px;
+  color: var(--gray-muted);
+  white-space: nowrap;
+}
+
+.sort-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Picking list */
 .pick-checkbox {
   width: 22px;
