@@ -1,12 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
-
-const ETAPAS = [
-  { key: 'por_pedir', label: 'Por pedir', color: '#4A4A44' },
-  { key: 'pedido', label: 'Pedido', color: '#B8860B' },
-  { key: 'llego', label: 'Llegó', color: '#1A2B6B' },
-  { key: 'embalado', label: 'Embalado', color: '#B23A2E' },
-]
 
 export default function PedidosFullView({ onUnauthorized }) {
   const [items, setItems] = useState([])
@@ -14,10 +7,14 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
-  const [importando, setImportando] = useState(false)
-  const [diasImport, setDiasImport] = useState(45)
-  const [importMsg, setImportMsg] = useState(null)
   const [enviandoTodo, setEnviandoTodo] = useState(false)
+
+  // Para buscar y agregar productos
+  const [catalogo, setCatalogo] = useState([])
+  const [catalogoCargado, setCatalogoCargado] = useState(false)
+  const [buscarQuery, setBuscarQuery] = useState('')
+  const [cantidades, setCantidades] = useState({})
+  const [agregando, setAgregando] = useState(null)
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -38,38 +35,52 @@ export default function PedidosFullView({ onUnauthorized }) {
     fetchPipeline()
   }, [])
 
-  const importar = () => {
-    setImportando(true)
-    setImportMsg(null)
-    apiFetch(`/full/pipeline/importar?dias=${diasImport}`, { method: 'POST' }, onUnauthorized)
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || 'Error')
-        return data
-      })
+  const cargarCatalogo = () => {
+    if (catalogoCargado) return
+    apiFetch('/ml/items', {}, onUnauthorized)
+      .then((res) => res.json())
       .then((data) => {
-        let msg = `${data.nuevos_agregados} producto(s) nuevo(s) importado(s)` +
-          (data.para_revisar_a_mano > 0 ? ` (${data.para_revisar_a_mano} para revisar a mano)` : '')
-
-        const raros = data.estados_raros_por_proveedor || {}
-        const proveedoresConRaros = Object.keys(raros)
-        if (proveedoresConRaros.length > 0) {
-          msg += '. ⚠ Estados raros encontrados (revisá el typo en el Sheet): ' +
-            proveedoresConRaros.map((p) => `${p}: "${raros[p].join('", "')}"`).join(' · ')
-        }
-
-        setImportMsg(msg)
-        setImportando(false)
-        fetchPipeline()
-      })
-      .catch((err) => {
-        setImportMsg(`Error: ${err.message}`)
-        setImportando(false)
+        setCatalogo(data.items || [])
+        setCatalogoCargado(true)
       })
   }
 
-  const avanzar = (item, direccion = 'adelante') => {
-    setItems((prev) => prev.filter((it) => it.id !== item.id || direccion === 'atras'))
+  const coincidencias = useMemo(() => {
+    if (!buscarQuery.trim()) return []
+    const q = buscarQuery.trim().toLowerCase()
+    return catalogo
+      .filter((it) => it.title?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q))
+      .slice(0, 15)
+  }, [catalogo, buscarQuery])
+
+  const agregarProducto = (item) => {
+    const cantidad = cantidades[item.id] || 1
+    setAgregando(item.id)
+    apiFetch('/full/pipeline/agregar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: item.id,
+        sku: item.sku,
+        titulo: item.title,
+        cantidad: Number(cantidad),
+      }),
+    }, onUnauthorized)
+      .then(() => {
+        setAgregando(null)
+        setBuscarQuery('')
+        fetchPipeline()
+      })
+      .catch(() => setAgregando(null))
+  }
+
+  const toggleEmbalado = (item) => {
+    const direccion = item.estado === 'embalado' ? 'atras' : 'adelante'
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === item.id ? { ...it, estado: direccion === 'adelante' ? 'embalado' : 'por_embalar' } : it
+      )
+    )
     apiFetch(`/full/pipeline/${item.id}/avanzar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,32 +107,59 @@ export default function PedidosFullView({ onUnauthorized }) {
     return it.titulo?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q)
   })
 
-  const etapaInfo = (key) => ETAPAS.find((e) => e.key === key) || ETAPAS[0]
-
   return (
     <>
-      <div className="controls">
+      <div className="paste-box">
+        <label className="corte-label" style={{ marginBottom: 8 }}>
+          Agregar producto a la tanda de Full
+        </label>
         <input
           className="search-input"
           type="text"
           placeholder="Buscar por título o SKU..."
+          value={buscarQuery}
+          onFocus={cargarCatalogo}
+          onChange={(e) => setBuscarQuery(e.target.value)}
+        />
+        {!catalogoCargado && buscarQuery && (
+          <div className="loading-state" style={{ padding: 12 }}>Cargando catálogo...</div>
+        )}
+        {coincidencias.length > 0 && (
+          <div className="paste-result">
+            {coincidencias.map((it) => (
+              <div key={it.id} className="paste-result-row">
+                <div className="title-cell">
+                  {it.title}
+                  <span className="id-cell mono">SKU: {it.sku}</span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  className="stock-input"
+                  value={cantidades[it.id] || 1}
+                  onChange={(e) => setCantidades((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                />
+                <button
+                  className="scan-btn"
+                  onClick={() => agregarProducto(it)}
+                  disabled={agregando === it.id}
+                >
+                  {agregando === it.id ? 'Agregando...' : '+ Agregar'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="controls">
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Buscar en la lista..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <label className="corte-label">
-          Días hacia atrás
-          <input
-            type="number"
-            className="corte-input"
-            value={diasImport}
-            onChange={(e) => setDiasImport(Number(e.target.value))}
-            min={1}
-            style={{ width: 70 }}
-          />
-        </label>
-        <button className="scan-btn" onClick={importar} disabled={importando}>
-          {importando ? 'Importando...' : '📥 Importar del Sheet'}
-        </button>
         <button
           className="scan-btn"
           onClick={enviarTodo}
@@ -131,54 +169,43 @@ export default function PedidosFullView({ onUnauthorized }) {
         </button>
       </div>
 
-      {importMsg && <div className="scan-result">{importMsg}</div>}
-
       {!loading && !error && (
         <div className="summary">
-          {ETAPAS.map((etapa) => (
-            <div className="summary-item" key={etapa.key}>
-              <div className="value mono">{resumen[etapa.key] || 0}</div>
-              <div className="label">{etapa.label}</div>
-            </div>
-          ))}
+          <div className="summary-item">
+            <div className="value mono">{resumen.por_embalar || 0}</div>
+            <div className="label">Por embalar</div>
+          </div>
+          <div className="summary-item">
+            <div className="value mono">{resumen.embalado || 0}</div>
+            <div className="label">Embalado</div>
+          </div>
         </div>
       )}
 
       <div className="list">
-        {loading && <div className="loading-state">Cargando tablero...</div>}
+        {loading && <div className="loading-state">Cargando lista...</div>}
         {error && <div className="error-state">Error: {error}</div>}
 
         {!loading && !error && filtered.length === 0 && (
           <div className="empty-state">
-            No hay nada en el tablero. Importá del Sheet para arrancar.
+            No hay nada en la lista todavía. Buscá un producto arriba y agregalo.
           </div>
         )}
 
-        {!loading && !error && filtered.map((item) => {
-          const etapa = etapaInfo(item.estado)
-          return (
-            <div key={item.id} className="row">
-              <div className="title-cell">
-                {item.titulo}
-                <span className="id-cell mono">
-                  SKU: {item.sku} · Total: {item.cantidad_total}
-                  {item.proveedor && ` · ${item.proveedor}`}
-                  {item.cantidad_full != null && ` (${item.cantidad_full} Full / ${item.cantidad_local} local)`}
-                  {item.revisar_manual && ' · ⚠ revisar reparto Full/local a mano'}
-                </span>
-              </div>
-              <span className="badge" style={{ background: etapa.color }}>{etapa.label}</span>
-              {item.estado !== 'por_pedir' && (
-                <button className="sort-btn" onClick={() => avanzar(item, 'atras')}>← Atrás</button>
-              )}
-              {item.estado !== 'embalado' && (
-                <button className="pause-btn" onClick={() => avanzar(item, 'adelante')}>
-                  Siguiente →
-                </button>
-              )}
+        {!loading && !error && filtered.map((item) => (
+          <div key={item.id} className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''}`}>
+            <input
+              type="checkbox"
+              className="pick-checkbox"
+              checked={item.estado === 'embalado'}
+              onChange={() => toggleEmbalado(item)}
+            />
+            <div className="pick-title">
+              {item.titulo}
+              <span className="id-cell mono">SKU: {item.sku} · Cantidad: {item.cantidad_total}</span>
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </>
   )
