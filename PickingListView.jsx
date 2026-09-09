@@ -194,6 +194,32 @@ export default function PickingListView({ onUnauthorized }) {
     return { items, grupos }
   }, [data, typeFilter, hideChecked, onlyChecked, onlyFaltantes])
 
+  // Mezclamos grupos e items sueltos en una sola lista, ordenada por lo
+  // último vendido primero - lo ya separado se hunde al final. Así, al
+  // entrar, arriba de todo siempre está lo más nuevo, sea multiproducto
+  // o no.
+  const entradasOrdenadas = useMemo(() => {
+    const entradas = [
+      ...filtered.grupos.map((g) => ({
+        tipo: 'grupo',
+        data: g,
+        completado: g.completado,
+        fecha: g.fecha_iso,
+      })),
+      ...filtered.items.map((it) => ({
+        tipo: 'item',
+        data: it,
+        completado: it.checked,
+        fecha: it.ultima_venta,
+      })),
+    ]
+    entradas.sort((a, b) => {
+      if (a.completado !== b.completado) return a.completado ? 1 : -1
+      return new Date(b.fecha) - new Date(a.fecha)
+    })
+    return entradas
+  }, [filtered])
+
   const pendingCount = data
     ? data.items.filter((it) => !it.checked).length +
       data.grupos.reduce((acc, g) => acc + g.productos.filter((p) => !p.checked).length, 0)
@@ -301,59 +327,58 @@ export default function PickingListView({ onUnauthorized }) {
               <div className="empty-state">No hay nada para separar con este filtro. 🎉</div>
             )}
 
-            {/* Grupos multiproducto primero, bien destacados */}
-            {filtered.grupos.map((grupo) => (
-              <div key={grupo.pack_id} className="multi-group">
-                <div className="multi-group-header">
-                  <span className="badge badge-multi">Multiproducto</span>
-                  <span className="multi-meta mono">{grupo.fecha_hora}</span>
-                  <span className="multi-meta">{grupo.comprador}</span>
-                  <span className={`badge badge-${grupo.tipo === 'cross_docking' ? 'colecta' : grupo.tipo === 'self_service' ? 'flex' : 'acordar'}`}>
-                    {TIPO_LABELS[grupo.tipo]}
-                  </span>
+            {entradasOrdenadas.map((entrada) =>
+              entrada.tipo === 'grupo' ? (
+                <div key={entrada.data.pack_id} className="multi-group">
+                  <div className="multi-group-header">
+                    <span className="badge badge-multi">Multiproducto</span>
+                    <span className="multi-meta mono">{entrada.data.fecha_hora}</span>
+                    <span className="multi-meta">{entrada.data.comprador}</span>
+                    <span className={`badge badge-${entrada.data.tipo === 'cross_docking' ? 'colecta' : entrada.data.tipo === 'self_service' ? 'flex' : 'acordar'}`}>
+                      {TIPO_LABELS[entrada.data.tipo]}
+                    </span>
+                  </div>
+                  {entrada.data.productos.map((p) => (
+                    <ItemRow
+                      key={p.estado_id}
+                      item={{ ...p, cross_docking: 0, self_service: 0, acordar: 0, total: p.cantidad }}
+                      onToggleChecked={() => toggleChecked(p)}
+                      onToggleFaltante={() => toggleFaltante(p)}
+                      onZoom={setZoomUrl}
+                    />
+                  ))}
                 </div>
-                {grupo.productos.map((p) => (
+              ) : (
+                <div key={`${entrada.data.estado_id}-${entrada.data.period_key}`} className="pick-group">
                   <ItemRow
-                    key={p.estado_id}
-                    item={{ ...p, cross_docking: 0, self_service: 0, acordar: 0, total: p.cantidad }}
-                    onToggleChecked={() => toggleChecked(p)}
-                    onToggleFaltante={() => toggleFaltante(p)}
+                    item={entrada.data}
+                    onToggleChecked={toggleChecked}
+                    onToggleFaltante={toggleFaltante}
                     onZoom={setZoomUrl}
                   />
-                ))}
-              </div>
-            ))}
 
-            {filtered.items.map((item) => (
-              <div key={`${item.estado_id}-${item.period_key}`} className="pick-group">
-                <ItemRow
-                  item={item}
-                  onToggleChecked={toggleChecked}
-                  onToggleFaltante={toggleFaltante}
-                  onZoom={setZoomUrl}
-                />
+                  <button
+                    type="button"
+                    className="detail-toggle"
+                    onClick={() => toggleExpanded(entrada.data.item_id)}
+                  >
+                    {expanded.has(entrada.data.item_id) ? '▲ ocultar ventas' : `▼ ver ${entrada.data.ventas.length} venta(s)`}
+                  </button>
 
-                <button
-                  type="button"
-                  className="detail-toggle"
-                  onClick={() => toggleExpanded(item.item_id)}
-                >
-                  {expanded.has(item.item_id) ? '▲ ocultar ventas' : `▼ ver ${item.ventas.length} venta(s)`}
-                </button>
-
-                {expanded.has(item.item_id) && (
-                  <div className="sale-detail">
-                    {item.ventas.map((venta, i) => (
-                      <div className="sale-line" key={i}>
-                        <span className="mono">{venta.fecha_hora}</span>
-                        <span>{venta.comprador}</span>
-                        <span className="mono">×{venta.cantidad}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                  {expanded.has(entrada.data.item_id) && (
+                    <div className="sale-detail">
+                      {entrada.data.ventas.map((venta, i) => (
+                        <div className="sale-line" key={i}>
+                          <span className="mono">{venta.fecha_hora}</span>
+                          <span>{venta.comprador}</span>
+                          <span className="mono">×{venta.cantidad}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            )}
           </>
         )}
       </div>
