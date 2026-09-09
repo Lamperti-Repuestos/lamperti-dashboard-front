@@ -24,6 +24,11 @@ export default function FullView({ onUnauthorized }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [textoPegado, setTextoPegado] = useState('')
+  const [procesando, setProcesando] = useState(false)
+  const [resultadoPegado, setResultadoPegado] = useState(null)
+  const [errorPegado, setErrorPegado] = useState(null)
+  const [copiedSku, setCopiedSku] = useState(null)
   const [sortMode, setSortMode] = useState('stock_asc') // stock_asc | stock_desc | alpha
   const [ocultarSinStock, setOcultarSinStock] = useState(false)
   const [soloSinStock, setSoloSinStock] = useState(false)
@@ -103,8 +108,90 @@ export default function FullView({ onUnauthorized }) {
 
   const bajoStockCount = items.filter((it) => it.available_quantity <= 3).length
 
+  const procesarTexto = () => {
+    if (!textoPegado.trim()) return
+    setProcesando(true)
+    setErrorPegado(null)
+    setResultadoPegado(null)
+    apiFetch('/ml/full/parse-texto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: textoPegado }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
+        return data
+      })
+      .then((data) => {
+        setResultadoPegado(data.items)
+        setProcesando(false)
+      })
+      .catch((err) => {
+        setErrorPegado(err.message)
+        setProcesando(false)
+      })
+  }
+
+  const copiarSku = (sku) => {
+    if (!sku) return
+    navigator.clipboard.writeText(sku).then(() => {
+      setCopiedSku(sku)
+      setTimeout(() => setCopiedSku(null), 1500)
+    })
+  }
+
   return (
     <>
+      <div className="paste-box">
+        <label className="corte-label" style={{ marginBottom: 8 }}>
+          Pegá acá el texto copiado de la pantalla de reposición de Full en ML
+        </label>
+        <textarea
+          className="paste-textarea"
+          rows={4}
+          placeholder="Seleccioná y copiá la tabla completa en ML, y pegala acá tal cual..."
+          value={textoPegado}
+          onChange={(e) => setTextoPegado(e.target.value)}
+        />
+        <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
+          <button className="scan-btn" onClick={procesarTexto} disabled={procesando}>
+            {procesando ? 'Procesando...' : '🔍 Sacar SKUs'}
+          </button>
+          {resultadoPegado && (
+            <button className="sort-btn" onClick={() => { setResultadoPegado(null); setTextoPegado('') }}>
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {errorPegado && <div className="error-state" style={{ padding: '12px 0' }}>{errorPegado}</div>}
+
+        {resultadoPegado && (
+          <div className="paste-result">
+            {resultadoPegado.map((r) => (
+              <div key={r.inventory_id} className="paste-result-row">
+                <div className="title-cell">
+                  {r.titulo}
+                  <span className="id-cell mono">
+                    Código ML: {r.inventory_id}
+                    {!r.encontrado && ' · no encontrado en nuestros datos'}
+                  </span>
+                </div>
+                {r.sku && (
+                  <button className="copy-sku-btn-full" onClick={() => copiarSku(r.sku)}>
+                    SKU: {r.sku} {copiedSku === r.sku ? '✓' : '⧉'}
+                  </button>
+                )}
+                {r.sugerencia_enviar && (
+                  <span className="badge badge-multi">Enviar {r.sugerencia_enviar}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="controls">
         <input
           className="search-input"

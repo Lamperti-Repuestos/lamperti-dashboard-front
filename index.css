@@ -782,6 +782,52 @@ button {
   line-height: 1.3;
 }
 
+/* Pegar texto de Full */
+.paste-box {
+  margin: var(--pad);
+  padding: 16px;
+  border: 2px dashed var(--gray-line);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.paste-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-line);
+  border-radius: var(--radius);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.paste-result {
+  margin-top: 14px;
+  border-top: 1px solid var(--gray-line);
+}
+
+.paste-result-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--gray-line);
+}
+
+.copy-sku-btn-full {
+  padding: 6px 10px;
+  border: 1px solid var(--navy);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--navy);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .scan-result {
   padding: 10px var(--pad);
   font-size: 13px;
