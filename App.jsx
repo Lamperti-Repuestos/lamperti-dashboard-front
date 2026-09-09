@@ -3,11 +3,12 @@ import PublicationsView from './PublicationsView.jsx'
 import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
 import FullView from './FullView.jsx'
+import PedidosFullView from './PedidosFullView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full']
+const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -98,6 +99,12 @@ export default function App() {
           >
             Full
           </button>
+          <button
+            className={`view-tab ${view === 'pedidos' ? 'active' : ''}`}
+            onClick={() => setView('pedidos')}
+          >
+            Pedidos
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
@@ -109,6 +116,7 @@ export default function App() {
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}
+        {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
       </div>
     </>
   )
