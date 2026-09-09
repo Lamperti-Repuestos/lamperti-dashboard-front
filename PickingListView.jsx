@@ -116,16 +116,18 @@ export default function PickingListView({ onUnauthorized }) {
     return () => clearInterval(id)
   }, [fetchList])
 
-  // Actualiza un producto (suelto o dentro de un grupo) en el estado local,
-  // por su estado_id (identidad única de ESTA ocurrencia, no del producto
-  // en general - así un mismo SKU suelto y dentro de un combo no se pisan)
-  const patchItem = (estadoId, patch) => {
+  // Actualiza un producto (suelto o dentro de un grupo) en el estado local.
+  // Matchea por estado_id + period_key juntos: el mismo producto puede
+  // aparecer en dos filas distintas (una por cada ventana de corte
+  // pendiente), y no queremos tocar las dos a la vez por error.
+  const patchItem = (estadoId, periodKey, patch) => {
+    const coincide = (x) => x.estado_id === estadoId && x.period_key === periodKey
     setData((prev) => ({
       ...prev,
-      items: prev.items.map((it) => (it.estado_id === estadoId ? { ...it, ...patch } : it)),
+      items: prev.items.map((it) => (coincide(it) ? { ...it, ...patch } : it)),
       grupos: prev.grupos.map((g) => ({
         ...g,
-        productos: g.productos.map((p) => (p.estado_id === estadoId ? { ...p, ...patch } : p)),
+        productos: g.productos.map((p) => (coincide(p) ? { ...p, ...patch } : p)),
       })),
     }))
   }
@@ -133,9 +135,9 @@ export default function PickingListView({ onUnauthorized }) {
   const toggleChecked = (item) => {
     const newChecked = !item.checked
     if (newChecked) {
-      patchItem(item.estado_id, { checked: true, pendiente: 0, ya_separado: item.total })
+      patchItem(item.estado_id, item.period_key, { checked: true, pendiente: 0, ya_separado: item.total })
     } else {
-      patchItem(item.estado_id, { checked: false, pendiente: item.total, ya_separado: 0 })
+      patchItem(item.estado_id, item.period_key, { checked: false, pendiente: item.total, ya_separado: 0 })
     }
     apiFetch('/ml/picking-list/check', {
       method: 'POST',
@@ -146,12 +148,12 @@ export default function PickingListView({ onUnauthorized }) {
         checked: newChecked,
         cantidad_actual: newChecked ? item.total : null,
       }),
-    }).catch(() => patchItem(item.estado_id, { checked: !newChecked }))
+    }).catch(() => patchItem(item.estado_id, item.period_key, { checked: !newChecked }))
   }
 
   const toggleFaltante = (item) => {
     const newFaltante = !item.faltante
-    patchItem(item.estado_id, { faltante: newFaltante })
+    patchItem(item.estado_id, item.period_key, { faltante: newFaltante })
     apiFetch('/ml/picking-list/faltante', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -160,7 +162,7 @@ export default function PickingListView({ onUnauthorized }) {
         item_id: item.estado_id,
         faltante: newFaltante,
       }),
-    }).catch(() => patchItem(item.estado_id, { faltante: !newFaltante }))
+    }).catch(() => patchItem(item.estado_id, item.period_key, { faltante: !newFaltante }))
   }
 
   const filtered = useMemo(() => {
@@ -323,7 +325,7 @@ export default function PickingListView({ onUnauthorized }) {
             ))}
 
             {filtered.items.map((item) => (
-              <div key={item.estado_id} className="pick-group">
+              <div key={`${item.estado_id}-${item.period_key}`} className="pick-group">
                 <ItemRow
                   item={item}
                   onToggleChecked={toggleChecked}
