@@ -27,6 +27,10 @@ export default function FullView({ onUnauthorized }) {
   const [textoPegado, setTextoPegado] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [resultadoPegado, setResultadoPegado] = useState(null)
+  const [enviosEnCurso, setEnviosEnCurso] = useState(null)
+  const [pedidoElegido, setPedidoElegido] = useState('nuevo')
+  const [agregandoLote, setAgregandoLote] = useState(false)
+  const [loteMsg, setLoteMsg] = useState(null)
   const [errorPegado, setErrorPegado] = useState(null)
   const [copiedSku, setCopiedSku] = useState(null)
   const [sortMode, setSortMode] = useState('stock_asc') // stock_asc | stock_desc | alpha
@@ -108,6 +112,58 @@ export default function FullView({ onUnauthorized }) {
 
   const bajoStockCount = items.filter((it) => it.available_quantity <= 3).length
 
+  const cantidadDeSugerencia = (texto) => {
+    if (!texto) return 1
+    const m = texto.match(/(\d+)/)
+    return m ? parseInt(m[1], 10) : 1
+  }
+
+  const iniciarAgregarAPedido = () => {
+    setLoteMsg(null)
+    apiFetch('/full/envios', {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => {
+        setEnviosEnCurso(data.envios)
+        if (data.envios.length <= 1) {
+          // 0 -> se crea uno nuevo solo. 1 -> va directo ahí, sin preguntar.
+          confirmarAgregarAPedido(data.envios.length === 1 ? data.envios[0].id : null)
+        }
+        // Si hay 2 o más, queda mostrado el selector para que el usuario elija
+      })
+  }
+
+  const confirmarAgregarAPedido = (pedidoId) => {
+    const items = resultadoPegado
+      .filter((r) => r.encontrado && r.sku)
+      .map((r) => ({
+        sku: r.sku,
+        titulo: r.titulo,
+        cantidad: cantidadDeSugerencia(r.sugerencia_enviar),
+      }))
+
+    if (items.length === 0) {
+      setLoteMsg('No hay productos reconocidos para agregar.')
+      return
+    }
+
+    setAgregandoLote(true)
+    apiFetch('/full/pipeline/agregar-lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedido_id: pedidoId, items }),
+    }, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => {
+        setLoteMsg(`✅ ${data.cantidad_agregada} producto(s) agregado(s) a "${data.nombre}".`)
+        setEnviosEnCurso(null)
+        setAgregandoLote(false)
+      })
+      .catch(() => {
+        setLoteMsg('Error al agregar al pedido.')
+        setAgregandoLote(false)
+      })
+  }
+
   const procesarTexto = () => {
     if (!textoPegado.trim()) return
     setProcesando(true)
@@ -188,6 +244,44 @@ export default function FullView({ onUnauthorized }) {
                 )}
               </div>
             ))}
+
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--gray-line)' }}>
+              {!enviosEnCurso && (
+                <button className="scan-btn" onClick={iniciarAgregarAPedido} disabled={agregandoLote}>
+                  📦 Agregar a pedido Full
+                </button>
+              )}
+
+              {enviosEnCurso && enviosEnCurso.length > 1 && (
+                <div>
+                  <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+                    Tenés {enviosEnCurso.length} envíos en curso - ¿a cuál lo agrego?
+                  </p>
+                  <select
+                    className="corte-input"
+                    value={pedidoElegido}
+                    onChange={(e) => setPedidoElegido(e.target.value)}
+                    style={{ marginRight: 10 }}
+                  >
+                    {enviosEnCurso.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.nombre} ({e.embalados}/{e.total_productos} embalados)
+                      </option>
+                    ))}
+                    <option value="nuevo">+ Crear un envío nuevo</option>
+                  </select>
+                  <button
+                    className="scan-btn"
+                    disabled={agregandoLote}
+                    onClick={() => confirmarAgregarAPedido(pedidoElegido === 'nuevo' ? null : Number(pedidoElegido))}
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              )}
+
+              {loteMsg && <div className="scan-result" style={{ padding: '10px 0' }}>{loteMsg}</div>}
+            </div>
           </div>
         )}
       </div>

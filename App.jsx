@@ -97,13 +97,13 @@ export default function App() {
             className={`view-tab ${view === 'full' ? 'active' : ''}`}
             onClick={() => setView('full')}
           >
-            Full
+            Gestión Full
           </button>
           <button
             className={`view-tab ${view === 'pedidos' ? 'active' : ''}`}
             onClick={() => setView('pedidos')}
           >
-            Pedidos
+            Envío Full
           </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
