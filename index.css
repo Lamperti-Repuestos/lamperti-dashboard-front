@@ -232,6 +232,20 @@ button {
   font-weight: 700;
 }
 
+.toggle-on-green {
+  background: #2E7D46;
+  border-color: #2E7D46;
+  color: var(--white);
+  font-weight: 700;
+}
+
+.toggle-on-red {
+  background: #B23A2E;
+  border-color: #B23A2E;
+  color: var(--white);
+  font-weight: 700;
+}
+
 .sort-btn:disabled {
   opacity: 0.4;
   cursor: default;

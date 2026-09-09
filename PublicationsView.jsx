@@ -219,7 +219,7 @@ export default function PublicationsView({ onUnauthorized }) {
           </button>
         </div>
         <button
-          className={`sort-btn ${soloSinStock ? 'active-outline' : ''}`}
+          className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
           onClick={() => setSoloSinStock((v) => !v)}
         >
           {soloSinStock ? '✓ ' : ''}Sin stock
