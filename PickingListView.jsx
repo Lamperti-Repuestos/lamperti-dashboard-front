@@ -33,6 +33,11 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante, onZoom }) {
       <div className="pick-title">
         {item.title}
         <span className="id-cell mono">SKU: {item.sku}</span>
+        {item.ya_separado > 0 && (
+          <span className="id-cell" style={{ color: '#2E7D46' }}>
+            Ya separaste {item.ya_separado} - falta {item.pendiente ?? item.total}
+          </span>
+        )}
       </div>
       <div className="pick-badges">
         {item.cross_docking > 0 && (
@@ -53,7 +58,7 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante, onZoom }) {
       >
         {item.faltante ? '⚠ Faltante' : 'Faltante'}
       </button>
-      <div className="pick-total mono">{item.total}</div>
+      <div className="pick-total mono">{item.pendiente ?? item.total}</div>
     </div>
   )
 }
@@ -127,7 +132,11 @@ export default function PickingListView({ onUnauthorized }) {
 
   const toggleChecked = (item) => {
     const newChecked = !item.checked
-    patchItem(item.estado_id, { checked: newChecked })
+    if (newChecked) {
+      patchItem(item.estado_id, { checked: true, pendiente: 0, ya_separado: item.total })
+    } else {
+      patchItem(item.estado_id, { checked: false, pendiente: item.total, ya_separado: 0 })
+    }
     apiFetch('/ml/picking-list/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -135,6 +144,7 @@ export default function PickingListView({ onUnauthorized }) {
         period_key: item.period_key,
         item_id: item.estado_id,
         checked: newChecked,
+        cantidad_actual: newChecked ? item.total : null,
       }),
     }).catch(() => patchItem(item.estado_id, { checked: !newChecked }))
   }
