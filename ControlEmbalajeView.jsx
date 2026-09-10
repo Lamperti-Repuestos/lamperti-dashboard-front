@@ -139,7 +139,13 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
         return data
       })
       .then((data) => {
-        setMsg(`✅ Embalaje finalizado y guardado: ${data.embalados}/${data.total} embalados.`)
+        const lineas = [
+          `✅ Embalaje finalizado y guardado`,
+          `Total: ${data.total} · Embalados: ${data.embalados} · Sin embalar: ${data.sin_embalar}`,
+          `Faltantes (cruzado con "Para separar"): ${data.faltantes}`,
+          `Colecta: ${data.colecta} · Flex: ${data.flex}`,
+        ]
+        setMsg(lineas.join('\n'))
         setFinalizando(false)
         fetchLista()
       })
