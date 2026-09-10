@@ -151,7 +151,11 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       if (comando) {
         const textoBusqueda = comando.busqueda || query
         setQuery(textoBusqueda)
-        ejecutarMarcado(textoBusqueda, comando.indice)
+        if (comando.indice === 'todos') {
+          ejecutarMarcadoTodos(textoBusqueda)
+        } else {
+          ejecutarMarcado(textoBusqueda, comando.indice)
+        }
       } else {
         setQuery(texto)
       }
@@ -161,10 +165,12 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   }
 
   // Reconoce frases como "mangueras gol marcarlo", "marcar segundo",
-  // "marcar el tres" - separa la búsqueda (si hay) del comando.
+  // "marcar el tres", "juan gomez marcar todos" - separa la búsqueda (si
+  // hay) del comando.
   const extraerComandoMarcar = (textoOriginal) => {
     const texto = textoOriginal.toLowerCase().trim()
     const patrones = [
+      { patron: /\s*marcar(los)?\s+todos?$/, indice: 'todos' },
       { patron: /\s*marcar(lo)?\s*(el\s+)?(primero|uno)?$/, indice: 0 },
       { patron: /\s*marcar\s+(el\s+)?(segundo|dos)$/, indice: 1 },
       { patron: /\s*marcar\s+(el\s+)?(tercero|tres)$/, indice: 2 },
@@ -218,6 +224,21 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     }
     toggleChecked(item)
     hablar(`Marqué: ${item.titulo}`)
+  }
+
+  const ejecutarMarcadoTodos = (textoBusqueda) => {
+    const resultado = aplicarFiltros(items, textoBusqueda, filtroTipo, ocultarEmbalados)
+    const pendientes = resultado.filter((it) => !it.checked)
+    if (resultado.length === 0) {
+      hablar(`No encontré ningún producto para "${textoBusqueda}"`)
+      return
+    }
+    if (pendientes.length === 0) {
+      hablar('Ya estaban todos marcados')
+      return
+    }
+    pendientes.forEach((item) => toggleChecked(item))
+    hablar(`Marqué ${pendientes.length} producto${pendientes.length === 1 ? '' : 's'}`)
   }
 
   // Ignora espacios de más o de menos al buscar - "juan gomez" tiene que
