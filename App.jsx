@@ -5,11 +5,12 @@ import StockView from './StockView.jsx'
 import FullView from './FullView.jsx'
 import PedidosFullView from './PedidosFullView.jsx'
 import ControlEmbalajeView from './ControlEmbalajeView.jsx'
+import CotejoPackingListView from './CotejoPackingListView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control']
+const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -112,6 +113,12 @@ export default function App() {
           >
             Control Embalaje
           </button>
+          <button
+            className={`view-tab ${view === 'cotejo' ? 'active' : ''}`}
+            onClick={() => setView('cotejo')}
+          >
+            Cotejo Packing List
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
@@ -125,6 +132,7 @@ export default function App() {
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
         {view === 'control' && <ControlEmbalajeView onUnauthorized={handleUnauthorized} />}
+        {view === 'cotejo' && <CotejoPackingListView onUnauthorized={handleUnauthorized} />}
       </div>
     </>
   )
