@@ -309,7 +309,15 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   // Ignora espacios de más o de menos al buscar - "juan gomez" tiene que
   // encontrar "JuanGomez" y viceversa, sin importar de qué lado falta
   // el espacio (pasa seguido con el reconocimiento de voz).
-  const normalizarTexto = (s) => (s || '').toLowerCase().replace(/\s+/g, '')
+  // Ignora espacios de más o de menos, y también tildes/acentos - "bujia"
+  // tiene que encontrar "Bujía" y viceversa, sin importar de qué lado
+  // falta la tilde (pasa seguido con el reconocimiento de voz).
+  const normalizarTexto = (s) =>
+    (s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '')
 
   const filtered = useMemo(
     () => aplicarFiltros(items, query, filtroTipo, ocultarEmbalados),
