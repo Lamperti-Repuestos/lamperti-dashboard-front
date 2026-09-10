@@ -38,6 +38,17 @@ const ETIQUETAS_ESTADO_HIST = {
   closed: 'Cerrado',
 }
 
+const ETIQUETAS_ACCION = {
+  send_message_to_complainant: 'Responder al comprador',
+  send_message_to_mediator: 'Responder al mediador',
+  recontact: 'Recontacto (plazo posterior al cierre)',
+  refund: 'Reembolso',
+  allow_partial_refund: 'Ofrecer reembolso parcial',
+  return_review_ok: 'Aprobar la devolución',
+  return_review_fail: 'Reportar problema con la devolución',
+  open_dispute: 'Abrir mediación',
+}
+
 function diasRestantes(fechaISO) {
   const dif = new Date(fechaISO) - new Date()
   return Math.ceil(dif / (1000 * 60 * 60 * 24))
@@ -200,12 +211,17 @@ export default function PostventaView({ onUnauthorized }) {
                       .map((a, i) => {
                         const dias = diasRestantes(a.due_date)
                         return (
-                          <div key={i} className="badge badge-sin-explicar" style={{ marginBottom: 10, display: 'inline-block' }}>
-                            ⏰ Acción obligatoria antes del {new Date(a.due_date).toLocaleString('es-AR')}
+                          <div key={i} className="badge badge-sin-explicar" style={{ marginBottom: 4, display: 'inline-block' }}>
+                            ⏰ {ETIQUETAS_ACCION[a.action] || a.action}: antes del {new Date(a.due_date).toLocaleString('es-AR')}
                             {dias >= 0 ? ` (quedan ${dias} día(s))` : ' (¡vencido!)'}
                           </div>
                         )
                       })}
+                    {detalle.claim.players?.some((p) => (p.available_actions || []).some((a) => a.mandatory && a.due_date)) && (
+                      <p style={{ fontSize: 11, color: 'var(--gray-muted)', marginTop: 2, marginBottom: 10 }}>
+                        ⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.
+                      </p>
+                    )}
 
                     {/* Motivo en criollo */}
                     {detalle.motivo && (
