@@ -56,7 +56,8 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           const resumenMotivos = Object.entries(motivos)
             .map(([motivo, cant]) => `${cant}x ${motivo}`)
             .join(', ')
-          texto += ` ⚠ No pude traer ${data.pedidos_fallidos.length} pedido(s): ${resumenMotivos}.`
+          const ids = data.pedidos_fallidos.map((f) => f.order_id).join(', ')
+          texto += ` ⚠ No pude traer ${data.pedidos_fallidos.length} pedido(s): ${resumenMotivos}.\n\nIDs: ${ids}`
         }
         setMsg(texto)
         setTextoPegado('')
@@ -122,7 +123,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
             {procesando ? 'Procesando...' : '📋 Agregar al control'}
           </button>
         </div>
-        {msg && <div className="scan-result" style={{ padding: '10px 0' }}>{msg}</div>}
+        {msg && <div className="scan-result" style={{ padding: '10px 0', whiteSpace: 'pre-wrap' }}>{msg}</div>}
       </div>
 
       <div className="controls">
