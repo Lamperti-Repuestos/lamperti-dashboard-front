@@ -164,6 +164,15 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     recognition.onerror = () => setEscuchando(false)
     recognition.onresult = (event) => {
       const texto = event.results[0][0].transcript
+
+      const filtro = extraerComandoFiltro(texto)
+      if (filtro) {
+        setFiltroTipo(filtro)
+        setQuery('')
+        hablar(filtro === 'todos' ? 'Mostrando todos' : `Mostrando ${filtro}`)
+        return
+      }
+
       const comando = extraerComandoMarcar(texto)
       if (comando) {
         const textoBusqueda = comando.busqueda || query
@@ -184,6 +193,17 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   // Reconoce frases como "mangueras gol marcarlo", "marcar segundo",
   // "marcar el tres", "juan gomez marcar todos" - separa la búsqueda (si
   // hay) del comando.
+  // Reconoce "traer colecta" / "traer flex" / "traer todos" - cambia el
+  // filtro de tipo de envío por voz, para después poder decir "marcar
+  // todos" sobre lo que quedó filtrado.
+  const extraerComandoFiltro = (textoOriginal) => {
+    const texto = textoOriginal.toLowerCase().trim()
+    if (/^(traer|mostrar)\s+colecta$/.test(texto)) return 'colecta'
+    if (/^(traer|mostrar)\s+flex$/.test(texto)) return 'flex'
+    if (/^(traer|mostrar)\s+todos?$/.test(texto)) return 'todos'
+    return null
+  }
+
   const extraerComandoMarcar = (textoOriginal) => {
     const texto = textoOriginal.toLowerCase().trim()
     const patrones = [
