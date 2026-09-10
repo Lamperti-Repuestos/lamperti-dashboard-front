@@ -102,6 +102,28 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     }, onUnauthorized).catch(() => fetchLista())
   }
 
+  const toggleFaltante = (item) => {
+    const nuevo = !item.faltante_en_picking
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, faltante_en_picking: nuevo } : it))
+    )
+    apiFetch(`/control-embalaje/${item.id}/faltante`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ faltante: nuevo }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.detail || 'Error')
+        }
+      })
+      .catch((err) => {
+        setMsg(`Error al marcar faltante: ${err.message}`)
+        fetchLista()
+      })
+  }
+
   const finalizarEmbalaje = () => {
     const sinEmbalar = items.filter((it) => !it.checked).length
     const confirmMsg = sinEmbalar > 0
@@ -454,6 +476,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               {!item.faltante_en_picking && item.separado_en_picking && (
                 <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
               )}
+              <button
+                type="button"
+                className={`faltante-btn ${item.faltante_en_picking ? 'faltante-btn-active' : ''}`}
+                onClick={() => toggleFaltante(item)}
+                title="Marcar como faltante en el local"
+              >
+                {item.faltante_en_picking ? '⚠ Faltante' : 'Faltante'}
+              </button>
             </div>
           </div>
         ))}
