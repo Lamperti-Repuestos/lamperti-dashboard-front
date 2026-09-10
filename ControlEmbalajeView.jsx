@@ -7,6 +7,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
+  const [horasCruce, setHorasCruce] = useState(24)
 
   const [textoPegado, setTextoPegado] = useState('')
   const [procesando, setProcesando] = useState(false)
@@ -14,7 +15,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [limpiando, setLimpiando] = useState(false)
 
   const fetchLista = () => {
-    apiFetch('/control-embalaje', {}, onUnauthorized)
+    apiFetch(`/control-embalaje?horas_cruce=${horasCruce}`, {}, onUnauthorized)
       .then((res) => res.json())
       .then((data) => {
         setItems(data.items)
@@ -29,7 +30,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   useEffect(() => {
     setLoading(true)
     fetchLista()
-  }, [])
+  }, [horasCruce])
 
   const procesarTexto = () => {
     if (!textoPegado.trim()) return
@@ -131,6 +132,17 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
         >
           {ocultarEmbalados ? '✓ ' : ''}Ocultar embalados
         </button>
+        <label className="corte-label">
+          Cruce (hs)
+          <input
+            type="number"
+            className="corte-input"
+            value={horasCruce}
+            onChange={(e) => setHorasCruce(Number(e.target.value))}
+            min={1}
+            style={{ width: 60 }}
+          />
+        </label>
         <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
           🗑 Vaciar todo
         </button>
