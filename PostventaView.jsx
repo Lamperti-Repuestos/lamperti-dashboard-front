@@ -33,6 +33,16 @@ const ETIQUETAS_ETAPA = {
   recontact: 'Recontacto',
 }
 
+const ETIQUETAS_ESTADO_HIST = {
+  opened: 'Abierto',
+  closed: 'Cerrado',
+}
+
+function diasRestantes(fechaISO) {
+  const dif = new Date(fechaISO) - new Date()
+  return Math.ceil(dif / (1000 * 60 * 60 * 24))
+}
+
 export default function PostventaView({ onUnauthorized }) {
   const [reclamos, setReclamos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -43,8 +53,10 @@ export default function PostventaView({ onUnauthorized }) {
   const [detalle, setDetalle] = useState(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [respuesta, setRespuesta] = useState('')
+  const [archivoAdjunto, setArchivoAdjunto] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const [msgEnvio, setMsgEnvio] = useState(null)
+  const [aprobando, setAprobando] = useState(false)
 
   const fetchLista = () => {
     setLoading(true)
@@ -85,14 +97,20 @@ export default function PostventaView({ onUnauthorized }) {
       .catch(() => setCargandoDetalle(false))
   }
 
+  const recargarDetalle = (id) => {
+    apiFetch(`/postventa/reclamos/${id}`, {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => setDetalle(data))
+  }
+
   const enviarRespuesta = (id) => {
     if (!respuesta.trim()) return
     setEnviando(true)
-    apiFetch(`/postventa/reclamos/${id}/responder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mensaje: respuesta }),
-    }, onUnauthorized)
+    const formData = new FormData()
+    formData.append('mensaje', respuesta)
+    if (archivoAdjunto) formData.append('adjunto', archivoAdjunto)
+
+    apiFetch(`/postventa/reclamos/${id}/responder`, { method: 'POST', body: formData }, onUnauthorized)
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.detail || 'Error')
@@ -100,13 +118,32 @@ export default function PostventaView({ onUnauthorized }) {
       .then(() => {
         setMsgEnvio('✅ Mensaje enviado.')
         setRespuesta('')
+        setArchivoAdjunto(null)
         setEnviando(false)
-        abrirReclamo(id) // recarga el hilo con el mensaje nuevo
-        setTimeout(() => abrirReclamo(id), 50)
+        recargarDetalle(id)
       })
       .catch((err) => {
         setMsgEnvio(`Error: ${err.message}`)
         setEnviando(false)
+      })
+  }
+
+  const aprobarDevolucion = (returnId, claimId) => {
+    if (!confirm('¿Confirmás que el producto devuelto llegó en las condiciones esperadas?')) return
+    setAprobando(true)
+    apiFetch(`/postventa/devoluciones/${returnId}/aprobar`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error')
+      })
+      .then(() => {
+        setMsgEnvio('✅ Devolución aprobada.')
+        setAprobando(false)
+        recargarDetalle(claimId)
+      })
+      .catch((err) => {
+        setMsgEnvio(`Error: ${err.message}`)
+        setAprobando(false)
       })
   }
 
@@ -156,10 +193,60 @@ export default function PostventaView({ onUnauthorized }) {
 
                 {detalle && (
                   <>
+                    {/* Fecha límite de acciones obligatorias */}
+                    {detalle.claim.players
+                      ?.flatMap((p) => p.available_actions || [])
+                      .filter((a) => a.mandatory && a.due_date)
+                      .map((a, i) => {
+                        const dias = diasRestantes(a.due_date)
+                        return (
+                          <div key={i} className="badge badge-sin-explicar" style={{ marginBottom: 10, display: 'inline-block' }}>
+                            ⏰ Acción obligatoria antes del {new Date(a.due_date).toLocaleString('es-AR')}
+                            {dias >= 0 ? ` (quedan ${dias} día(s))` : ' (¡vencido!)'}
+                          </div>
+                        )
+                      })}
+
+                    {/* Motivo en criollo */}
+                    {detalle.motivo && (
+                      <div style={{ marginBottom: 10, fontSize: 13 }}>
+                        <strong>Motivo:</strong> {detalle.motivo.detail || detalle.motivo.name || detalle.motivo.id}
+                      </div>
+                    )}
+
+                    {/* Devolución */}
                     {detalle.devolucion && (
                       <div style={{ marginBottom: 12 }}>
                         <strong>Devolución:</strong> estado del envío de vuelta: {detalle.devolucion.shipping?.status || 'sin dato'}
                         {detalle.devolucion.shipping?.tracking_number && ` · seguimiento: ${detalle.devolucion.shipping.tracking_number}`}
+
+                        {detalle.claim.players?.some((p) =>
+                          (p.available_actions || []).some((a) => a.action === 'return_review_ok')
+                        ) && (
+                          <div style={{ marginTop: 8 }}>
+                            <button
+                              className="scan-btn"
+                              disabled={aprobando}
+                              onClick={() => aprobarDevolucion(detalle.devolucion.id, r.id)}
+                            >
+                              ✅ Aprobar devolución (llegó bien)
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Reembolso parcial - solo lectura */}
+                    {detalle.reembolso_parcial_opciones?.available_offers?.length > 0 && (
+                      <div style={{ marginBottom: 12, fontSize: 13 }}>
+                        <strong>Reembolso parcial disponible (solo para ver, todavía no se puede ejecutar desde acá):</strong>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                          {detalle.reembolso_parcial_opciones.available_offers.map((o, i) => (
+                            <span key={i} className="badge badge-acordar">
+                              {o.percentage}% (${o.amount})
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -189,15 +276,35 @@ export default function PostventaView({ onUnauthorized }) {
                           value={respuesta}
                           onChange={(e) => setRespuesta(e.target.value)}
                         />
-                        <button
-                          className="scan-btn"
-                          style={{ marginTop: 6 }}
-                          onClick={() => enviarRespuesta(r.id)}
-                          disabled={enviando}
-                        >
-                          {enviando ? 'Enviando...' : '✉ Responder'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setArchivoAdjunto(e.target.files[0] || null)}
+                          />
+                          <button
+                            className="scan-btn"
+                            onClick={() => enviarRespuesta(r.id)}
+                            disabled={enviando}
+                          >
+                            {enviando ? 'Enviando...' : '✉ Responder'}
+                          </button>
+                        </div>
                         {msgEnvio && <div className="scan-result" style={{ padding: '8px 0' }}>{msgEnvio}</div>}
+                      </div>
+                    )}
+
+                    {/* Historial de estados */}
+                    {detalle.historial_estados?.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
+                        <label className="corte-label" style={{ marginBottom: 6 }}>Historial</label>
+                        {detalle.historial_estados.map((h, i) => (
+                          <div key={i} className="sale-line" style={{ fontSize: 12 }}>
+                            <span className="mono">{new Date(h.date).toLocaleString('es-AR')}</span>
+                            <span>{h.stage ? `${ETIQUETAS_ETAPA[h.stage] || h.stage} - ` : ''}{ETIQUETAS_ESTADO_HIST[h.status] || h.status}</span>
+                            {h.change_by && <span style={{ color: 'var(--gray-muted)' }}>({ETIQUETAS_ROL[h.change_by] || h.change_by})</span>}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>
