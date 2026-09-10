@@ -4,11 +4,12 @@ import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
 import FullView from './FullView.jsx'
 import PedidosFullView from './PedidosFullView.jsx'
+import ControlEmbalajeView from './ControlEmbalajeView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos']
+const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -105,6 +106,12 @@ export default function App() {
           >
             Envío Full
           </button>
+          <button
+            className={`view-tab ${view === 'control' ? 'active' : ''}`}
+            onClick={() => setView('control')}
+          >
+            Control Embalaje
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
@@ -117,6 +124,7 @@ export default function App() {
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
+        {view === 'control' && <ControlEmbalajeView onUnauthorized={handleUnauthorized} />}
       </div>
     </>
   )
