@@ -10,6 +10,9 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [horasCruce, setHorasCruce] = useState(24)
   const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
   const [escuchando, setEscuchando] = useState(false)
+  const [finalizando, setFinalizando] = useState(false)
+  const [mostrarHistorial, setMostrarHistorial] = useState(false)
+  const [historial, setHistorial] = useState(null)
 
   const [textoPegado, setTextoPegado] = useState('')
   const [procesando, setProcesando] = useState(false)
@@ -82,6 +85,41 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     }, onUnauthorized).catch(() => fetchLista())
   }
 
+  const finalizarEmbalaje = () => {
+    const sinEmbalar = items.filter((it) => !it.checked).length
+    const confirmMsg = sinEmbalar > 0
+      ? `Todavía hay ${sinEmbalar} sin embalar. ¿Finalizar igual? Se guarda todo en el historial y se vacía la lista.`
+      : '¿Finalizar el embalaje de hoy? Se guarda en el historial y se vacía la lista.'
+    if (!confirm(confirmMsg)) return
+
+    setFinalizando(true)
+    apiFetch('/control-embalaje/finalizar', { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error')
+        return data
+      })
+      .then((data) => {
+        setMsg(`✅ Embalaje finalizado y guardado: ${data.embalados}/${data.total} embalados.`)
+        setFinalizando(false)
+        fetchLista()
+      })
+      .catch((err) => {
+        setMsg(`Error: ${err.message}`)
+        setFinalizando(false)
+      })
+  }
+
+  const toggleHistorial = () => {
+    const abrir = !mostrarHistorial
+    setMostrarHistorial(abrir)
+    if (abrir && !historial) {
+      apiFetch('/control-embalaje/historial', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((data) => setHistorial(data.registros))
+    }
+  }
+
   const limpiarTodo = () => {
     if (!confirm('¿Vaciar todo el checklist? Se borra todo lo que hay, embalado o no.')) return
     setLimpiando(true)
@@ -122,7 +160,10 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     if (query.trim()) {
       const q = query.trim().toLowerCase()
       result = result.filter(
-        (it) => it.titulo?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q)
+        (it) =>
+          it.titulo?.toLowerCase().includes(q) ||
+          it.sku?.toLowerCase().includes(q) ||
+          it.comprador?.toLowerCase().includes(q)
       )
     }
     return result
@@ -206,7 +247,30 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
         <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
           🗑 Vaciar todo
         </button>
+        <button className="scan-btn" onClick={finalizarEmbalaje} disabled={finalizando || items.length === 0}>
+          ✅ Finalizar embalaje
+        </button>
+        <button className="sort-btn" onClick={toggleHistorial}>
+          📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} historial
+        </button>
       </div>
+
+      {mostrarHistorial && (
+        <div className="paste-box">
+          {!historial && <div className="loading-state">Cargando historial...</div>}
+          {historial && historial.length === 0 && (
+            <div className="empty-state">Todavía no finalizaste ningún embalaje.</div>
+          )}
+          {historial && historial.map((reg) => (
+            <div key={reg.id} className="paste-result-row" style={{ display: 'block' }}>
+              <strong>{new Date(reg.fecha).toLocaleString('es-AR')}</strong>
+              <span className="id-cell mono" style={{ display: 'block' }}>
+                {reg.embalados}/{reg.total_productos} embalados
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="summary">
