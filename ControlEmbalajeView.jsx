@@ -147,27 +147,88 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     recognition.onerror = () => setEscuchando(false)
     recognition.onresult = (event) => {
       const texto = event.results[0][0].transcript
-      setQuery(texto)
+      const comando = extraerComandoMarcar(texto)
+      if (comando) {
+        const textoBusqueda = comando.busqueda || query
+        setQuery(textoBusqueda)
+        ejecutarMarcado(textoBusqueda, comando.indice)
+      } else {
+        setQuery(texto)
+      }
     }
 
     recognition.start()
   }
 
-  const filtered = useMemo(() => {
-    let result = items
-    if (ocultarEmbalados) result = result.filter((it) => !it.checked)
-    if (filtroTipo !== 'todos') result = result.filter((it) => it.tipo_envio === filtroTipo)
-    if (query.trim()) {
-      const q = query.trim().toLowerCase()
+  // Reconoce frases como "mangueras gol marcarlo", "marcar segundo",
+  // "marcar el tres" - separa la búsqueda (si hay) del comando.
+  const extraerComandoMarcar = (textoOriginal) => {
+    const texto = textoOriginal.toLowerCase().trim()
+    const patrones = [
+      { patron: /\s*marcar(lo)?\s*(el\s+)?(primero|uno)?$/, indice: 0 },
+      { patron: /\s*marcar\s+(el\s+)?(segundo|dos)$/, indice: 1 },
+      { patron: /\s*marcar\s+(el\s+)?(tercero|tres)$/, indice: 2 },
+    ]
+    for (const { patron, indice } of patrones) {
+      const m = texto.match(patron)
+      if (m && m.index !== undefined) {
+        return { busqueda: texto.slice(0, m.index).trim(), indice }
+      }
+    }
+    return null
+  }
+
+  const hablar = (texto) => {
+    if (!window.speechSynthesis) return
+    const utter = new SpeechSynthesisUtterance(texto)
+    utter.lang = 'es-AR'
+    window.speechSynthesis.speak(utter)
+  }
+
+  // Misma lógica de filtrado que usa la lista en pantalla, pero
+  // reutilizable para calcular sobre qué actuar cuando llega un comando
+  // de voz (no puede depender del estado 'filtered' porque todavía no
+  // se actualizó cuando llega el comando).
+  const aplicarFiltros = (lista, textoQuery, tipo, ocultar) => {
+    let result = lista
+    if (ocultar) result = result.filter((it) => !it.checked)
+    if (tipo !== 'todos') result = result.filter((it) => it.tipo_envio === tipo)
+    if (textoQuery.trim()) {
+      const q = normalizarTexto(textoQuery)
       result = result.filter(
         (it) =>
-          it.titulo?.toLowerCase().includes(q) ||
-          it.sku?.toLowerCase().includes(q) ||
-          it.comprador?.toLowerCase().includes(q)
+          normalizarTexto(it.titulo).includes(q) ||
+          normalizarTexto(it.sku).includes(q) ||
+          normalizarTexto(it.comprador).includes(q)
       )
     }
     return result
-  }, [items, query, ocultarEmbalados, filtroTipo])
+  }
+
+  const ejecutarMarcado = (textoBusqueda, indice) => {
+    const resultado = aplicarFiltros(items, textoBusqueda, filtroTipo, ocultarEmbalados)
+    const item = resultado[indice]
+    if (!item) {
+      hablar(`No encontré ningún producto en esa posición para "${textoBusqueda}"`)
+      return
+    }
+    if (item.checked) {
+      hablar(`${item.titulo} ya estaba marcado`)
+      return
+    }
+    toggleChecked(item)
+    hablar(`Marqué: ${item.titulo}`)
+  }
+
+  // Ignora espacios de más o de menos al buscar - "juan gomez" tiene que
+  // encontrar "JuanGomez" y viceversa, sin importar de qué lado falta
+  // el espacio (pasa seguido con el reconocimiento de voz).
+  const normalizarTexto = (s) => (s || '').toLowerCase().replace(/\s+/g, '')
+
+  const filtered = useMemo(
+    () => aplicarFiltros(items, query, filtroTipo, ocultarEmbalados),
+    [items, query, ocultarEmbalados, filtroTipo]
+  )
 
   const embalados = items.filter((it) => it.checked).length
 
