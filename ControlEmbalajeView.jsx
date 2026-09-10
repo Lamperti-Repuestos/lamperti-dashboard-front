@@ -187,10 +187,10 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const extraerComandoMarcar = (textoOriginal) => {
     const texto = textoOriginal.toLowerCase().trim()
     const patrones = [
-      { patron: /\s*marcar(los)?\s+todos?$/, indice: 'todos' },
-      { patron: /\s*marcar(lo)?\s*(el\s+)?(primero|uno)?$/, indice: 0 },
-      { patron: /\s*marcar\s+(el\s+)?(segundo|dos)$/, indice: 1 },
-      { patron: /\s*marcar\s+(el\s+)?(tercero|tres)$/, indice: 2 },
+      { patron: /\s*marca(r)?(los)?\s+todos?$/, indice: 'todos' },
+      { patron: /\s*marca(r)?(lo)?\s*(el\s+)?(primero|uno)?$/, indice: 0 },
+      { patron: /\s*marca(r)?\s+(el\s+)?(segundo|dos)$/, indice: 1 },
+      { patron: /\s*marca(r)?\s+(el\s+)?(tercero|tres)$/, indice: 2 },
     ]
     for (const { patron, indice } of patrones) {
       const m = texto.match(patron)
