@@ -550,6 +550,7 @@ button {
   border: 2px solid var(--gray-line);
   border-radius: 10px;
   background: var(--paused-bg);
+  cursor: pointer;
 }
 
 .pick-row-grande {

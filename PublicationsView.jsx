@@ -329,7 +329,7 @@ export default function PublicationsView({ onUnauthorized }) {
                     alt=""
                     className="row-thumb"
                     loading="lazy"
-                    onClick={() => setZoomUrl(item.foto_url)}
+                    onClick={() => setZoomUrl(item.foto_grande || item.foto_url)}
                   />
                 )}
                 <div className="title-cell">

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 export default function ControlEmbalajeView({ onUnauthorized }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [zoomUrl, setZoomUrl] = useState(null)
+  const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
   const [horasCruce, setHorasCruce] = useState(24)
   const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
@@ -36,6 +39,20 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     setLoading(true)
     fetchLista()
   }, [horasCruce])
+
+  useEffect(() => {
+    apiFetch('/ml/items', {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => setCatalogo(data.items || []))
+  }, [])
+
+  const fotoPorSku = useMemo(() => {
+    const mapa = {}
+    catalogo.forEach((it) => {
+      if (it.sku) mapa[it.sku] = { chica: it.foto_url, grande: it.foto_grande || it.foto_url }
+    })
+    return mapa
+  }, [catalogo])
 
   const procesarTexto = () => {
     if (!textoPegado.trim()) return
@@ -389,6 +406,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               checked={item.checked}
               onChange={() => toggleChecked(item)}
             />
+            {fotoPorSku[item.sku] && (
+              <img
+                src={fotoPorSku[item.sku].chica}
+                alt=""
+                className="pick-thumb"
+                onClick={() => setZoomUrl(fotoPorSku[item.sku].grande)}
+              />
+            )}
             <div className="pick-title">
               {item.titulo}
               <span className="id-cell mono">
@@ -413,6 +438,8 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           </div>
         ))}
       </div>
+
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
     </>
   )
 }

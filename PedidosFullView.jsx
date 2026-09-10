@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 export default function PedidosFullView({ onUnauthorized }) {
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [enviandoId, setEnviandoId] = useState(null)
+  const [zoomUrl, setZoomUrl] = useState(null)
 
   // Buscar y agregar un producto suelto
   const [catalogo, setCatalogo] = useState([])
@@ -57,7 +59,9 @@ export default function PedidosFullView({ onUnauthorized }) {
 
   const fotoPorSku = useMemo(() => {
     const mapa = {}
-    catalogo.forEach((it) => { if (it.sku) mapa[it.sku] = it.foto_url })
+    catalogo.forEach((it) => {
+      if (it.sku) mapa[it.sku] = { chica: it.foto_url, grande: it.foto_grande || it.foto_url }
+    })
     return mapa
   }, [catalogo])
 
@@ -263,9 +267,10 @@ export default function PedidosFullView({ onUnauthorized }) {
                   />
                   {fotoPorSku[item.sku] && (
                     <img
-                      src={fotoPorSku[item.sku]}
+                      src={fotoPorSku[item.sku].chica}
                       alt=""
                       className={grande ? 'pick-thumb-grande' : 'pick-thumb'}
+                      onClick={() => setZoomUrl(fotoPorSku[item.sku].grande)}
                     />
                   )}
                   <div className="pick-title">
@@ -304,6 +309,8 @@ export default function PedidosFullView({ onUnauthorized }) {
           )
         })}
       </div>
+
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
     </>
   )
 }
