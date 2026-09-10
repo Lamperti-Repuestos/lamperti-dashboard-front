@@ -177,6 +177,12 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               {item.combo_con && (
                 <span className="sale-together">También se vendió con: {item.combo_con}</span>
               )}
+              {item.faltante_en_picking && (
+                <span className="badge badge-sin-explicar">⚠ Marcado como faltante en "Para separar"</span>
+              )}
+              {!item.faltante_en_picking && item.separado_en_picking && (
+                <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
+              )}
             </div>
           </div>
         ))}
