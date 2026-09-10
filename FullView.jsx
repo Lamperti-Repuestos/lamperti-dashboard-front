@@ -5,18 +5,42 @@ const ETIQUETAS_NO_DISPONIBLE = {
   damage: 'Dañadas',
   lost: 'Perdidas',
   withdrawal: 'Reservadas p/retiro',
-  internal_process: 'En control de calidad',
+  internalprocess: 'En control de calidad',
   transfer: 'En transferencia',
-  noFiscalCoverage: 'Sin cobertura fiscal',
+  nofiscalcoverage: 'Sin cobertura fiscal',
 }
 
 const ETIQUETAS_OPERACION = {
-  inbound_reception: 'Ingreso de stock',
-  sale_confirmation: 'Venta confirmada',
-  sale_cancelation: 'Venta cancelada',
-  STOCK_AUDIT: 'Auditoría de stock',
-  withdrawal_delivery: 'Retiro por el vendedor',
-  lost_refund: 'Pérdida (reembolsada)',
+  inboundreception: 'Ingreso de stock',
+  saleconfirmation: 'Venta confirmada',
+  salecancelation: 'Venta cancelada',
+  saledeliverycancelation: 'Cancelación de entrega (vuelve al stock)',
+  stockaudit: 'Auditoría de stock',
+  withdrawaldelivery: 'Retiro por el vendedor',
+  lostrefund: 'Pérdida (reembolsada)',
+}
+
+// ML manda estos valores en formatos distintos según el endpoint
+// (SCREAMING_SNAKE_CASE, snake_case, camelCase...) - normalizamos
+// sacando guiones bajos y pasando todo a minúscula antes de buscar en
+// el diccionario, así no importa cómo venga.
+function _normalizar(valor) {
+  return (valor || '').replace(/_/g, '').toLowerCase()
+}
+
+function traducirNoDisponible(status) {
+  const encontrado = ETIQUETAS_NO_DISPONIBLE[_normalizar(status)]
+  if (encontrado) return encontrado
+  // Si no lo tenemos mapeado, al menos lo mostramos legible en vez de crudo
+  return (status || '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+}
+
+function traducirOperacion(tipo) {
+  const encontrado = ETIQUETAS_OPERACION[_normalizar(tipo)]
+  if (encontrado) return encontrado
+  return (tipo || 'Movimiento').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
 }
 
 export default function FullView({ onUnauthorized }) {
@@ -403,7 +427,7 @@ export default function FullView({ onUnauthorized }) {
                       <div className="sale-together" style={{ marginBottom: 8 }}>
                         {item.not_available_detail.map((d, i) => (
                           <div key={i}>
-                            {ETIQUETAS_NO_DISPONIBLE[d.status] || d.status}: {d.quantity}
+                            {traducirNoDisponible(d.status)}: {d.quantity}
                           </div>
                         ))}
                       </div>
@@ -429,7 +453,7 @@ export default function FullView({ onUnauthorized }) {
                           <span className="mono">
                             {new Date(op.fecha).toLocaleDateString('es-AR')}
                           </span>
-                          <span>{ETIQUETAS_OPERACION[op.tipo] || op.tipo}</span>
+                          <span>{traducirOperacion(op.tipo)}</span>
                           <span className="mono">
                             {op.detalle?.available_quantity > 0 ? '+' : ''}
                             {op.detalle?.available_quantity ?? ''}
