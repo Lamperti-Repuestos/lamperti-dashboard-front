@@ -6,11 +6,12 @@ import FullView from './FullView.jsx'
 import PedidosFullView from './PedidosFullView.jsx'
 import ControlEmbalajeView from './ControlEmbalajeView.jsx'
 import CotejoPackingListView from './CotejoPackingListView.jsx'
+import PostventaView from './PostventaView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo']
+const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -119,6 +120,12 @@ export default function App() {
           >
             Cotejo Packing List
           </button>
+          <button
+            className={`view-tab ${view === 'postventa' ? 'active' : ''}`}
+            onClick={() => setView('postventa')}
+          >
+            Postventa
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
@@ -133,6 +140,7 @@ export default function App() {
         {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
         {view === 'control' && <ControlEmbalajeView onUnauthorized={handleUnauthorized} />}
         {view === 'cotejo' && <CotejoPackingListView onUnauthorized={handleUnauthorized} />}
+        {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
       </div>
     </>
   )
