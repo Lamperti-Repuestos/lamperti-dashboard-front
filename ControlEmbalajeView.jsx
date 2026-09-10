@@ -373,8 +373,12 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               <span className="id-cell mono">
                 SKU: {item.sku} · Cantidad: {item.cantidad}
                 {item.comprador && ` · Comprador: ${item.comprador}`}
-                {item.tipo_envio && ` · ${item.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}`}
               </span>
+              {item.tipo_envio && (
+                <span className={`badge badge-${item.tipo_envio === 'colecta' ? 'colecta' : 'flex'}`}>
+                  {item.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}
+                </span>
+              )}
               {item.combo_con && (
                 <span className="sale-together">También se vendió con: {item.combo_con}</span>
               )}
