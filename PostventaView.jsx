@@ -252,20 +252,6 @@ export default function PostventaView({ onUnauthorized }) {
                       </div>
                     )}
 
-                    {/* Reembolso parcial - solo lectura */}
-                    {detalle.reembolso_parcial_opciones?.available_offers?.length > 0 && (
-                      <div style={{ marginBottom: 12, fontSize: 13 }}>
-                        <strong>Reembolso parcial disponible (solo para ver, todavía no se puede ejecutar desde acá):</strong>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                          {detalle.reembolso_parcial_opciones.available_offers.map((o, i) => (
-                            <span key={i} className="badge badge-acordar">
-                              {o.percentage}% (${o.amount})
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {detalle.mensajes.length === 0 && !detalle.devolucion && (
                       <div className="sale-together">Sin mensajes en este reclamo.</div>
                     )}
