@@ -7,18 +7,47 @@ const normalizar = (s) =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '')
+    .replace(/[\s-]+/g, '')
 
 function nuevaFila(extra = {}) {
   return { id: `${Date.now()}-${Math.random()}`, codigo: '', cantidad: '', descripcion: '', ...extra }
 }
 
+function parsearLineaManual(lineaOriginal) {
+  const partes = lineaOriginal.trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return null
+
+  const codigo = partes[0]
+  const ultima = partes[partes.length - 1]
+  const ultimaEsNumero = /^\d+([.,]\d+)?$/.test(ultima)
+
+  if (ultimaEsNumero && partes.length > 1) {
+    return nuevaFila({ codigo, cantidad: ultima, descripcion: partes.slice(1, -1).join(' ') })
+  }
+  return nuevaFila({ codigo, descripcion: partes.slice(1).join(' ') })
+}
+
 function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando, mostrarPrecio }) {
+  const [textoCarga, setTextoCarga] = useState('')
+
   const actualizarFila = (id, campo, valor) => {
     setFilas((prev) => prev.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)))
   }
   const eliminarFila = (id) => {
     setFilas((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  const cargarEnBloque = () => {
+    const nuevas = textoCarga
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map(parsearLineaManual)
+      .filter(Boolean)
+
+    if (nuevas.length === 0) return
+    setFilas((prev) => [...prev, ...nuevas])
+    setTextoCarga('')
   }
 
   return (
@@ -44,6 +73,24 @@ function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando,
         <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px' }}>
           Escuchando... decí "código, cantidad, número, descripción" por línea. Ej: "cuatro cero cero uno cantidad diez tapa de aceite".
         </p>
+      )}
+
+      {onDictar && (
+        <div style={{ marginBottom: 14 }}>
+          <label className="corte-label" style={{ fontSize: 12 }}>
+            O escribí varias líneas juntas (una por producto: código, descripción, cantidad al final)
+          </label>
+          <textarea
+            className="paste-textarea"
+            rows={3}
+            placeholder={'1192w00i caño venteo 10\n209936 tapa deposito 1'}
+            value={textoCarga}
+            onChange={(e) => setTextoCarga(e.target.value)}
+          />
+          <button className="sort-btn" style={{ marginTop: 6 }} onClick={cargarEnBloque}>
+            📥 Cargar
+          </button>
+        </div>
       )}
 
       {filas.length === 0 && (
