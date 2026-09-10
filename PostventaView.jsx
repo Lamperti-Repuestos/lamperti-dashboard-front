@@ -1,6 +1,25 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 
+const ETIQUETAS_ROL = {
+  complainant: 'Comprador',
+  respondent: 'Vendedor (nosotros)',
+  mediator: 'Mediador ML',
+}
+
+const COLOR_ROL = {
+  complainant: '#1A2B6B',
+  respondent: '#2E7D46',
+  mediator: '#B8860B',
+}
+
+function renderConNegrita(texto) {
+  const partes = (texto || '').split(/\*\*(.+?)\*\*/g)
+  return partes.map((parte, i) =>
+    i % 2 === 1 ? <strong key={i}>{parte}</strong> : <span key={i}>{parte}</span>
+  )
+}
+
 const ETIQUETAS_TIPO = {
   mediations: 'Reclamo',
   return: 'Devolución',
@@ -149,13 +168,15 @@ export default function PostventaView({ onUnauthorized }) {
                     )}
 
                     {detalle.mensajes.map((m, i) => (
-                      <div className="sale-line-wrap" key={i}>
-                        <div className="sale-line">
-                          <span style={{ fontWeight: 700 }}>
-                            {m.sender_role === 'complainant' ? 'Comprador' : m.sender_role === 'respondent' ? 'Vendedor (nosotros)' : m.sender_role}:
-                          </span>
-                          <span>{m.message}</span>
+                      <div
+                        key={i}
+                        className="mensaje-burbuja"
+                        style={{ borderLeft: `4px solid ${COLOR_ROL[m.sender_role] || 'var(--gray-line)'}` }}
+                      >
+                        <div className="mensaje-remitente" style={{ color: COLOR_ROL[m.sender_role] || 'inherit' }}>
+                          {ETIQUETAS_ROL[m.sender_role] || m.sender_role}
                         </div>
+                        <div className="mensaje-texto">{renderConNegrita(m.message)}</div>
                       </div>
                     ))}
 
