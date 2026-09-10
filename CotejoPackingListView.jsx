@@ -264,8 +264,10 @@ export default function CotejoPackingListView({ onUnauthorized }) {
       const cantOf = enOf && enOf.cantidad !== '' ? Number(enOf.cantidad) : null
       const cantA = enA && enA.cantidad !== '' ? Number(enA.cantidad) : null
 
-      const presentes = [cantB, cantOf, cantA].filter((c) => c !== null)
-      const coincide = presentes.length === 3 && cantB === cantOf && cantOf === cantA
+      // La cuenta real es: lo que anotamos a mano (B) + lo que ya está
+      // facturado (Digital) tiene que sumar el total declarado en la
+      // oficial del proveedor - no que las tres sean iguales entre sí.
+      const coincide = cantOf !== null && (cantB || 0) + (cantA || 0) === cantOf
 
       return {
         codigo: enB?.codigo || enOf?.codigo || enA?.codigo || cod,
@@ -331,8 +333,9 @@ export default function CotejoPackingListView({ onUnauthorized }) {
                 <span className="id-cell mono">Código: {r.codigo}</span>
               </div>
               <span className="badge badge-colecta">B: {r.cantB ?? '—'}</span>
-              <span className="badge badge-flex">Oficial: {r.cantOf ?? '—'}</span>
               <span className="badge badge-acordar">Digital: {r.cantA ?? '—'}</span>
+              <span style={{ fontWeight: 700 }}>=</span>
+              <span className="badge badge-flex">Oficial: {r.cantOf ?? '—'}</span>
               {r.coincide ? (
                 <span className="badge badge-explicada">✅ Coincide</span>
               ) : (
