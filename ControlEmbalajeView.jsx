@@ -8,6 +8,8 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [query, setQuery] = useState('')
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
   const [horasCruce, setHorasCruce] = useState(24)
+  const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
+  const [escuchando, setEscuchando] = useState(false)
 
   const [textoPegado, setTextoPegado] = useState('')
   const [procesando, setProcesando] = useState(false)
@@ -91,9 +93,32 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       .catch(() => setLimpiando(false))
   }
 
+  const buscarPorVoz = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'es-AR'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => setEscuchando(true)
+    recognition.onend = () => setEscuchando(false)
+    recognition.onerror = () => setEscuchando(false)
+    recognition.onresult = (event) => {
+      const texto = event.results[0][0].transcript
+      setQuery(texto)
+    }
+
+    recognition.start()
+  }
+
   const filtered = useMemo(() => {
     let result = items
     if (ocultarEmbalados) result = result.filter((it) => !it.checked)
+    if (filtroTipo !== 'todos') result = result.filter((it) => it.tipo_envio === filtroTipo)
     if (query.trim()) {
       const q = query.trim().toLowerCase()
       result = result.filter(
@@ -101,7 +126,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       )
     }
     return result
-  }, [items, query, ocultarEmbalados])
+  }, [items, query, ocultarEmbalados, filtroTipo])
 
   const embalados = items.filter((it) => it.checked).length
 
@@ -134,6 +159,33 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button
+          className={`sort-btn ${escuchando ? 'toggle-on-red' : ''}`}
+          onClick={buscarPorVoz}
+          title="Buscar por voz"
+        >
+          {escuchando ? '🔴 Escuchando...' : '🎤 Voz'}
+        </button>
+        <div className="tabs">
+          <button
+            className={`tab ${filtroTipo === 'todos' ? 'active' : ''}`}
+            onClick={() => setFiltroTipo('todos')}
+          >
+            Todos
+          </button>
+          <button
+            className={`tab tab-colecta ${filtroTipo === 'colecta' ? 'active' : ''}`}
+            onClick={() => setFiltroTipo('colecta')}
+          >
+            Colecta
+          </button>
+          <button
+            className={`tab tab-flex ${filtroTipo === 'flex' ? 'active' : ''}`}
+            onClick={() => setFiltroTipo('flex')}
+          >
+            Flex
+          </button>
+        </div>
         <button
           className={`sort-btn ${ocultarEmbalados ? 'toggle-on-green' : ''}`}
           onClick={() => setOcultarEmbalados((v) => !v)}
@@ -193,7 +245,11 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
             />
             <div className="pick-title">
               {item.titulo}
-              <span className="id-cell mono">SKU: {item.sku} · Cantidad: {item.cantidad}</span>
+              <span className="id-cell mono">
+                SKU: {item.sku} · Cantidad: {item.cantidad}
+                {item.comprador && ` · Comprador: ${item.comprador}`}
+                {item.tipo_envio && ` · ${item.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}`}
+              </span>
               {item.combo_con && (
                 <span className="sale-together">También se vendió con: {item.combo_con}</span>
               )}
