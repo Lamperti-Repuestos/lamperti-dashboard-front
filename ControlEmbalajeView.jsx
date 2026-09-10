@@ -49,7 +49,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       .then((data) => {
         let texto = `${data.productos_nuevos} producto(s) nuevo(s) de ${data.pedidos_detectados} pedido(s) detectado(s).`
         if (data.pedidos_fallidos.length > 0) {
-          texto += ` ⚠ No pude traer ${data.pedidos_fallidos.length} pedido(s).`
+          const motivos = {}
+          data.pedidos_fallidos.forEach((f) => {
+            motivos[f.motivo] = (motivos[f.motivo] || 0) + 1
+          })
+          const resumenMotivos = Object.entries(motivos)
+            .map(([motivo, cant]) => `${cant}x ${motivo}`)
+            .join(', ')
+          texto += ` ⚠ No pude traer ${data.pedidos_fallidos.length} pedido(s): ${resumenMotivos}.`
         }
         setMsg(texto)
         setTextoPegado('')
