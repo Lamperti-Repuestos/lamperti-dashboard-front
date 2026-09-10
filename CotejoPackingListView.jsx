@@ -160,6 +160,11 @@ export default function CotejoPackingListView({ onUnauthorized }) {
   const [msgPdf, setMsgPdf] = useState(null)
 
   const [resultado, setResultado] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const [msgGuardar, setMsgGuardar] = useState(null)
+  const [mostrarHistorial, setMostrarHistorial] = useState(false)
+  const [historial, setHistorial] = useState(null)
+  const [cotejoAbierto, setCotejoAbierto] = useState(null)
 
   const agregarFilaDesdeVoz = (destino, textoOriginal) => {
     const texto = textoOriginal.toLowerCase().trim()
@@ -278,6 +283,55 @@ export default function CotejoPackingListView({ onUnauthorized }) {
 
     filas.sort((a, b) => (a.coincide === b.coincide ? 0 : a.coincide ? 1 : -1))
     setResultado(filas)
+    setMsgGuardar(null)
+  }
+
+  const guardarCotejo = () => {
+    setGuardando(true)
+    setMsgGuardar(null)
+    apiFetch('/cotejo/guardar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filas_b: filasB,
+        filas_oficial: filasOficial,
+        filas_a: filasA,
+        resultado,
+      }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error')
+        return data
+      })
+      .then((data) => {
+        setMsgGuardar(`✅ Guardado como "${data.nombre}"`)
+        setGuardando(false)
+      })
+      .catch((err) => {
+        setMsgGuardar(`Error: ${err.message}`)
+        setGuardando(false)
+      })
+  }
+
+  const toggleHistorial = () => {
+    const abrir = !mostrarHistorial
+    setMostrarHistorial(abrir)
+    if (abrir && !historial) {
+      apiFetch('/cotejo/historial', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((data) => setHistorial(data.registros))
+    }
+  }
+
+  const abrirCotejoGuardado = (id) => {
+    if (cotejoAbierto?.id === id) {
+      setCotejoAbierto(null)
+      return
+    }
+    apiFetch(`/cotejo/historial/${id}`, {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((data) => setCotejoAbierto(data))
   }
 
   return (
@@ -322,7 +376,58 @@ export default function CotejoPackingListView({ onUnauthorized }) {
         <button className="scan-btn" onClick={cotejar}>
           🔍 Cotejar las tres listas
         </button>
+        {resultado && (
+          <button className="scan-btn" onClick={guardarCotejo} disabled={guardando}>
+            💾 Guardar este cotejo
+          </button>
+        )}
+        <button className="sort-btn" onClick={toggleHistorial}>
+          📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} cotejos guardados
+        </button>
       </div>
+
+      {msgGuardar && <div className="scan-result" style={{ padding: '10px 0' }}>{msgGuardar}</div>}
+
+      {mostrarHistorial && (
+        <div className="paste-box">
+          {!historial && <div className="loading-state">Cargando historial...</div>}
+          {historial && historial.length === 0 && (
+            <div className="empty-state">Todavía no guardaste ningún cotejo.</div>
+          )}
+          {historial && historial.map((h) => (
+            <div key={h.id}>
+              <div
+                className="paste-result-row"
+                style={{ cursor: 'pointer' }}
+                onClick={() => abrirCotejoGuardado(h.id)}
+              >
+                <div className="title-cell">
+                  {h.nombre}
+                  <span className="id-cell mono">{new Date(h.fecha).toLocaleString('es-AR')}</span>
+                </div>
+                <span className="badge badge-explicada">✅ {h.coincidencias}</span>
+                <span className="badge badge-sin-explicar">⚠ {h.no_coincidencias}</span>
+              </div>
+
+              {cotejoAbierto?.id === h.id && (
+                <div style={{ padding: '8px 0 16px' }}>
+                  {cotejoAbierto.resultado.map((r, i) => (
+                    <div key={i} className={`row ${r.coincide ? '' : 'pick-row-faltante'}`}>
+                      <div className="title-cell">
+                        {r.descripcion || r.codigo}
+                        <span className="id-cell mono">Código: {r.codigo}</span>
+                      </div>
+                      <span className="badge badge-colecta">B: {r.cantB ?? '—'}</span>
+                      <span className="badge badge-acordar">Digital: {r.cantA ?? '—'}</span>
+                      <span className="badge badge-flex">Oficial: {r.cantOf ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {resultado && (
         <div className="list">
