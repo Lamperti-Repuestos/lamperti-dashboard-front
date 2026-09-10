@@ -23,9 +23,9 @@ function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando,
 
   return (
     <div className="paste-box">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <label className="corte-label" style={{ marginBottom: 0 }}>{titulo}</label>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {onDictar && (
             <button
               className={`sort-btn ${dictando ? 'toggle-on-red' : ''}`}
@@ -46,65 +46,56 @@ function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando,
         </p>
       )}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--gray-line)' }}>
-              <th style={{ padding: '4px 6px' }}>Código</th>
-              <th style={{ padding: '4px 6px', width: 90 }}>Cantidad</th>
-              {mostrarPrecio && <th style={{ padding: '4px 6px', width: 110 }}>P. Unitario</th>}
-              <th style={{ padding: '4px 6px' }}>Descripción</th>
-              <th style={{ width: 30 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f) => (
-              <tr key={f.id} style={{ borderBottom: '1px solid var(--gray-line)' }}>
-                <td style={{ padding: '4px 6px' }}>
-                  <input
-                    className="corte-input"
-                    style={{ width: '100%' }}
-                    value={f.codigo}
-                    onChange={(e) => actualizarFila(f.id, 'codigo', e.target.value)}
-                  />
-                </td>
-                <td style={{ padding: '4px 6px' }}>
-                  <input
-                    className="corte-input"
-                    style={{ width: '100%' }}
-                    value={f.cantidad}
-                    onChange={(e) => actualizarFila(f.id, 'cantidad', e.target.value)}
-                  />
-                </td>
-                {mostrarPrecio && (
-                  <td style={{ padding: '4px 6px' }}>
-                    <input
-                      className="corte-input"
-                      style={{ width: '100%' }}
-                      value={f.precio_unitario || ''}
-                      onChange={(e) => actualizarFila(f.id, 'precio_unitario', e.target.value)}
-                    />
-                  </td>
-                )}
-                <td style={{ padding: '4px 6px' }}>
-                  <input
-                    className="corte-input"
-                    style={{ width: '100%' }}
-                    value={f.descripcion}
-                    onChange={(e) => actualizarFila(f.id, 'descripcion', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <button className="revert-btn" onClick={() => eliminarFila(f.id)}>✕</button>
-                </td>
-              </tr>
-            ))}
-            {filas.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 10, color: 'var(--gray-muted)' }}>Sin filas todavía.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {filas.length === 0 && (
+        <div className="empty-state">Sin filas todavía.</div>
+      )}
+
+      {filas.map((f, i) => (
+        <div key={f.id} className="cotejo-card">
+          <div className="cotejo-card-header">
+            <span className="mono" style={{ color: 'var(--gray-muted)', fontSize: 12 }}>#{i + 1}</span>
+            <button className="revert-btn" onClick={() => eliminarFila(f.id)}>✕ Borrar fila</button>
+          </div>
+
+          <label className="cotejo-field">
+            Código
+            <input
+              className="cotejo-input"
+              value={f.codigo}
+              onChange={(e) => actualizarFila(f.id, 'codigo', e.target.value)}
+            />
+          </label>
+
+          <label className="cotejo-field">
+            Cantidad
+            <input
+              className="cotejo-input"
+              value={f.cantidad}
+              onChange={(e) => actualizarFila(f.id, 'cantidad', e.target.value)}
+            />
+          </label>
+
+          {mostrarPrecio && (
+            <label className="cotejo-field">
+              P. Unitario
+              <input
+                className="cotejo-input"
+                value={f.precio_unitario || ''}
+                onChange={(e) => actualizarFila(f.id, 'precio_unitario', e.target.value)}
+              />
+            </label>
+          )}
+
+          <label className="cotejo-field">
+            Descripción
+            <input
+              className="cotejo-input"
+              value={f.descripcion}
+              onChange={(e) => actualizarFila(f.id, 'descripcion', e.target.value)}
+            />
+          </label>
+        </div>
+      ))}
     </div>
   )
 }

@@ -821,6 +821,48 @@ button {
   background: var(--white);
 }
 
+.cotejo-card {
+  border: 1px solid var(--gray-line);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--cream);
+}
+
+.cotejo-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cotejo-field {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.cotejo-input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-line);
+  border-radius: var(--radius);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--charcoal);
+  background: var(--white);
+  box-sizing: border-box;
+}
+
 .paste-textarea {
   width: 100%;
   padding: 10px 12px;
