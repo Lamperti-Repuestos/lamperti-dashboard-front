@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 
+function Tile({ valor, label, color, onClick, alerta }) {
+  return (
+    <div
+      className="resumen-tile"
+      style={{ background: color, cursor: onClick ? 'pointer' : 'default' }}
+      onClick={onClick}
+    >
+      {alerta && <div className="resumen-tile-alerta">⚠</div>}
+      <div className="resumen-tile-valor">{valor}</div>
+      <div className="resumen-tile-label">{label}</div>
+    </div>
+  )
+}
+
 export default function ResumenView({ onUnauthorized, onIrA }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -28,42 +42,33 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
 
   return (
     <>
-      <div className="summary">
-        <div
-          className="summary-item"
-          style={{ cursor: 'pointer' }}
+      <div className="resumen-grid">
+        <Tile
+          valor={data.total_pendiente_separar}
+          label="Unidades pendientes de separar"
+          color="#1A2B6B"
           onClick={() => onIrA?.('picking')}
-        >
-          <div className="value mono">{data.total_pendiente_separar}</div>
-          <div className="label">Unidades pendientes de separar</div>
-        </div>
-
-        <div
-          className={`summary-item ${data.productos_sobreventa > 0 ? 'warn' : ''}`}
-          style={{ cursor: 'pointer' }}
+        />
+        <Tile
+          valor={data.productos_sobreventa}
+          label="Producto(s) en sobreventa (48h)"
+          color={data.productos_sobreventa > 0 ? '#B03A2E' : '#2E7D46'}
+          alerta={data.productos_sobreventa > 0}
           onClick={() => onIrA?.('metricas')}
-        >
-          <div className="value mono">{data.productos_sobreventa}</div>
-          <div className="label">Producto(s) en sobreventa (48h)</div>
-        </div>
-
-        <div
-          className={`summary-item ${data.reclamos_con_deadline_hoy.length > 0 ? 'warn' : ''}`}
-          style={{ cursor: 'pointer' }}
+        />
+        <Tile
+          valor={data.reclamos_con_deadline_hoy.length}
+          label="Reclamo(s) con vencimiento hoy"
+          color={data.reclamos_con_deadline_hoy.length > 0 ? '#B8860B' : '#2E7D46'}
+          alerta={data.reclamos_con_deadline_hoy.length > 0}
           onClick={() => onIrA?.('postventa')}
-        >
-          <div className="value mono">{data.reclamos_con_deadline_hoy.length}</div>
-          <div className="label">Reclamo(s) con vencimiento hoy</div>
-        </div>
-
-        <div
-          className="summary-item"
-          style={{ cursor: 'pointer' }}
+        />
+        <Tile
+          valor={data.reclamos_abiertos_total}
+          label="Reclamos abiertos (total)"
+          color="#4A67B8"
           onClick={() => onIrA?.('postventa')}
-        >
-          <div className="value mono">{data.reclamos_abiertos_total}</div>
-          <div className="label">Reclamos abiertos (total)</div>
-        </div>
+        />
       </div>
 
       {data.reclamos_con_deadline_hoy.length > 0 && (

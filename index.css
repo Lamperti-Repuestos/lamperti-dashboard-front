@@ -376,6 +376,47 @@ button {
 }
 
 /* Summary */
+.resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: var(--pad);
+}
+
+.resumen-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: var(--white);
+  text-align: center;
+}
+
+.resumen-tile-valor {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.resumen-tile-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+  opacity: 0.95;
+}
+
+.resumen-tile-alerta {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 20px;
+}
+
 .summary {
   display: flex;
   flex-wrap: wrap;
