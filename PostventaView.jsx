@@ -23,8 +23,17 @@ function renderConNegrita(texto) {
 const ETIQUETAS_TIPO = {
   mediations: 'Reclamo',
   return: 'Devolución',
+  returns: 'Devolución',
   cancel_sale: 'Cancelación',
+  cancel_purchase: 'Cancelación de compra',
   fulfillment: 'Reclamo Full',
+}
+
+const ETIQUETAS_RECURSO = {
+  order: 'Pedido',
+  shipment: 'Envío',
+  payment: 'Pago',
+  purchase: 'Compra',
 }
 
 const ETIQUETAS_ETAPA = {
@@ -188,13 +197,13 @@ export default function PostventaView({ onUnauthorized }) {
           <div key={r.id} className="pick-group">
             <div className="row" onClick={() => abrirReclamo(r.id)} style={{ cursor: 'pointer' }}>
               <div className="title-cell">
-                {r.titulo || `Recurso: ${r.resource} #${r.resource_id}`}
+                {r.titulo || `Reclamo sobre ${ETIQUETAS_RECURSO[r.resource] || r.resource} #${r.resource_id} (sin producto identificado)`}
                 <span className="id-cell mono">
                   #{r.id}{r.comprador && ` · ${r.comprador}`}
                 </span>
               </div>
               <span className="badge badge-multi">{ETIQUETAS_TIPO[r.tipo] || r.tipo}</span>
-              {r.etapa && <span className="badge badge-acordar">{ETIQUETAS_ETAPA[r.etapa] || r.etapa}</span>}
+              {r.etapa && r.etapa !== 'none' && <span className="badge badge-acordar">{ETIQUETAS_ETAPA[r.etapa] || r.etapa}</span>}
               <span className="detail-toggle">{abiertoId === r.id ? '▲' : '▼ ver'}</span>
             </div>
 
