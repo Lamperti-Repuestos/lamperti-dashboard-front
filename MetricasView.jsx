@@ -21,6 +21,8 @@ export default function MetricasView({ onUnauthorized }) {
   const [fotos, setFotos] = useState({})
   const [quiebresData, setQuiebresData] = useState(null)
   const [cargandoQuiebres, setCargandoQuiebres] = useState(false)
+  const [reclamosData, setReclamosData] = useState(null)
+  const [cargandoReclamos, setCargandoReclamos] = useState(false)
 
   const fetchDatos = () => {
     setLoading(true)
@@ -55,6 +57,18 @@ export default function MetricasView({ onUnauthorized }) {
   }, [vista, dias])
 
   useEffect(() => {
+    if (vista !== 'reclamos') return
+    setCargandoReclamos(true)
+    apiFetch(`/metricas/reclamos-producto?dias=${dias}`, {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((d) => {
+        setReclamosData(d)
+        setCargandoReclamos(false)
+      })
+      .catch(() => setCargandoReclamos(false))
+  }, [vista, dias])
+
+  useEffect(() => {
     apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => res.json())
       .then((d) => {
@@ -66,9 +80,11 @@ export default function MetricasView({ onUnauthorized }) {
 
   const lista = vista === 'quiebres'
     ? (quiebresData?.productos || [])
-    : data
-      ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
-      : []
+    : vista === 'reclamos'
+      ? (reclamosData?.productos || [])
+      : data
+        ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
+        : []
 
   const datosGrafico = useMemo(() => {
     if (vista === 'sin_ventas') return []
@@ -76,6 +92,12 @@ export default function MetricasView({ onUnauthorized }) {
       return lista.slice(0, 10).map((p) => ({
         nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
         valor: p.veces_sin_stock,
+      }))
+    }
+    if (vista === 'reclamos') {
+      return lista.slice(0, 10).map((p) => ({
+        nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
+        valor: p.reclamos_abiertos,
       }))
     }
     return lista.slice(0, 10).map((p) => ({
@@ -102,6 +124,9 @@ export default function MetricasView({ onUnauthorized }) {
           </button>
           <button className={`tab tab-colecta ${vista === 'quiebres' ? 'active' : ''}`} onClick={() => setVista('quiebres')}>
             📉 Quiebres de stock
+          </button>
+          <button className={`tab tab-flex ${vista === 'reclamos' ? 'active' : ''}`} onClick={() => setVista('reclamos')}>
+            ⚠ Reclamos por producto
           </button>
         </div>
         <label className="corte-label">
@@ -142,7 +167,7 @@ export default function MetricasView({ onUnauthorized }) {
                 tick={{ fontSize: 13, fontFamily: 'Archivo, sans-serif', fill: 'var(--charcoal)' }}
               />
               <Tooltip
-                formatter={(value) => vista === 'quiebres' ? `${value} vez(veces)` : vista === 'unidades' ? `${value} unidades` : formatoPesos.format(value)}
+                formatter={(value) => (vista === 'quiebres' || vista === 'reclamos') ? `${value}` : vista === 'unidades' ? `${value} unidades` : formatoPesos.format(value)}
               />
               <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
                 {datosGrafico.map((_, i) => (
@@ -155,7 +180,9 @@ export default function MetricasView({ onUnauthorized }) {
       )}
 
       <div className="list">
-        {(loading || (vista === 'quiebres' && cargandoQuiebres)) && <div className="loading-state">Cargando métricas...</div>}
+        {(loading || (vista === 'quiebres' && cargandoQuiebres) || (vista === 'reclamos' && cargandoReclamos)) && (
+          <div className="loading-state">Cargando métricas...</div>
+        )}
         {error && <div className="error-state">Error: {error}</div>}
         {!loading && !error && lista.length === 0 && (
           <div className="empty-state">Sin datos todavía para este período - esperá a que se acumulen más días.</div>
@@ -184,6 +211,13 @@ export default function MetricasView({ onUnauthorized }) {
                 <span className="badge badge-sin-explicar">{p.veces_sin_stock}x sin stock</span>
                 <span className="badge badge-acordar">{p.dias_totales_sin_stock} día(s) totales</span>
                 <span className="id-cell mono">~{p.promedio_dias_por_quiebre} días/vez</span>
+              </>
+            )}
+            {vista === 'reclamos' && (
+              <>
+                <span className="badge badge-sin-explicar">{p.reclamos_abiertos} reclamo(s) abierto(s)</span>
+                <span className="badge badge-acordar">{p.ventas_unidades} vendidos en el período</span>
+                <span className="id-cell mono">{p.reclamos_cada_100_ventas} cada 100 ventas</span>
               </>
             )}
             {p.precio != null && <span className="id-cell mono">Precio: {formatoPesos.format(p.precio)}</span>}
