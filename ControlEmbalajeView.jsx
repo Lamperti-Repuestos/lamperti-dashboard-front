@@ -19,8 +19,6 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [mostrarHistorial, setMostrarHistorial] = useState(false)
   const [historial, setHistorial] = useState(null)
 
-  const [textoPegado, setTextoPegado] = useState('')
-  const [procesando, setProcesando] = useState(false)
   const [msg, setMsg] = useState(null)
   const [limpiando, setLimpiando] = useState(false)
 
@@ -343,24 +341,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
         <EtiquetasView onUnauthorized={onUnauthorized} onImportado={fetchLista} />
       )}
 
-      <div className="paste-box">
-        <label className="corte-label" style={{ marginBottom: 8 }}>
-          Pegá el texto de "Listo para recolección/envío" de ML
-        </label>
-        <textarea
-          className="paste-textarea"
-          rows={4}
-          placeholder="Copiá y pegá toda la pantalla acá..."
-          value={textoPegado}
-          onChange={(e) => setTextoPegado(e.target.value)}
-        />
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-          <button className="scan-btn" onClick={procesarTexto} disabled={procesando}>
-            {procesando ? 'Procesando...' : '📋 Agregar al control'}
-          </button>
-        </div>
-        {msg && <div className="scan-result" style={{ padding: '10px 0', whiteSpace: 'pre-wrap' }}>{msg}</div>}
-      </div>
+      {msg && <div className="scan-result" style={{ margin: 'var(--pad)', whiteSpace: 'pre-wrap' }}>{msg}</div>}
 
       <div className="controls">
         <input
@@ -465,7 +446,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
 
         {!loading && !error && filtered.length === 0 && (
           <div className="empty-state">
-            No hay nada en el control. Pegá el texto de ML arriba para arrancar.
+            No hay nada en el control. Importalo desde "Etiquetas" arriba para arrancar.
           </div>
         )}
 
