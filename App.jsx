@@ -8,11 +8,12 @@ import ControlEmbalajeView from './ControlEmbalajeView.jsx'
 import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
+import PublicidadView from './PublicidadView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas']
+const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
 
 export default function App() {
   const [view, setView] = useState('picking') // picking | publications | stock
@@ -133,6 +134,12 @@ export default function App() {
           >
             Métricas
           </button>
+          <button
+            className={`view-tab ${view === 'publicidad' ? 'active' : ''}`}
+            onClick={() => setView('publicidad')}
+          >
+            Publicidad
+          </button>
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
@@ -149,6 +156,7 @@ export default function App() {
         {view === 'cotejo' && <CotejoPackingListView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
+        {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
       </div>
     </>
   )

@@ -12,7 +12,7 @@ const COLORES_BARRA = ['#1A2B6B', '#2E4A9E', '#4A67B8', '#6B84C9', '#8CA1D8', '#
 
 const MEDALLA = ['🥇', '🥈', '🥉']
 
-const VISTAS_CUSTOM = ['sobreventa', 'devoluciones', 'clientes', 'publicidad', 'stock_bajo_full']
+const VISTAS_CUSTOM = ['sobreventa', 'devoluciones', 'clientes', 'stock_bajo_full']
 
 export default function MetricasView({ onUnauthorized }) {
   const [dias, setDias] = useState(30)
@@ -32,8 +32,6 @@ export default function MetricasView({ onUnauthorized }) {
   const [cargandoDevoluciones, setCargandoDevoluciones] = useState(false)
   const [clientesData, setClientesData] = useState(null)
   const [cargandoClientes, setCargandoClientes] = useState(false)
-  const [publicidadData, setPublicidadData] = useState(null)
-  const [cargandoPublicidad, setCargandoPublicidad] = useState(false)
   const [stockBajoFullData, setStockBajoFullData] = useState(null)
   const [cargandoStockBajoFull, setCargandoStockBajoFull] = useState(false)
 
@@ -116,25 +114,6 @@ export default function MetricasView({ onUnauthorized }) {
       })
       .catch(() => setCargandoClientes(false))
   }, [vista])
-
-  useEffect(() => {
-    if (vista !== 'publicidad') return
-    setCargandoPublicidad(true)
-    apiFetch(`/metricas/publicidad?dias=${dias}`, {}, onUnauthorized)
-      .then(async (res) => {
-        const d = await res.json()
-        if (!res.ok) throw new Error(d.detail || 'Error')
-        return d
-      })
-      .then((d) => {
-        setPublicidadData(d)
-        setCargandoPublicidad(false)
-      })
-      .catch((err) => {
-        setPublicidadData({ error: err.message })
-        setCargandoPublicidad(false)
-      })
-  }, [vista, dias])
 
   useEffect(() => {
     if (vista !== 'stock_bajo_full') return
@@ -235,9 +214,6 @@ export default function MetricasView({ onUnauthorized }) {
           </button>
           <button className={`tab ${vista === 'clientes' ? 'active' : ''}`} onClick={() => setVista('clientes')}>
             🔁 Clientes recurrentes
-          </button>
-          <button className={`tab ${vista === 'publicidad' ? 'active' : ''}`} onClick={() => setVista('publicidad')}>
-            📢 Publicidad
           </button>
           <button className={`tab ${vista === 'stock_bajo_full' ? 'active' : ''}`} onClick={() => setVista('stock_bajo_full')}>
             🟡 Stock bajo en Full
@@ -352,40 +328,6 @@ export default function MetricasView({ onUnauthorized }) {
               </div>
               <span className="badge badge-colecta">🔁 {c.cantidad_compras} compras</span>
               <span className="badge badge-flex">{formatoPesos.format(c.monto_total)} total</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {vista === 'publicidad' && (
-        <div className="list">
-          {cargandoPublicidad && <div className="loading-state">Cargando...</div>}
-          {publicidadData?.error && <div className="error-state">Error: {publicidadData.error}</div>}
-          {publicidadData?.sin_publicidad && (
-            <div className="empty-state">{publicidadData.mensaje}</div>
-          )}
-          {publicidadData?.campañas?.length === 0 && !publicidadData.sin_publicidad && (
-            <div className="empty-state">No hay campañas en este período.</div>
-          )}
-          {publicidadData?.sin_retorno?.length > 0 && (
-            <div className="summary">
-              <div className="summary-item warn">
-                <div className="value mono">{publicidadData.sin_retorno.length}</div>
-                <div className="label">Campaña(s) gastando sin retorno</div>
-              </div>
-            </div>
-          )}
-          {publicidadData?.campañas?.map((c) => (
-            <div key={c.id} className="row">
-              <div className="title-cell">
-                {c.nombre}
-                <span className="id-cell mono">{c.status} · {c.clicks} clicks</span>
-              </div>
-              <span className="badge badge-flex">{formatoPesos.format(c.gasto)} gastado</span>
-              <span className={`badge ${c.ventas_atribuidas === 0 ? 'badge-sin-explicar' : 'badge-explicada'}`}>
-                {c.ventas_atribuidas} venta(s) atribuida(s)
-              </span>
-              {c.roas != null && <span className="id-cell mono">ROAS: {c.roas}</span>}
             </div>
           ))}
         </div>
