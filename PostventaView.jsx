@@ -239,6 +239,24 @@ export default function PostventaView({ onUnauthorized }) {
                       </div>
                     )}
 
+                    {/* La venta y las publicaciones involucradas */}
+                    {detalle.orden && (
+                      <div style={{ marginBottom: 12, fontSize: 13 }}>
+                        <strong>Venta:</strong> ${detalle.orden.total_amount} · {new Date(detalle.orden.date_created).toLocaleDateString('es-AR')}
+                        {detalle.orden.order_items?.map((oi, i) => (
+                          <div key={i} style={{ marginTop: 4 }}>
+                            {oi.item.title} ×{oi.quantity}
+                            {oi.item.permalink && (
+                              <>
+                                {' · '}
+                                <a href={oi.item.permalink} target="_blank" rel="noreferrer">Ver publicación ↗</a>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Devolución */}
                     {detalle.devolucion && (
                       <div style={{ marginBottom: 12 }}>
@@ -278,7 +296,14 @@ export default function PostventaView({ onUnauthorized }) {
                       </div>
                     ))}
 
-                    {detalle.claim.type !== 'return' && (
+                    {detalle.claim.type === 'return' && (
+                      <p className="sale-together">Las devoluciones no tienen chat - se gestionan por acciones, no por mensajes.</p>
+                    )}
+                    {detalle.claim.status === 'closed' && detalle.claim.type !== 'return' && (
+                      <p className="sale-together">Este reclamo ya está cerrado - no se pueden mandar más mensajes.</p>
+                    )}
+
+                    {detalle.claim.type !== 'return' && detalle.claim.status !== 'closed' && (
                       <div style={{ marginTop: 12 }}>
                         <textarea
                           className="paste-textarea"
