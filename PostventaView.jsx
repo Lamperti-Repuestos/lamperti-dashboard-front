@@ -258,8 +258,10 @@ export default function PostventaView({ onUnauthorized }) {
                       </div>
                     )}
 
-                    {/* Fecha límite de acciones obligatorias (campo crudo de ML) */}
-                    {detalle.claim.players
+                    {/* Fecha límite de acciones obligatorias (campo crudo de ML) - solo
+                        se muestra si NO tenemos la fecha real del mensaje, para no
+                        confundir con dos fechas distintas al mismo tiempo. */}
+                    {!detalle.fecha_limite_real && detalle.claim.players
                       ?.flatMap((p) => p.available_actions || [])
                       .filter((a) => a.mandatory && a.due_date)
                       .map((a, i) => {
@@ -271,11 +273,9 @@ export default function PostventaView({ onUnauthorized }) {
                           </div>
                         )
                       })}
-                    {detalle.claim.players?.some((p) => (p.available_actions || []).some((a) => a.mandatory && a.due_date)) && (
+                    {!detalle.fecha_limite_real && detalle.claim.players?.some((p) => (p.available_actions || []).some((a) => a.mandatory && a.due_date)) && (
                       <p style={{ fontSize: 11, color: 'var(--gray-muted)', marginTop: 2, marginBottom: 10 }}>
-                        {detalle.fecha_limite_real
-                          ? '⚠ Esta fecha de arriba es de otra acción puntual (no la de la decisión) - guiate por la fecha real de arriba.'
-                          : '⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.'}
+                        ⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.
                       </p>
                     )}
 
