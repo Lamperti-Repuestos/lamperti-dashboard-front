@@ -12,6 +12,10 @@ export default function StockView({ onUnauthorized }) {
   const [mostrarQuiebres, setMostrarQuiebres] = useState(false)
   const [quiebresData, setQuiebresData] = useState(null)
   const [cargandoQuiebres, setCargandoQuiebres] = useState(false)
+  const [mostrarDiscrepancias, setMostrarDiscrepancias] = useState(false)
+  const [discrepanciasData, setDiscrepanciasData] = useState(null)
+  const [cargandoDiscrepancias, setCargandoDiscrepancias] = useState(false)
+  const [errorDiscrepancias, setErrorDiscrepancias] = useState(null)
 
   const toggleQuiebres = () => {
     const abrir = !mostrarQuiebres
@@ -25,6 +29,29 @@ export default function StockView({ onUnauthorized }) {
           setCargandoQuiebres(false)
         })
         .catch(() => setCargandoQuiebres(false))
+    }
+  }
+
+  const toggleDiscrepancias = () => {
+    const abrir = !mostrarDiscrepancias
+    setMostrarDiscrepancias(abrir)
+    if (abrir && !discrepanciasData) {
+      setCargandoDiscrepancias(true)
+      setErrorDiscrepancias(null)
+      apiFetch('/stock/discrepancias-contabilium', {}, onUnauthorized)
+        .then(async (res) => {
+          const d = await res.json()
+          if (!res.ok) throw new Error(d.detail || 'Error')
+          return d
+        })
+        .then((d) => {
+          setDiscrepanciasData(d)
+          setCargandoDiscrepancias(false)
+        })
+        .catch((err) => {
+          setErrorDiscrepancias(err.message)
+          setCargandoDiscrepancias(false)
+        })
     }
   }
 
@@ -160,6 +187,10 @@ export default function StockView({ onUnauthorized }) {
         <button className="sort-btn" onClick={toggleQuiebres}>
           📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
         </button>
+
+        <button className="sort-btn" onClick={toggleDiscrepancias}>
+          ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
+        </button>
       </div>
 
       {lastScan && (
@@ -257,6 +288,35 @@ export default function StockView({ onUnauthorized }) {
               <span className="badge badge-sin-explicar">{p.veces_sin_stock}x sin stock</span>
               <span className="badge badge-acordar">{p.dias_totales_sin_stock} día(s) totales</span>
               <span className="id-cell mono">~{p.promedio_dias_por_quiebre} días/vez</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mostrarDiscrepancias && (
+        <div className="list">
+          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>
+            Stock en 0 en ML, pero con stock en Contabilium
+          </label>
+          {cargandoDiscrepancias && <div className="loading-state">Revisando contra Contabilium (puede tardar un poco)...</div>}
+          {errorDiscrepancias && <div className="error-state">Error: {errorDiscrepancias}</div>}
+          {discrepanciasData && (
+            <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+              Se revisaron {discrepanciasData.revisados} producto(s) en 0 en ML.
+            </p>
+          )}
+          {discrepanciasData && discrepanciasData.discrepancias.length === 0 && (
+            <div className="empty-state">Ninguna discrepancia encontrada - lo que está en 0 en ML, también está en 0 en Contabilium.</div>
+          )}
+          {discrepanciasData?.discrepancias.map((p) => (
+            <div key={p.sku} className="row">
+              {p.foto_url && <img src={p.foto_url} alt="" className="pick-thumb" />}
+              <div className="title-cell">
+                {p.titulo}
+                <span className="id-cell mono">SKU: {p.sku}</span>
+              </div>
+              <span className="badge badge-sin-explicar">ML: 0</span>
+              <span className="badge badge-explicada">Contabilium: {p.stock_contabilium}</span>
             </div>
           ))}
         </div>
