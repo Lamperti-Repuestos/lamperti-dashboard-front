@@ -17,8 +17,10 @@ export default function MetricasView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [vista, setVista] = useState('unidades') // unidades | monto | sin_ventas
+  const [vista, setVista] = useState('unidades') // unidades | monto | neto | sin_ventas | quiebres
   const [fotos, setFotos] = useState({})
+  const [quiebresData, setQuiebresData] = useState(null)
+  const [cargandoQuiebres, setCargandoQuiebres] = useState(false)
 
   const fetchDatos = () => {
     setLoading(true)
@@ -41,6 +43,18 @@ export default function MetricasView({ onUnauthorized }) {
   useEffect(fetchDatos, [dias])
 
   useEffect(() => {
+    if (vista !== 'quiebres') return
+    setCargandoQuiebres(true)
+    apiFetch(`/metricas/quiebres-stock?dias=${dias}`, {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((d) => {
+        setQuiebresData(d)
+        setCargandoQuiebres(false)
+      })
+      .catch(() => setCargandoQuiebres(false))
+  }, [vista, dias])
+
+  useEffect(() => {
     apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => res.json())
       .then((d) => {
@@ -50,12 +64,20 @@ export default function MetricasView({ onUnauthorized }) {
       })
   }, [])
 
-  const lista = data
-    ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
-    : []
+  const lista = vista === 'quiebres'
+    ? (quiebresData?.productos || [])
+    : data
+      ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
+      : []
 
   const datosGrafico = useMemo(() => {
     if (vista === 'sin_ventas') return []
+    if (vista === 'quiebres') {
+      return lista.slice(0, 10).map((p) => ({
+        nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
+        valor: p.veces_sin_stock,
+      }))
+    }
     return lista.slice(0, 10).map((p) => ({
       nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
       valor: vista === 'unidades' ? p.ventas_unidades : vista === 'neto' ? p.ventas_monto_neto : p.ventas_monto,
@@ -77,6 +99,9 @@ export default function MetricasView({ onUnauthorized }) {
           </button>
           <button className={`tab tab-acordar ${vista === 'sin_ventas' ? 'active' : ''}`} onClick={() => setVista('sin_ventas')}>
             😴 Sin ventas
+          </button>
+          <button className={`tab tab-colecta ${vista === 'quiebres' ? 'active' : ''}`} onClick={() => setVista('quiebres')}>
+            📉 Quiebres de stock
           </button>
         </div>
         <label className="corte-label">
@@ -117,7 +142,7 @@ export default function MetricasView({ onUnauthorized }) {
                 tick={{ fontSize: 13, fontFamily: 'Archivo, sans-serif', fill: 'var(--charcoal)' }}
               />
               <Tooltip
-                formatter={(value) => vista === 'unidades' ? `${value} unidades` : formatoPesos.format(value)}
+                formatter={(value) => vista === 'quiebres' ? `${value} vez(veces)` : vista === 'unidades' ? `${value} unidades` : formatoPesos.format(value)}
               />
               <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
                 {datosGrafico.map((_, i) => (
@@ -130,7 +155,7 @@ export default function MetricasView({ onUnauthorized }) {
       )}
 
       <div className="list">
-        {loading && <div className="loading-state">Cargando métricas...</div>}
+        {(loading || (vista === 'quiebres' && cargandoQuiebres)) && <div className="loading-state">Cargando métricas...</div>}
         {error && <div className="error-state">Error: {error}</div>}
         {!loading && !error && lista.length === 0 && (
           <div className="empty-state">Sin datos todavía para este período - esperá a que se acumulen más días.</div>
@@ -144,7 +169,7 @@ export default function MetricasView({ onUnauthorized }) {
               {p.titulo || p.sku}
               <span className="id-cell mono">SKU: {p.sku} · #{i + 1}</span>
             </div>
-            {vista !== 'sin_ventas' && (
+            {vista !== 'sin_ventas' && vista !== 'quiebres' && (
               <>
                 <span className="badge badge-colecta">×{p.ventas_unidades} u.</span>
                 <span className="badge badge-flex">{formatoPesos.format(p.ventas_monto)} bruto</span>
@@ -153,6 +178,13 @@ export default function MetricasView({ onUnauthorized }) {
             )}
             {vista === 'sin_ventas' && (
               <span className="badge badge-sin-explicar">Stock: {p.stock_actual}</span>
+            )}
+            {vista === 'quiebres' && (
+              <>
+                <span className="badge badge-sin-explicar">{p.veces_sin_stock}x sin stock</span>
+                <span className="badge badge-acordar">{p.dias_totales_sin_stock} día(s) totales</span>
+                <span className="id-cell mono">~{p.promedio_dias_por_quiebre} días/vez</span>
+              </>
             )}
             {p.precio != null && <span className="id-cell mono">Precio: {formatoPesos.format(p.precio)}</span>}
           </div>
