@@ -9,14 +9,15 @@ import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
 import PublicidadView from './PublicidadView.jsx'
+import ResumenView from './ResumenView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
+const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
 
 export default function App() {
-  const [view, setView] = useState('picking') // picking | publications | stock
+  const [view, setView] = useState('resumen') // resumen | picking | publications | stock
   const [authed, setAuthed] = useState(null) // null = todavía chequeando
 
   useEffect(() => {
@@ -80,6 +81,12 @@ export default function App() {
           </div>
         </div>
         <nav className="view-nav">
+          <button
+            className={`view-tab ${view === 'resumen' ? 'active' : ''}`}
+            onClick={() => setView('resumen')}
+          >
+            Resumen
+          </button>
           <button
             className={`view-tab ${view === 'picking' ? 'active' : ''}`}
             onClick={() => setView('picking')}
@@ -147,6 +154,7 @@ export default function App() {
       </header>
 
       <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={setView} />}
         {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
