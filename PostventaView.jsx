@@ -247,7 +247,18 @@ export default function PostventaView({ onUnauthorized }) {
 
                 {detalle && (
                   <>
-                    {/* Fecha límite de acciones obligatorias */}
+                    {/* Fecha límite REAL, leída del texto del mensaje - esta es la que vale */}
+                    {detalle.fecha_limite_real && (
+                      <div className="badge badge-explicada" style={{ marginBottom: 8, display: 'inline-block', fontWeight: 700 }}>
+                        📅 Fecha real (del mensaje): {new Date(detalle.fecha_limite_real).toLocaleDateString('es-AR')}
+                        {(() => {
+                          const dias = diasRestantes(detalle.fecha_limite_real)
+                          return dias >= 0 ? ` (quedan ${dias} día(s))` : ' (¡vencido!)'
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Fecha límite de acciones obligatorias (campo crudo de ML) */}
                     {detalle.claim.players
                       ?.flatMap((p) => p.available_actions || [])
                       .filter((a) => a.mandatory && a.due_date)
@@ -262,7 +273,9 @@ export default function PostventaView({ onUnauthorized }) {
                       })}
                     {detalle.claim.players?.some((p) => (p.available_actions || []).some((a) => a.mandatory && a.due_date)) && (
                       <p style={{ fontSize: 11, color: 'var(--gray-muted)', marginTop: 2, marginBottom: 10 }}>
-                        ⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.
+                        {detalle.fecha_limite_real
+                          ? '⚠ Esta fecha de arriba es de otra acción puntual (no la de la decisión) - guiate por la fecha real de arriba.'
+                          : '⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.'}
                       </p>
                     )}
 
