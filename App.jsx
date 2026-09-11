@@ -50,8 +50,17 @@ const GRUPO_POR_VISTA = Object.fromEntries(
 )
 
 export default function App() {
-  const [view, setView] = useState('resumen') // resumen | picking | publications | stock
-  const [grupoAbierto, setGrupoAbierto] = useState(null)
+  const [view, setView] = useState(() => {
+    const guardada = localStorage.getItem('dashboard_view')
+    return VIEWS.includes(guardada) ? guardada : 'resumen'
+  })
+  const [grupoAbierto, setGrupoAbierto] = useState(() => localStorage.getItem('dashboard_grupo') || null)
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_view', view)
+    if (grupoAbierto) localStorage.setItem('dashboard_grupo', grupoAbierto)
+    else localStorage.removeItem('dashboard_grupo')
+  }, [view, grupoAbierto])
 
   const irA = (nuevaVista) => {
     setView(nuevaVista)
