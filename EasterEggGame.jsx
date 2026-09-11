@@ -51,10 +51,10 @@ function dibujarAuto(ctx, x, y) {
   ctx.save()
   ctx.translate(x, y)
 
-  ctx.strokeStyle = '#2a2a2a'
+  ctx.strokeStyle = '#B0B0B0'
   ctx.lineWidth = 1.5
 
-  ctx.fillStyle = '#F5F5F5'
+  ctx.fillStyle = '#1C1C1E'
   ctx.beginPath()
   ctx.moveTo(ancho * 0.05, alto * 0.65)
   ctx.lineTo(ancho * 0.15, alto * 0.3)
