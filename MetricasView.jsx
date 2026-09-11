@@ -51,14 +51,14 @@ export default function MetricasView({ onUnauthorized }) {
   }, [])
 
   const lista = data
-    ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : data.sin_ventas
+    ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
     : []
 
   const datosGrafico = useMemo(() => {
     if (vista === 'sin_ventas') return []
     return lista.slice(0, 10).map((p) => ({
       nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
-      valor: vista === 'unidades' ? p.ventas_unidades : p.ventas_monto,
+      valor: vista === 'unidades' ? p.ventas_unidades : vista === 'neto' ? p.ventas_monto_neto : p.ventas_monto,
     }))
   }, [lista, vista])
 
@@ -71,6 +71,9 @@ export default function MetricasView({ onUnauthorized }) {
           </button>
           <button className={`tab ${vista === 'monto' ? 'active' : ''}`} onClick={() => setVista('monto')}>
             💰 Top $
+          </button>
+          <button className={`tab ${vista === 'neto' ? 'active' : ''}`} onClick={() => setVista('neto')}>
+            💵 Neto real
           </button>
           <button className={`tab tab-acordar ${vista === 'sin_ventas' ? 'active' : ''}`} onClick={() => setVista('sin_ventas')}>
             😴 Sin ventas
@@ -110,11 +113,11 @@ export default function MetricasView({ onUnauthorized }) {
               <YAxis
                 type="category"
                 dataKey="nombre"
-                width={160}
-                tick={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}
+                width={210}
+                tick={{ fontSize: 13, fontFamily: 'Archivo, sans-serif', fill: 'var(--charcoal)' }}
               />
               <Tooltip
-                formatter={(value) => vista === 'monto' ? formatoPesos.format(value) : `${value} unidades`}
+                formatter={(value) => vista === 'unidades' ? `${value} unidades` : formatoPesos.format(value)}
               />
               <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
                 {datosGrafico.map((_, i) => (
@@ -144,7 +147,8 @@ export default function MetricasView({ onUnauthorized }) {
             {vista !== 'sin_ventas' && (
               <>
                 <span className="badge badge-colecta">×{p.ventas_unidades} u.</span>
-                <span className="badge badge-flex">{formatoPesos.format(p.ventas_monto)}</span>
+                <span className="badge badge-flex">{formatoPesos.format(p.ventas_monto)} bruto</span>
+                <span className="badge badge-acordar">{formatoPesos.format(p.ventas_monto_neto)} neto</span>
               </>
             )}
             {vista === 'sin_ventas' && (
