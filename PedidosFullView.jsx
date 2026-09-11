@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
 
+const normalizarBusqueda = (s) =>
+  (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '')
+
 export default function PedidosFullView({ onUnauthorized }) {
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,7 +22,8 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [editandoCantidadId, setEditandoCantidadId] = useState(null)
   const [cantidadDraft, setCantidadDraft] = useState('')
   const [vistaGrande, setVistaGrande] = useState({})
-  const [filtro, setFiltro] = useState('todos') // todos | sin_pedir | pedidos | en_stock
+  const [filtro, setFiltro] = useState('todos') // todos | sin_pedir | pedidos | en_stock | embalados
+  const [queryProducto, setQueryProducto] = useState('')
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -236,6 +240,13 @@ export default function PedidosFullView({ onUnauthorized }) {
       </div>
 
       <div className="controls">
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Buscar producto por título o SKU..."
+          value={queryProducto}
+          onChange={(e) => setQueryProducto(e.target.value)}
+        />
         <div className="tabs">
           <button className={`tab ${filtro === 'todos' ? 'active' : ''}`} onClick={() => setFiltro('todos')}>
             Todos
@@ -248,6 +259,9 @@ export default function PedidosFullView({ onUnauthorized }) {
           </button>
           <button className={`tab ${filtro === 'en_stock' ? 'active' : ''}`} onClick={() => setFiltro('en_stock')}>
             En stock
+          </button>
+          <button className={`tab ${filtro === 'embalados' ? 'active' : ''}`} onClick={() => setFiltro('embalados')}>
+            Embalados
           </button>
         </div>
       </div>
@@ -266,9 +280,14 @@ export default function PedidosFullView({ onUnauthorized }) {
           const embalados = envio.items.filter((it) => it.estado === 'embalado').length
           const grande = vistaGrande[envio.pedido_id]
           const itemsFiltrados = envio.items.filter((it) => {
-            if (filtro === 'sin_pedir') return !it.pedido_al_proveedor
-            if (filtro === 'pedidos') return it.pedido_al_proveedor
-            if (filtro === 'en_stock') return it.en_stock_local
+            if (filtro === 'sin_pedir' && it.pedido_al_proveedor) return false
+            if (filtro === 'pedidos' && !it.pedido_al_proveedor) return false
+            if (filtro === 'en_stock' && !it.en_stock_local) return false
+            if (filtro === 'embalados' && it.estado !== 'embalado') return false
+            if (queryProducto.trim()) {
+              const q = normalizarBusqueda(queryProducto)
+              if (!normalizarBusqueda(it.titulo).includes(q) && !normalizarBusqueda(it.sku).includes(q)) return false
+            }
             return true
           })
           if (itemsFiltrados.length === 0) return null
