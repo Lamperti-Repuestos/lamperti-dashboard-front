@@ -70,23 +70,6 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
           onClick={() => onIrA?.('postventa')}
         />
       </div>
-
-      {data.reclamos_con_deadline_hoy.length > 0 && (
-        <div className="list">
-          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>Vencen hoy</label>
-          {data.reclamos_con_deadline_hoy.map((r) => (
-            <div key={r.id} className="row" style={{ cursor: 'pointer' }} onClick={() => onIrA?.('postventa')}>
-              <div className="title-cell">
-                {r.titulo}
-                <span className="id-cell mono">#{r.id}</span>
-              </div>
-              <span className="badge badge-sin-explicar">
-                ⏰ {new Date(r.due_date).toLocaleString('es-AR')}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </>
   )
 }
