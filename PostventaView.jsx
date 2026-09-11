@@ -81,6 +81,7 @@ export default function PostventaView({ onUnauthorized }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filtroEstado, setFiltroEstado] = useState('opened')
+  const [query, setQuery] = useState('')
 
   const [abiertoId, setAbiertoId] = useState(null)
   const [detalle, setDetalle] = useState(null)
@@ -180,9 +181,25 @@ export default function PostventaView({ onUnauthorized }) {
       })
   }
 
+  const normalizar = (s) =>
+    (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '')
+
+  const reclamosFiltrados = reclamos.filter((r) => {
+    if (!query.trim()) return true
+    const q = normalizar(query)
+    return normalizar(r.titulo).includes(q) || normalizar(r.sku).includes(q)
+  })
+
   return (
     <>
       <div className="controls">
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Buscar por título o SKU..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <div className="tabs">
           <button
             className={`tab ${filtroEstado === 'opened' ? 'active' : ''}`}
@@ -202,11 +219,15 @@ export default function PostventaView({ onUnauthorized }) {
       <div className="list">
         {loading && <div className="loading-state">Cargando reclamos...</div>}
         {error && <div className="error-state">Error: {error}</div>}
-        {!loading && !error && reclamos.length === 0 && (
-          <div className="empty-state">No hay reclamos {filtroEstado === 'opened' ? 'abiertos' : 'cerrados'}. 🎉</div>
+        {!loading && !error && reclamosFiltrados.length === 0 && (
+          <div className="empty-state">
+            {reclamos.length === 0
+              ? `No hay reclamos ${filtroEstado === 'opened' ? 'abiertos' : 'cerrados'}. 🎉`
+              : 'Nada coincide con esa búsqueda.'}
+          </div>
         )}
 
-        {!loading && !error && reclamos.map((r) => (
+        {!loading && !error && reclamosFiltrados.map((r) => (
           <div key={r.id} className="pick-group">
             <div className="row" onClick={() => abrirReclamo(r.id)} style={{ cursor: 'pointer' }}>
               <div className="title-cell">
