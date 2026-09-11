@@ -36,16 +36,25 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
             {it.titulo}
             <span className="id-cell mono">{it.comprador} · Envío #{it.shipment_id}</span>
           </div>
+          {it.multiproducto && <span className="badge badge-multi">📦 Multiproducto</span>}
+          {it.demorada && <span className="badge badge-sin-explicar">⏰ Demorada</span>}
         </div>
       ))}
     </div>
   )
 }
 
-function SeccionDespacho({ titulo, items }) {
+function SeccionDespacho({ titulo, items, onImportar, importando }) {
   return (
     <div className="paste-box">
-      <label className="corte-label" style={{ marginBottom: 10 }}>{titulo} ({items.length})</label>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+        <label className="corte-label" style={{ marginBottom: 0 }}>{titulo} ({items.length})</label>
+        {items.length > 0 && (
+          <button className="sort-btn" onClick={() => onImportar(items)} disabled={importando}>
+            📥 Importar a Control Embalaje
+          </button>
+        )}
+      </div>
       {items.length === 0 && <div className="empty-state">Nada para despachar acá ahora.</div>}
       {items.map((it) => (
         <div key={it.shipment_id} className="row">
@@ -53,6 +62,8 @@ function SeccionDespacho({ titulo, items }) {
             {it.titulo}
             <span className="id-cell mono">{it.comprador} · Envío #{it.shipment_id}</span>
           </div>
+          {it.multiproducto && <span className="badge badge-multi">📦 Multiproducto</span>}
+          {it.demorada && <span className="badge badge-sin-explicar">⏰ Demorada</span>}
           <span className="badge badge-explicada">🖨 Impresa</span>
         </div>
       ))}
@@ -67,6 +78,7 @@ export default function EtiquetasView({ onUnauthorized }) {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [imprimiendo, setImprimiendo] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [importando, setImportando] = useState(false)
 
   const fetchDatos = () => {
     setLoading(true)
@@ -133,6 +145,29 @@ export default function EtiquetasView({ onUnauthorized }) {
       })
   }
 
+  const importarAControlEmbalaje = (items) => {
+    setImportando(true)
+    setMsg(null)
+    apiFetch('/control-embalaje/importar-order-ids', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_ids: items.map((it) => String(it.order_id)) }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setMsg(`✅ ${d.productos_nuevos} producto(s) nuevo(s) importado(s) a Control Embalaje.`)
+        setImportando(false)
+      })
+      .catch((err) => {
+        setMsg(`Error: ${err.message}`)
+        setImportando(false)
+      })
+  }
+
   if (loading) return <div className="loading-state">Cargando etiquetas pendientes...</div>
   if (error) return <div className="error-state">Error: {error}</div>
 
@@ -162,8 +197,8 @@ export default function EtiquetasView({ onUnauthorized }) {
       <div style={{ margin: 'var(--pad) var(--pad) 4px', fontSize: 12, color: 'var(--gray-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
         Ya impresas - listas para despachar
       </div>
-      <SeccionDespacho titulo="📦 Colecta" items={data.despacho_colecta} />
-      <SeccionDespacho titulo="🚚 Flex" items={data.despacho_flex} />
+      <SeccionDespacho titulo="📦 Colecta" items={data.despacho_colecta} onImportar={importarAControlEmbalaje} importando={importando} />
+      <SeccionDespacho titulo="🚚 Flex" items={data.despacho_flex} onImportar={importarAControlEmbalaje} importando={importando} />
     </>
   )
 }
