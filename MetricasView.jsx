@@ -14,6 +14,7 @@ const MEDALLA = ['🥇', '🥈', '🥉']
 
 export default function MetricasView({ onUnauthorized }) {
   const [dias, setDias] = useState(30)
+  const [query, setQuery] = useState('')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -86,29 +87,46 @@ export default function MetricasView({ onUnauthorized }) {
         ? vista === 'unidades' ? data.top_unidades : vista === 'monto' ? data.top_monto : vista === 'neto' ? data.top_neto : data.sin_ventas
         : []
 
+  const normalizar = (s) =>
+    (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '')
+
+  const listaFiltrada = query.trim()
+    ? lista.filter((p) => {
+        const q = normalizar(query)
+        return normalizar(p.titulo).includes(q) || normalizar(p.sku).includes(q)
+      })
+    : lista
+
   const datosGrafico = useMemo(() => {
     if (vista === 'sin_ventas') return []
     if (vista === 'quiebres') {
-      return lista.slice(0, 10).map((p) => ({
+      return listaFiltrada.slice(0, 10).map((p) => ({
         nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
         valor: p.veces_sin_stock,
       }))
     }
     if (vista === 'reclamos') {
-      return lista.slice(0, 10).map((p) => ({
+      return listaFiltrada.slice(0, 10).map((p) => ({
         nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
         valor: p.reclamos_abiertos,
       }))
     }
-    return lista.slice(0, 10).map((p) => ({
+    return listaFiltrada.slice(0, 10).map((p) => ({
       nombre: p.titulo?.length > 28 ? p.titulo.slice(0, 28) + '…' : (p.titulo || p.sku),
       valor: vista === 'unidades' ? p.ventas_unidades : vista === 'neto' ? p.ventas_monto_neto : p.ventas_monto,
     }))
-  }, [lista, vista])
+  }, [listaFiltrada, vista])
 
   return (
     <>
       <div className="controls">
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Buscar por título o SKU..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <div className="tabs">
           <button className={`tab ${vista === 'unidades' ? 'active' : ''}`} onClick={() => setVista('unidades')}>
             🏆 Top unidades
@@ -184,11 +202,11 @@ export default function MetricasView({ onUnauthorized }) {
           <div className="loading-state">Cargando métricas...</div>
         )}
         {error && <div className="error-state">Error: {error}</div>}
-        {!loading && !error && lista.length === 0 && (
+        {!loading && !error && listaFiltrada.length === 0 && (
           <div className="empty-state">Sin datos todavía para este período - esperá a que se acumulen más días.</div>
         )}
 
-        {!loading && !error && lista.map((p, i) => (
+        {!loading && !error && listaFiltrada.map((p, i) => (
           <div key={p.sku} className="row">
             {MEDALLA[i] && <span style={{ fontSize: 22 }}>{MEDALLA[i]}</span>}
             {fotos[p.sku] && <img src={fotos[p.sku]} alt="" className="pick-thumb" />}
@@ -205,6 +223,13 @@ export default function MetricasView({ onUnauthorized }) {
             )}
             {vista === 'sin_ventas' && (
               <span className="badge badge-sin-explicar">Stock: {p.stock_actual}</span>
+            )}
+            {vista === 'sin_ventas' && (
+              <span className="id-cell mono">
+                {p.ultima_venta
+                  ? `Última venta: ${new Date(p.ultima_venta).toLocaleDateString('es-AR')} (hace ${p.dias_desde_ultima_venta} día(s))`
+                  : 'Sin ventas registradas en el historial'}
+              </span>
             )}
             {vista === 'quiebres' && (
               <>
