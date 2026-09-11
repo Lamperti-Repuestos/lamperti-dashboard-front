@@ -96,7 +96,13 @@ export default function PedidosFullView({ onUnauthorized }) {
       copia[envioIdx] = {
         ...copia[envioIdx],
         items: copia[envioIdx].items.map((it) =>
-          it.id === item.id ? { ...it, estado: direccion === 'adelante' ? 'embalado' : 'por_embalar' } : it
+          it.id === item.id
+            ? {
+                ...it,
+                estado: direccion === 'adelante' ? 'embalado' : 'por_embalar',
+                en_stock_local: direccion === 'adelante' ? true : it.en_stock_local,
+              }
+            : it
         ),
       }
       return copia
