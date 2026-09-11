@@ -71,7 +71,7 @@ function SeccionDespacho({ titulo, items, onImportar, importando }) {
   )
 }
 
-export default function EtiquetasView({ onUnauthorized }) {
+export default function EtiquetasView({ onUnauthorized, onImportado }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -161,6 +161,7 @@ export default function EtiquetasView({ onUnauthorized }) {
       .then((d) => {
         setMsg(`✅ ${d.productos_nuevos} producto(s) nuevo(s) importado(s) a Control Embalaje.`)
         setImportando(false)
+        onImportado?.()
       })
       .catch((err) => {
         setMsg(`Error: ${err.message}`)

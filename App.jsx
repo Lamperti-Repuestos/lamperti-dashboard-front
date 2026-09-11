@@ -5,7 +5,6 @@ import StockView from './StockView.jsx'
 import FullView from './FullView.jsx'
 import PedidosFullView from './PedidosFullView.jsx'
 import ControlEmbalajeView from './ControlEmbalajeView.jsx'
-import EtiquetasView from './EtiquetasView.jsx'
 import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
@@ -15,7 +14,7 @@ import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'etiquetas', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
+const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
 
 const GRUPOS = [
   {
@@ -23,12 +22,11 @@ const GRUPOS = [
     nombre: 'Operación',
     vistas: [
       { id: 'picking', label: 'Para separar' },
-      { id: 'etiquetas', label: 'Etiquetas' },
       { id: 'publications', label: 'Publicaciones' },
       { id: 'stock', label: 'Stock' },
       { id: 'full', label: 'Gestión Full' },
       { id: 'pedidos', label: 'Envío Full' },
-      { id: 'control', label: 'Control Embalaje' },
+      { id: 'control', label: 'Embalaje' },
       { id: 'cotejo', label: 'Cotejo Packing List' },
     ],
   },
@@ -162,7 +160,6 @@ export default function App() {
       <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={irA} />}
         {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
-        {view === 'etiquetas' && <EtiquetasView onUnauthorized={handleUnauthorized} />}
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}

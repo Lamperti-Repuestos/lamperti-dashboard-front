@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
+import EtiquetasView from './EtiquetasView.jsx'
 
 export default function ControlEmbalajeView({ onUnauthorized }) {
   const [items, setItems] = useState([])
@@ -8,6 +9,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [zoomUrl, setZoomUrl] = useState(null)
+  const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false)
   const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
   const [horasCruce, setHorasCruce] = useState(24)
@@ -328,6 +330,19 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
 
   return (
     <>
+      <div className="paste-box">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label className="corte-label" style={{ marginBottom: 0 }}>🖨 Etiquetas (imprimir / despachar)</label>
+          <button className="sort-btn" onClick={() => setMostrarEtiquetas((v) => !v)}>
+            {mostrarEtiquetas ? 'Ocultar' : 'Ver'}
+          </button>
+        </div>
+      </div>
+
+      {mostrarEtiquetas && (
+        <EtiquetasView onUnauthorized={onUnauthorized} onImportado={fetchLista} />
+      )}
+
       <div className="paste-box">
         <label className="corte-label" style={{ marginBottom: 8 }}>
           Pegá el texto de "Listo para recolección/envío" de ML
