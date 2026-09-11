@@ -5,6 +5,9 @@ export default function StockView({ onUnauthorized }) {
   const [umbral, setUmbral] = useState(15)
   const [alerts, setAlerts] = useState([])
   const [soloPendientes, setSoloPendientes] = useState(true)
+  const [ordenMagnitud, setOrdenMagnitud] = useState('desc') // desc | asc | ninguno
+  const [magnitudMinima, setMagnitudMinima] = useState(0)
+  const [direccionFiltro, setDireccionFiltro] = useState('todos') // todos | positiva | negativa
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState(null)
@@ -186,6 +189,21 @@ export default function StockView({ onUnauthorized }) {
       })
   }
 
+  const alertsFiltradas = (() => {
+    let resultado = alerts.filter((a) => {
+      if (Math.abs(a.diferencia) < magnitudMinima) return false
+      if (direccionFiltro === 'positiva' && a.diferencia <= 0) return false
+      if (direccionFiltro === 'negativa' && a.diferencia >= 0) return false
+      return true
+    })
+    if (ordenMagnitud === 'desc') {
+      resultado = [...resultado].sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia))
+    } else if (ordenMagnitud === 'asc') {
+      resultado = [...resultado].sort((a, b) => Math.abs(a.diferencia) - Math.abs(b.diferencia))
+    }
+    return resultado
+  })()
+
   return (
     <>
       <div className="controls">
@@ -211,6 +229,39 @@ export default function StockView({ onUnauthorized }) {
         <button className="sort-btn" onClick={() => setSoloPendientes((v) => !v)}>
           {soloPendientes ? '✓ ' : ''}Solo pendientes
         </button>
+
+        <button
+          className="sort-btn"
+          onClick={() => setOrdenMagnitud((v) => (v === 'desc' ? 'asc' : v === 'asc' ? 'ninguno' : 'desc'))}
+        >
+          {ordenMagnitud === 'desc' && '↓ Mayor cambio primero'}
+          {ordenMagnitud === 'asc' && '↑ Menor cambio primero'}
+          {ordenMagnitud === 'ninguno' && '↕ Sin ordenar'}
+        </button>
+
+        <label className="corte-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          Cambio mínimo
+          <input
+            type="number"
+            className="corte-input"
+            value={magnitudMinima}
+            onChange={(e) => setMagnitudMinima(Number(e.target.value) || 0)}
+            min={0}
+            style={{ width: 70 }}
+          />
+        </label>
+
+        <div className="tabs">
+          <button className={`tab ${direccionFiltro === 'todos' ? 'active' : ''}`} onClick={() => setDireccionFiltro('todos')}>
+            Todos
+          </button>
+          <button className={`tab ${direccionFiltro === 'positiva' ? 'active' : ''}`} onClick={() => setDireccionFiltro('positiva')}>
+            ↑ Subieron
+          </button>
+          <button className={`tab ${direccionFiltro === 'negativa' ? 'active' : ''}`} onClick={() => setDireccionFiltro('negativa')}>
+            ↓ Bajaron
+          </button>
+        </div>
 
         <button className="sort-btn" onClick={toggleQuiebres}>
           📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
@@ -242,8 +293,11 @@ export default function StockView({ onUnauthorized }) {
                 Sin movimientos masivos de stock registrados. 🎉
               </div>
             )}
+            {alerts.length > 0 && alertsFiltradas.length === 0 && (
+              <div className="empty-state">Nada coincide con estos filtros.</div>
+            )}
 
-            {alerts.map((a) => (
+            {alertsFiltradas.map((a) => (
               <div key={a.id} className={`alert-row ${a.revisado ? 'alert-row-revisada' : ''}`}>
                 <input
                   type="checkbox"
