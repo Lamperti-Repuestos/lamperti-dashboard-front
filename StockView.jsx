@@ -73,11 +73,12 @@ export default function StockView({ onUnauthorized }) {
         return d
       })
       .then((d) => {
-        setMsgActualizarDiscrepancias(`✅ ${d.revisados} revisado(s), ${d.discrepancias_encontradas} discrepancia(s) encontrada(s).`)
+        setMsgActualizarDiscrepancias(
+          d.ya_estaba_corriendo
+            ? '⏳ Ya había una actualización en curso - esperá a que termine.'
+            : '✅ Actualización disparada. Corre en el servidor y puede tardar varios minutos (por el límite de Contabilium) - volvé a entrar acá en un rato para ver el resultado.'
+        )
         setActualizandoDiscrepancias(false)
-        apiFetch('/stock/discrepancias-contabilium', {}, onUnauthorized)
-          .then((res) => res.json())
-          .then(setDiscrepanciasData)
       })
       .catch((err) => {
         setMsgActualizarDiscrepancias(`Error: ${err.message}`)
