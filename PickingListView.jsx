@@ -49,6 +49,9 @@ function ItemRow({ item, onToggleChecked, onToggleFaltante, onZoom }) {
         {item.acordar > 0 && (
           <span className="badge badge-acordar">Acordar ×{item.acordar}</span>
         )}
+        {item.publicacion_pausada && (
+          <span className="badge badge-sin-explicar">⏸ Quedó pausada la publicación</span>
+        )}
       </div>
       <button
         type="button"
