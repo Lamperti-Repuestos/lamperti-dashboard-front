@@ -715,6 +715,11 @@ button {
   text-decoration: line-through;
 }
 
+.pick-row-parcial {
+  background: #FFF6DE;
+  border-left: 4px solid #B8860B;
+}
+
 .pick-row-faltante {
   background: #FBE4DD;
   border-radius: 8px;

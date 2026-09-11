@@ -24,6 +24,8 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [vistaGrande, setVistaGrande] = useState({})
   const [filtro, setFiltro] = useState('todos') // todos | sin_pedir | pedidos | en_stock | embalados
   const [queryProducto, setQueryProducto] = useState('')
+  const [editandoParcialId, setEditandoParcialId] = useState(null)
+  const [parcialDraft, setParcialDraft] = useState('')
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -131,6 +133,42 @@ export default function PedidosFullView({ onUnauthorized }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ valor: nuevoValor }),
     }, onUnauthorized).catch(() => fetchPipeline())
+  }
+
+  const empezarEdicionParcial = (item) => {
+    setEditandoParcialId(item.id)
+    setParcialDraft(String(item.cantidad_embalada || ''))
+  }
+
+  const guardarParcial = (envioIdx, item) => {
+    const cantidad = Number(parcialDraft)
+    if (Number.isNaN(cantidad) || cantidad < 0 || cantidad > item.cantidad_total) return
+    apiFetch(`/full/pipeline/${item.id}/marcar-parcial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cantidad }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Error')
+        return data
+      })
+      .then((data) => {
+        setEnvios((prev) => {
+          const copia = [...prev]
+          copia[envioIdx] = {
+            ...copia[envioIdx],
+            items: copia[envioIdx].items.map((it) =>
+              it.id === item.id
+                ? { ...it, cantidad_embalada: data.cantidad_embalada, estado: data.nuevo_estado, en_stock_local: data.en_stock_local }
+                : it
+            ),
+          }
+          return copia
+        })
+        setEditandoParcialId(null)
+      })
+      .catch((err) => alert(`Error: ${err.message}`))
   }
 
   const empezarEdicionCantidad = (item) => {
@@ -269,6 +307,9 @@ export default function PedidosFullView({ onUnauthorized }) {
           <button className={`tab ${filtro === 'embalados' ? 'active' : ''}`} onClick={() => setFiltro('embalados')}>
             Embalados
           </button>
+          <button className={`tab ${filtro === 'parciales' ? 'active' : ''}`} onClick={() => setFiltro('parciales')}>
+            Parciales
+          </button>
         </div>
       </div>
 
@@ -290,6 +331,7 @@ export default function PedidosFullView({ onUnauthorized }) {
             if (filtro === 'pedidos' && !it.pedido_al_proveedor) return false
             if (filtro === 'en_stock' && !it.en_stock_local) return false
             if (filtro === 'embalados' && it.estado !== 'embalado') return false
+            if (filtro === 'parciales' && it.estado !== 'parcial') return false
             if (queryProducto.trim()) {
               const q = normalizarBusqueda(queryProducto)
               if (!normalizarBusqueda(it.titulo).includes(q) && !normalizarBusqueda(it.sku).includes(q)) return false
@@ -324,7 +366,7 @@ export default function PedidosFullView({ onUnauthorized }) {
               {itemsFiltrados.map((item) => (
                 <div
                   key={item.id}
-                  className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''} ${grande ? 'pick-row-grande' : ''}`}
+                  className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''} ${item.estado === 'parcial' ? 'pick-row-parcial' : ''} ${grande ? 'pick-row-grande' : ''}`}
                 >
                   <input
                     type="checkbox"
@@ -387,6 +429,34 @@ export default function PedidosFullView({ onUnauthorized }) {
                     />
                     En stock
                   </label>
+
+                  <span className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {editandoParcialId === item.id ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.cantidad_total}
+                          className="stock-input"
+                          style={{ width: 50 }}
+                          value={parcialDraft}
+                          autoFocus
+                          onChange={(e) => setParcialDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') guardarParcial(idx, item)
+                            if (e.key === 'Escape') setEditandoParcialId(null)
+                          }}
+                        />
+                        <button className="stock-save-btn" onClick={() => guardarParcial(idx, item)}>✓</button>
+                      </>
+                    ) : (
+                      <button className="sort-btn" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => empezarEdicionParcial(item)}>
+                        {item.estado === 'parcial'
+                          ? `Parcial: ${item.cantidad_embalada}/${item.cantidad_total} ✎`
+                          : 'Marcar parcial'}
+                      </button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
