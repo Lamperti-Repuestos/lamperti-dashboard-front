@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
 
 export default function StockView({ onUnauthorized }) {
@@ -19,6 +19,38 @@ export default function StockView({ onUnauthorized }) {
   const [discrepanciasData, setDiscrepanciasData] = useState(null)
   const [cargandoDiscrepancias, setCargandoDiscrepancias] = useState(false)
   const [errorDiscrepancias, setErrorDiscrepancias] = useState(null)
+  const [progreso, setProgreso] = useState(null)
+  const yaRefresqueTrasTerminar = useRef(true)
+
+  useEffect(() => {
+    if (!mostrarDiscrepancias) return
+    let cancelado = false
+
+    const consultarProgreso = () => {
+      apiFetch('/stock/discrepancias-contabilium/progreso', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((d) => {
+          if (cancelado) return
+          setProgreso(d)
+          if (d.corriendo) {
+            yaRefresqueTrasTerminar.current = false
+          } else if (!yaRefresqueTrasTerminar.current) {
+            yaRefresqueTrasTerminar.current = true
+            apiFetch('/stock/discrepancias-contabilium', {}, onUnauthorized)
+              .then((res) => res.json())
+              .then(setDiscrepanciasData)
+          }
+        })
+        .catch(() => {})
+    }
+
+    consultarProgreso()
+    const intervalo = setInterval(consultarProgreso, 1500)
+    return () => {
+      cancelado = true
+      clearInterval(intervalo)
+    }
+  }, [mostrarDiscrepancias, onUnauthorized])
 
   const toggleQuiebres = () => {
     const abrir = !mostrarQuiebres
@@ -384,10 +416,34 @@ export default function StockView({ onUnauthorized }) {
             <label className="corte-label" style={{ marginBottom: 0 }}>
               Stock en 0 en ML, pero con stock en Contabilium
             </label>
-            <button className="sort-btn" onClick={actualizarDiscrepanciasAhora} disabled={actualizandoDiscrepancias}>
-              {actualizandoDiscrepancias ? '🔄 Actualizando (tarda unos minutos)...' : '🔄 Actualizar ahora'}
+            <button
+              className="sort-btn"
+              onClick={actualizarDiscrepanciasAhora}
+              disabled={actualizandoDiscrepancias || progreso?.corriendo}
+            >
+              {(actualizandoDiscrepancias || progreso?.corriendo) ? '🔄 Actualizando...' : '🔄 Actualizar ahora'}
             </button>
           </div>
+
+          {progreso?.corriendo && (
+            <div style={{ margin: '0 12px 12px' }}>
+              <div style={{ background: 'var(--gray-line)', borderRadius: 8, overflow: 'hidden', height: 10 }}>
+                <div
+                  style={{
+                    width: progreso.total > 0 ? `${(progreso.revisados / progreso.total) * 100}%` : '0%',
+                    background: 'var(--navy)',
+                    height: '100%',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '6px 0 0' }}>
+                {progreso.revisados}/{progreso.total} revisados
+                {progreso.titulo_actual && ` · Ahora: ${progreso.titulo_actual}`}
+                {progreso.encontradas > 0 && ` · ${progreso.encontradas} discrepancia(s) encontrada(s) hasta ahora`}
+              </p>
+            </div>
+          )}
           {discrepanciasData?.ultima_actualizacion && (
             <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
               Última actualización: {new Date(discrepanciasData.ultima_actualizacion).toLocaleString('es-AR')}
