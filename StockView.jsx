@@ -57,6 +57,32 @@ export default function StockView({ onUnauthorized }) {
     }
   }
 
+  const [actualizandoDiscrepancias, setActualizandoDiscrepancias] = useState(false)
+  const [msgActualizarDiscrepancias, setMsgActualizarDiscrepancias] = useState(null)
+
+  const actualizarDiscrepanciasAhora = () => {
+    setActualizandoDiscrepancias(true)
+    setMsgActualizarDiscrepancias(null)
+    apiFetch('/stock/discrepancias-contabilium/actualizar', { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setMsgActualizarDiscrepancias(`✅ ${d.revisados} revisado(s), ${d.discrepancias_encontradas} discrepancia(s) encontrada(s).`)
+        setActualizandoDiscrepancias(false)
+        apiFetch('/stock/discrepancias-contabilium', {}, onUnauthorized)
+          .then((res) => res.json())
+          .then(setDiscrepanciasData)
+      })
+      .catch((err) => {
+        setMsgActualizarDiscrepancias(`Error: ${err.message}`)
+        setActualizandoDiscrepancias(false)
+      })
+  }
+
+
   const fetchAlerts = useCallback(() => {
     const params = new URLSearchParams({
       horas: '72',
@@ -299,18 +325,29 @@ export default function StockView({ onUnauthorized }) {
 
       {mostrarDiscrepancias && (
         <div className="list">
-          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>
-            Stock en 0 en ML, pero con stock en Contabilium
-          </label>
-          {cargandoDiscrepancias && <div className="loading-state">Revisando contra Contabilium (puede tardar un poco)...</div>}
-          {errorDiscrepancias && <div className="error-state">Error: {errorDiscrepancias}</div>}
-          {discrepanciasData && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 6px 12px' }}>
+            <label className="corte-label" style={{ marginBottom: 0 }}>
+              Stock en 0 en ML, pero con stock en Contabilium
+            </label>
+            <button className="sort-btn" onClick={actualizarDiscrepanciasAhora} disabled={actualizandoDiscrepancias}>
+              {actualizandoDiscrepancias ? '🔄 Actualizando (tarda unos minutos)...' : '🔄 Actualizar ahora'}
+            </button>
+          </div>
+          {discrepanciasData?.ultima_actualizacion && (
             <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
-              Se revisaron {discrepanciasData.revisados} producto(s) en 0 en ML.
+              Última actualización: {new Date(discrepanciasData.ultima_actualizacion).toLocaleString('es-AR')}
             </p>
           )}
+          {!discrepanciasData?.ultima_actualizacion && !cargandoDiscrepancias && (
+            <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+              Todavía no se corrió ninguna actualización - tocá "Actualizar ahora" (tarda unos minutos, corre solo una vez y después queda guardado).
+            </p>
+          )}
+          {msgActualizarDiscrepancias && <div className="scan-result" style={{ margin: '0 0 8px 12px' }}>{msgActualizarDiscrepancias}</div>}
+          {cargandoDiscrepancias && <div className="loading-state">Cargando...</div>}
+          {errorDiscrepancias && <div className="error-state">Error: {errorDiscrepancias}</div>}
           {discrepanciasData && discrepanciasData.discrepancias.length === 0 && (
-            <div className="empty-state">Ninguna discrepancia encontrada - lo que está en 0 en ML, también está en 0 en Contabilium.</div>
+            <div className="empty-state">Ninguna discrepancia guardada - lo que está en 0 en ML, también está en 0 en Contabilium.</div>
           )}
           {discrepanciasData?.discrepancias.map((p) => (
             <div key={p.sku} className="row">
