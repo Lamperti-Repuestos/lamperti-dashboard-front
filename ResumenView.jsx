@@ -19,6 +19,7 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [ventas, setVentas] = useState(null)
 
   useEffect(() => {
     apiFetch('/resumen-dia', {}, onUnauthorized)
@@ -35,6 +36,11 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
         setError(err.message)
         setLoading(false)
       })
+
+    apiFetch('/ventas/hoy', {}, onUnauthorized)
+      .then((res) => res.json())
+      .then(setVentas)
+      .catch(() => {})
   }, [])
 
   if (loading) return <div className="loading-state">Cargando resumen...</div>
@@ -42,6 +48,36 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
 
   return (
     <>
+      {ventas && (
+        <div className="paste-box" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--navy)', lineHeight: 1 }}>
+            {ventas.total}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-muted)', textTransform: 'uppercase', marginTop: 4 }}>
+            Ventas hoy
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+            <span className="badge badge-colecta">📦 Colecta: {ventas.colecta}</span>
+            <span className="badge badge-flex">🚚 Flex: {ventas.flex}</span>
+            <span className="badge badge-acordar">🏭 Full: {ventas.full}</span>
+            <span className="badge badge-multi">🤝 Acordar: {ventas.acordar}</span>
+          </div>
+
+          {ventas.proximo_objetivo && (
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--charcoal)' }}>
+              Faltan <strong>{ventas.proximo_objetivo.meta - ventas.total}</strong> para llegar a{' '}
+              <strong>{ventas.proximo_objetivo.meta}</strong> → {ventas.proximo_objetivo.premio} 🎉
+            </div>
+          )}
+          {!ventas.proximo_objetivo && (
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--charcoal)' }}>
+              🏆 Ya se pasaron todos los objetivos de hoy - ¡a definir el próximo!
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="resumen-grid">
         <Tile
           valor={data.total_pendiente_separar}
