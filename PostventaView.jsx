@@ -47,6 +47,19 @@ const ETIQUETAS_ESTADO_HIST = {
   closed: 'Cerrado',
 }
 
+const ETIQUETAS_ESTADO_ORDEN = {
+  paid: 'Pagada',
+  confirmed: 'Confirmada',
+  cancelled: 'Cancelada',
+  invalid: 'Inválida',
+}
+
+const ETIQUETAS_ESTADO_PUB = {
+  active: 'Activa',
+  paused: 'Pausada',
+  closed: 'Cerrada',
+}
+
 const ETIQUETAS_ACCION = {
   send_message_to_complainant: 'Responder al comprador',
   send_message_to_mediator: 'Responder al mediador',
@@ -239,23 +252,49 @@ export default function PostventaView({ onUnauthorized }) {
                       </div>
                     )}
 
-                    {/* La venta y las publicaciones involucradas */}
+                    {/* Ficha de la venta puntual */}
                     {detalle.orden && (
-                      <div style={{ marginBottom: 12, fontSize: 13 }}>
-                        <strong>Venta:</strong> ${detalle.orden.total_amount} · {new Date(detalle.orden.date_created).toLocaleDateString('es-AR')}
-                        {detalle.orden.order_items?.map((oi, i) => (
-                          <div key={i} style={{ marginTop: 4 }}>
-                            {oi.item.title} ×{oi.quantity}
-                            {oi.item.permalink && (
-                              <>
-                                {' · '}
-                                <a href={oi.item.permalink} target="_blank" rel="noreferrer">Ver publicación ↗</a>
-                              </>
-                            )}
+                      <div className="paste-box" style={{ margin: '0 0 12px' }}>
+                        <label className="corte-label" style={{ marginBottom: 8 }}>Detalle de la venta</label>
+                        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                          <div><strong>Pedido:</strong> #{detalle.orden.id}</div>
+                          <div>
+                            <strong>Estado:</strong>{' '}
+                            <span className="badge badge-explicada">{ETIQUETAS_ESTADO_ORDEN[detalle.orden.status] || detalle.orden.status}</span>
                           </div>
-                        ))}
+                          <div><strong>Fecha:</strong> {new Date(detalle.orden.date_created).toLocaleString('es-AR')}</div>
+                          <div><strong>Comprador:</strong> {detalle.orden.buyer?.nickname}</div>
+                          <div><strong>Total:</strong> ${detalle.orden.total_amount}</div>
+                        </div>
                       </div>
                     )}
+
+                    {/* Ficha de cada publicación involucrada */}
+                    {detalle.orden?.order_items?.map((oi, i) => (
+                      <a
+                        key={i}
+                        href={oi.item.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="paste-box"
+                        style={{ margin: '0 0 12px', display: 'flex', gap: 12, alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
+                      >
+                        {oi.item.foto_url && <img src={oi.item.foto_url} alt="" className="pick-thumb" />}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>{oi.item.title}</div>
+                          <div className="id-cell mono">
+                            Vendidos acá: ×{oi.quantity}
+                            {oi.item.precio_actual != null && ` · Precio actual: $${oi.item.precio_actual}`}
+                          </div>
+                          {oi.item.estado_publicacion && (
+                            <span className="badge badge-acordar" style={{ marginTop: 4 }}>
+                              {ETIQUETAS_ESTADO_PUB[oi.item.estado_publicacion] || oi.item.estado_publicacion}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 20 }}>↗</span>
+                      </a>
+                    ))}
 
                     {/* Devolución */}
                     {detalle.devolucion && (
