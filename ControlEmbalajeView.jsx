@@ -490,6 +490,9 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               {!item.faltante_en_picking && item.separado_en_picking && (
                 <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
               )}
+              {item.etiqueta_impresa && (
+                <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
+              )}
               <button
                 type="button"
                 className={`faltante-btn ${item.faltante_en_picking ? 'faltante-btn-active' : ''}`}
