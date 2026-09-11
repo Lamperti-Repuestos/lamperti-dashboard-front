@@ -42,6 +42,24 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
   )
 }
 
+function SeccionDespacho({ titulo, items }) {
+  return (
+    <div className="paste-box">
+      <label className="corte-label" style={{ marginBottom: 10 }}>{titulo} ({items.length})</label>
+      {items.length === 0 && <div className="empty-state">Nada para despachar acá ahora.</div>}
+      {items.map((it) => (
+        <div key={it.shipment_id} className="row">
+          <div className="title-cell">
+            {it.titulo}
+            <span className="id-cell mono">{it.comprador} · Envío #{it.shipment_id}</span>
+          </div>
+          <span className="badge badge-explicada">🖨 Impresa</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function EtiquetasView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -140,6 +158,12 @@ export default function EtiquetasView({ onUnauthorized }) {
         onImprimir={imprimir}
         imprimiendo={imprimiendo}
       />
+
+      <div style={{ margin: 'var(--pad) var(--pad) 4px', fontSize: 12, color: 'var(--gray-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+        Ya impresas - listas para despachar
+      </div>
+      <SeccionDespacho titulo="📦 Colecta" items={data.despacho_colecta} />
+      <SeccionDespacho titulo="🚚 Flex" items={data.despacho_flex} />
     </>
   )
 }
