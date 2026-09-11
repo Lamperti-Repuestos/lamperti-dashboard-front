@@ -61,6 +61,7 @@ export default function FullView({ onUnauthorized }) {
   const [sortMode, setSortMode] = useState('stock_asc') // stock_asc | stock_desc | alpha
   const [ocultarSinStock, setOcultarSinStock] = useState(false)
   const [soloSinStock, setSoloSinStock] = useState(false)
+  const [soloStockBajo, setSoloStockBajo] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [operaciones, setOperaciones] = useState({})
   const [loadingOps, setLoadingOps] = useState(false)
@@ -93,6 +94,8 @@ export default function FullView({ onUnauthorized }) {
 
     if (soloSinStock) {
       result = result.filter((it) => it.available_quantity === 0)
+    } else if (soloStockBajo) {
+      result = result.filter((it) => it.available_quantity >= 1 && it.available_quantity <= 3)
     } else if (ocultarSinStock) {
       result = result.filter((it) => it.available_quantity > 0)
     }
@@ -106,7 +109,7 @@ export default function FullView({ onUnauthorized }) {
     }
 
     return result
-  }, [items, query, sortMode, ocultarSinStock, soloSinStock])
+  }, [items, query, sortMode, ocultarSinStock, soloSinStock, soloStockBajo])
 
   const [opsError, setOpsError] = useState({})
 
@@ -382,9 +385,13 @@ export default function FullView({ onUnauthorized }) {
             <div className="value mono">{items.length}</div>
             <div className="label">Productos en Full</div>
           </div>
-          <div className="summary-item warn">
+          <div
+            className="summary-item warn"
+            style={{ cursor: 'pointer' }}
+            onClick={() => setSoloStockBajo((v) => !v)}
+          >
             <div className="value mono">{bajoStockCount}</div>
-            <div className="label">Con 3 o menos disponibles</div>
+            <div className="label">Con 3 o menos disponibles {soloStockBajo && '(filtrado)'}</div>
           </div>
         </div>
       )}

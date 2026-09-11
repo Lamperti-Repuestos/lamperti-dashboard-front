@@ -9,6 +9,24 @@ export default function StockView({ onUnauthorized }) {
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState(null)
   const [lastScan, setLastScan] = useState(null)
+  const [mostrarQuiebres, setMostrarQuiebres] = useState(false)
+  const [quiebresData, setQuiebresData] = useState(null)
+  const [cargandoQuiebres, setCargandoQuiebres] = useState(false)
+
+  const toggleQuiebres = () => {
+    const abrir = !mostrarQuiebres
+    setMostrarQuiebres(abrir)
+    if (abrir && !quiebresData) {
+      setCargandoQuiebres(true)
+      apiFetch('/metricas/quiebres-stock?dias=90', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((d) => {
+          setQuiebresData(d)
+          setCargandoQuiebres(false)
+        })
+        .catch(() => setCargandoQuiebres(false))
+    }
+  }
 
   const fetchAlerts = useCallback(() => {
     const params = new URLSearchParams({
@@ -138,6 +156,10 @@ export default function StockView({ onUnauthorized }) {
         <button className="sort-btn" onClick={() => setSoloPendientes((v) => !v)}>
           {soloPendientes ? '✓ ' : ''}Solo pendientes
         </button>
+
+        <button className="sort-btn" onClick={toggleQuiebres}>
+          📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
+        </button>
       </div>
 
       {lastScan && (
@@ -216,6 +238,29 @@ export default function StockView({ onUnauthorized }) {
           </>
         )}
       </div>
+
+      {mostrarQuiebres && (
+        <div className="list">
+          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>
+            Quiebres de stock (últimos 90 días)
+          </label>
+          {cargandoQuiebres && <div className="loading-state">Cargando...</div>}
+          {quiebresData && quiebresData.productos.length === 0 && (
+            <div className="empty-state">Sin quiebres registrados todavía en este período.</div>
+          )}
+          {quiebresData?.productos.map((p) => (
+            <div key={p.sku} className="row">
+              <div className="title-cell">
+                {p.titulo || p.sku}
+                <span className="id-cell mono">SKU: {p.sku}</span>
+              </div>
+              <span className="badge badge-sin-explicar">{p.veces_sin_stock}x sin stock</span>
+              <span className="badge badge-acordar">{p.dias_totales_sin_stock} día(s) totales</span>
+              <span className="id-cell mono">~{p.promedio_dias_por_quiebre} días/vez</span>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
