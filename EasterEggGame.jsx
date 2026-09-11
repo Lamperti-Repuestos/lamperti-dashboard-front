@@ -44,6 +44,48 @@ function dibujarColumnaConos(ctx, x, desde, hasta) {
   }
 }
 
+function dibujarAuto(ctx, x, y) {
+  const ancho = AUTO_ANCHO
+  const alto = AUTO_ALTO
+
+  ctx.save()
+  ctx.translate(x, y)
+
+  ctx.strokeStyle = '#2a2a2a'
+  ctx.lineWidth = 1.5
+
+  ctx.fillStyle = '#F5F5F5'
+  ctx.beginPath()
+  ctx.moveTo(ancho * 0.05, alto * 0.65)
+  ctx.lineTo(ancho * 0.15, alto * 0.3)
+  ctx.lineTo(ancho * 0.35, alto * 0.15)
+  ctx.lineTo(ancho * 0.72, alto * 0.15)
+  ctx.lineTo(ancho * 0.9, alto * 0.35)
+  ctx.lineTo(ancho * 0.98, alto * 0.65)
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+
+  ctx.fillStyle = '#7FA8C9'
+  ctx.beginPath()
+  ctx.moveTo(ancho * 0.38, alto * 0.2)
+  ctx.lineTo(ancho * 0.68, alto * 0.2)
+  ctx.lineTo(ancho * 0.78, alto * 0.35)
+  ctx.lineTo(ancho * 0.3, alto * 0.35)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.fillStyle = '#1a1a1a'
+  ctx.beginPath()
+  ctx.arc(ancho * 0.25, alto * 0.68, alto * 0.16, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(ancho * 0.78, alto * 0.68, alto * 0.16, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.restore()
+}
+
 function nuevaColumna(x) {
   const margen = 60
   const gapY = margen + Math.random() * (ALTO - 20 - GAP - margen * 2)
@@ -143,11 +185,7 @@ export default function EasterEggGame({ onCerrar }) {
         dibujarColumnaConos(ctx, col.x, col.gapY + GAP, ALTO - 18)
       })
 
-      ctx.save()
-      ctx.font = '30px sans-serif'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('🚗', AUTO_X - 3, j.autoY + AUTO_ALTO / 2)
-      ctx.restore()
+      dibujarAuto(ctx, AUTO_X, j.autoY)
 
       animId = requestAnimationFrame(loop)
     }
