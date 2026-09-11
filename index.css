@@ -120,6 +120,12 @@ button {
   margin-top: 14px;
 }
 
+.view-nav-sub {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #3A4A8F;
+}
+
 .view-tab {
   padding: 8px 14px;
   border: 1px solid #3A4A8F;

@@ -16,8 +16,47 @@ import logo70 from './logo-70.webp'
 
 const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'postventa', 'metricas', 'publicidad']
 
+const GRUPOS = [
+  {
+    id: 'operacion',
+    nombre: 'Operación',
+    vistas: [
+      { id: 'picking', label: 'Para separar' },
+      { id: 'publications', label: 'Publicaciones' },
+      { id: 'stock', label: 'Stock' },
+      { id: 'full', label: 'Gestión Full' },
+      { id: 'pedidos', label: 'Envío Full' },
+      { id: 'control', label: 'Control Embalaje' },
+      { id: 'cotejo', label: 'Cotejo Packing List' },
+    ],
+  },
+  {
+    id: 'postventa',
+    nombre: 'Postventa',
+    vistas: [{ id: 'postventa', label: 'Postventa' }],
+  },
+  {
+    id: 'datos',
+    nombre: 'Datos',
+    vistas: [
+      { id: 'metricas', label: 'Métricas' },
+      { id: 'publicidad', label: 'Publicidad' },
+    ],
+  },
+]
+
+const GRUPO_POR_VISTA = Object.fromEntries(
+  GRUPOS.flatMap((g) => g.vistas.map((v) => [v.id, g.id]))
+)
+
 export default function App() {
   const [view, setView] = useState('resumen') // resumen | picking | publications | stock
+  const [grupoAbierto, setGrupoAbierto] = useState(null)
+
+  const irA = (nuevaVista) => {
+    setView(nuevaVista)
+    setGrupoAbierto(GRUPO_POR_VISTA[nuevaVista] || null)
+  }
   const [authed, setAuthed] = useState(null) // null = todavía chequeando
 
   useEffect(() => {
@@ -83,78 +122,41 @@ export default function App() {
         <nav className="view-nav">
           <button
             className={`view-tab ${view === 'resumen' ? 'active' : ''}`}
-            onClick={() => setView('resumen')}
+            onClick={() => { setView('resumen'); setGrupoAbierto(null) }}
           >
             Resumen
           </button>
-          <button
-            className={`view-tab ${view === 'picking' ? 'active' : ''}`}
-            onClick={() => setView('picking')}
-          >
-            Para separar
-          </button>
-          <button
-            className={`view-tab ${view === 'publications' ? 'active' : ''}`}
-            onClick={() => setView('publications')}
-          >
-            Publicaciones
-          </button>
-          <button
-            className={`view-tab ${view === 'stock' ? 'active' : ''}`}
-            onClick={() => setView('stock')}
-          >
-            Stock
-          </button>
-          <button
-            className={`view-tab ${view === 'full' ? 'active' : ''}`}
-            onClick={() => setView('full')}
-          >
-            Gestión Full
-          </button>
-          <button
-            className={`view-tab ${view === 'pedidos' ? 'active' : ''}`}
-            onClick={() => setView('pedidos')}
-          >
-            Envío Full
-          </button>
-          <button
-            className={`view-tab ${view === 'control' ? 'active' : ''}`}
-            onClick={() => setView('control')}
-          >
-            Control Embalaje
-          </button>
-          <button
-            className={`view-tab ${view === 'cotejo' ? 'active' : ''}`}
-            onClick={() => setView('cotejo')}
-          >
-            Cotejo Packing List
-          </button>
-          <button
-            className={`view-tab ${view === 'postventa' ? 'active' : ''}`}
-            onClick={() => setView('postventa')}
-          >
-            Postventa
-          </button>
-          <button
-            className={`view-tab ${view === 'metricas' ? 'active' : ''}`}
-            onClick={() => setView('metricas')}
-          >
-            Métricas
-          </button>
-          <button
-            className={`view-tab ${view === 'publicidad' ? 'active' : ''}`}
-            onClick={() => setView('publicidad')}
-          >
-            Publicidad
-          </button>
+          {GRUPOS.map((g) => (
+            <button
+              key={g.id}
+              className={`view-tab ${grupoAbierto === g.id ? 'active' : ''}`}
+              onClick={() => setGrupoAbierto(grupoAbierto === g.id ? null : g.id)}
+            >
+              {g.nombre} {grupoAbierto === g.id ? '▲' : '▼'}
+            </button>
+          ))}
           <button className="view-tab logout-tab" onClick={handleLogout}>
             Salir
           </button>
         </nav>
+
+        {grupoAbierto && (
+          <nav className="view-nav view-nav-sub">
+            {GRUPOS.find((g) => g.id === grupoAbierto).vistas.map((v) => (
+              <button
+                key={v.id}
+                className={`view-tab ${view === v.id ? 'active' : ''}`}
+                onClick={() => setView(v.id)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </nav>
+        )}
       </header>
 
       <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={setView} />}
+        {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={irA} />}
         {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
