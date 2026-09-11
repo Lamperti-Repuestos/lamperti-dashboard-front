@@ -19,6 +19,7 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [editandoCantidadId, setEditandoCantidadId] = useState(null)
   const [cantidadDraft, setCantidadDraft] = useState('')
   const [vistaGrande, setVistaGrande] = useState({})
+  const [filtro, setFiltro] = useState('todos') // todos | sin_pedir | pedidos | en_stock
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -103,6 +104,23 @@ export default function PedidosFullView({ onUnauthorized }) {
     }, onUnauthorized)
       .then(() => fetchPipeline())
       .catch(() => fetchPipeline())
+  }
+
+  const toggleCampoBooleano = (envioIdx, item, campo, endpoint) => {
+    const nuevoValor = !item[campo]
+    setEnvios((prev) => {
+      const copia = [...prev]
+      copia[envioIdx] = {
+        ...copia[envioIdx],
+        items: copia[envioIdx].items.map((it) => (it.id === item.id ? { ...it, [campo]: nuevoValor } : it)),
+      }
+      return copia
+    })
+    apiFetch(`/full/pipeline/${item.id}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valor: nuevoValor }),
+    }, onUnauthorized).catch(() => fetchPipeline())
   }
 
   const empezarEdicionCantidad = (item) => {
@@ -217,6 +235,23 @@ export default function PedidosFullView({ onUnauthorized }) {
         )}
       </div>
 
+      <div className="controls">
+        <div className="tabs">
+          <button className={`tab ${filtro === 'todos' ? 'active' : ''}`} onClick={() => setFiltro('todos')}>
+            Todos
+          </button>
+          <button className={`tab ${filtro === 'sin_pedir' ? 'active' : ''}`} onClick={() => setFiltro('sin_pedir')}>
+            Sin pedir
+          </button>
+          <button className={`tab ${filtro === 'pedidos' ? 'active' : ''}`} onClick={() => setFiltro('pedidos')}>
+            Pedidos
+          </button>
+          <button className={`tab ${filtro === 'en_stock' ? 'active' : ''}`} onClick={() => setFiltro('en_stock')}>
+            En stock
+          </button>
+        </div>
+      </div>
+
       <div className="list">
         {loading && <div className="loading-state">Cargando envíos...</div>}
         {error && <div className="error-state">Error: {error}</div>}
@@ -230,6 +265,13 @@ export default function PedidosFullView({ onUnauthorized }) {
         {!loading && !error && envios.map((envio, idx) => {
           const embalados = envio.items.filter((it) => it.estado === 'embalado').length
           const grande = vistaGrande[envio.pedido_id]
+          const itemsFiltrados = envio.items.filter((it) => {
+            if (filtro === 'sin_pedir') return !it.pedido_al_proveedor
+            if (filtro === 'pedidos') return it.pedido_al_proveedor
+            if (filtro === 'en_stock') return it.en_stock_local
+            return true
+          })
+          if (itemsFiltrados.length === 0) return null
           return (
             <div key={envio.pedido_id} className="multi-group">
               <div className="multi-group-header">
@@ -254,7 +296,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                 </button>
               </div>
 
-              {envio.items.map((item) => (
+              {itemsFiltrados.map((item) => (
                 <div
                   key={item.id}
                   className={`pick-row ${item.estado === 'embalado' ? 'pick-row-checked' : ''} ${grande ? 'pick-row-grande' : ''}`}
@@ -303,6 +345,23 @@ export default function PedidosFullView({ onUnauthorized }) {
                       )}
                     </span>
                   </div>
+
+                  <label className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={item.pedido_al_proveedor}
+                      onChange={() => toggleCampoBooleano(idx, item, 'pedido_al_proveedor', 'marcar-pedido')}
+                    />
+                    Pedido
+                  </label>
+                  <label className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={item.en_stock_local}
+                      onChange={() => toggleCampoBooleano(idx, item, 'en_stock_local', 'marcar-en-stock')}
+                    />
+                    En stock
+                  </label>
                 </div>
               ))}
             </div>
