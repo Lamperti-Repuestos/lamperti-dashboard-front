@@ -93,6 +93,15 @@ button {
   gap: 14px;
 }
 
+.header-text {
+  flex: 1;
+}
+
+.header-logout {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .header-logo {
   height: 56px;
   width: auto;
@@ -118,6 +127,18 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
+}
+
+.view-tab-full {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.view-tab-grow {
+  flex: 1;
+  text-align: center;
 }
 
 .view-nav-sub {

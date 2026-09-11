@@ -118,26 +118,28 @@ export default function App() {
           <div className="header-text">
             <h1>Dashboard</h1>
           </div>
-        </div>
-        <nav className="view-nav">
-          <button
-            className={`view-tab ${view === 'resumen' ? 'active' : ''}`}
-            onClick={() => { setView('resumen'); setGrupoAbierto(null) }}
-          >
-            Resumen
+          <button className="view-tab logout-tab header-logout" onClick={handleLogout}>
+            Salir
           </button>
+        </div>
+
+        <button
+          className={`view-tab view-tab-full ${view === 'resumen' ? 'active' : ''}`}
+          onClick={() => { setView('resumen'); setGrupoAbierto(null) }}
+        >
+          Resumen
+        </button>
+
+        <nav className="view-nav">
           {GRUPOS.map((g) => (
             <button
               key={g.id}
-              className={`view-tab ${grupoAbierto === g.id ? 'active' : ''}`}
+              className={`view-tab view-tab-grow ${grupoAbierto === g.id ? 'active' : ''}`}
               onClick={() => setGrupoAbierto(grupoAbierto === g.id ? null : g.id)}
             >
               {g.nombre} {grupoAbierto === g.id ? '▲' : '▼'}
             </button>
           ))}
-          <button className="view-tab logout-tab" onClick={handleLogout}>
-            Salir
-          </button>
         </nav>
 
         {grupoAbierto && (
