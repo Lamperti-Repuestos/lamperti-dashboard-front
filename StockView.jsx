@@ -20,6 +20,7 @@ export default function StockView({ onUnauthorized }) {
   const toggleQuiebres = () => {
     const abrir = !mostrarQuiebres
     setMostrarQuiebres(abrir)
+    if (abrir) setMostrarDiscrepancias(false)
     if (abrir && !quiebresData) {
       setCargandoQuiebres(true)
       apiFetch('/metricas/quiebres-stock?dias=90', {}, onUnauthorized)
@@ -35,6 +36,7 @@ export default function StockView({ onUnauthorized }) {
   const toggleDiscrepancias = () => {
     const abrir = !mostrarDiscrepancias
     setMostrarDiscrepancias(abrir)
+    if (abrir) setMostrarQuiebres(false)
     if (abrir && !discrepanciasData) {
       setCargandoDiscrepancias(true)
       setErrorDiscrepancias(null)
@@ -200,6 +202,7 @@ export default function StockView({ onUnauthorized }) {
         </div>
       )}
 
+      {!mostrarQuiebres && !mostrarDiscrepancias && (
       <div className="list">
         {loading && <div className="loading-state">Cargando alertas...</div>}
         {error && <div className="error-state">Error: {error}</div>}
@@ -269,6 +272,7 @@ export default function StockView({ onUnauthorized }) {
           </>
         )}
       </div>
+      )}
 
       {mostrarQuiebres && (
         <div className="list">
