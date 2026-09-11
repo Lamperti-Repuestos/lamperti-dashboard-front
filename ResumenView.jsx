@@ -20,6 +20,10 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [ventas, setVentas] = useState(null)
+  const [editandoObjetivo, setEditandoObjetivo] = useState(false)
+  const [nuevaMeta, setNuevaMeta] = useState('')
+  const [nuevoPremio, setNuevoPremio] = useState('')
+  const [guardandoObjetivo, setGuardandoObjetivo] = useState(false)
 
   useEffect(() => {
     apiFetch('/resumen-dia', {}, onUnauthorized)
@@ -46,6 +50,24 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
   if (loading) return <div className="loading-state">Cargando resumen...</div>
   if (error) return <div className="error-state">Error: {error}</div>
 
+  const guardarObjetivo = () => {
+    const meta = Number(nuevaMeta)
+    if (!meta || meta <= 0 || !nuevoPremio.trim()) return
+    setGuardandoObjetivo(true)
+    apiFetch('/ventas/objetivo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meta, premio: nuevoPremio.trim() }),
+    }, onUnauthorized)
+      .then((res) => res.json())
+      .then(() => {
+        setVentas((prev) => ({ ...prev, proximo_objetivo: { meta, premio: nuevoPremio.trim() } }))
+        setEditandoObjetivo(false)
+        setGuardandoObjetivo(false)
+      })
+      .catch(() => setGuardandoObjetivo(false))
+  }
+
   return (
     <>
       {ventas && (
@@ -64,15 +86,57 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
             <span className="badge badge-multi">🤝 Acordar: {ventas.acordar}</span>
           </div>
 
-          {ventas.proximo_objetivo && (
+          {ventas.proximo_objetivo && ventas.total < ventas.proximo_objetivo.meta && (
             <div style={{ marginTop: 14, fontSize: 13, color: 'var(--charcoal)' }}>
               Faltan <strong>{ventas.proximo_objetivo.meta - ventas.total}</strong> para llegar a{' '}
               <strong>{ventas.proximo_objetivo.meta}</strong> → {ventas.proximo_objetivo.premio} 🎉
             </div>
           )}
+          {ventas.proximo_objetivo && ventas.total >= ventas.proximo_objetivo.meta && (
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--charcoal)', fontWeight: 700 }}>
+              🏆 ¡Objetivo de {ventas.proximo_objetivo.meta} alcanzado! → {ventas.proximo_objetivo.premio}
+            </div>
+          )}
           {!ventas.proximo_objetivo && (
-            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--charcoal)' }}>
-              🏆 Ya se pasaron todos los objetivos de hoy - ¡a definir el próximo!
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--gray-muted)' }}>
+              Todavía no hay un objetivo cargado.
+            </div>
+          )}
+
+          {!editandoObjetivo && (
+            <button className="sort-btn" style={{ marginTop: 12 }} onClick={() => {
+              setNuevaMeta(ventas.proximo_objetivo?.meta || '')
+              setNuevoPremio(ventas.proximo_objetivo?.premio || '')
+              setEditandoObjetivo(true)
+            }}>
+              ✏️ {ventas.proximo_objetivo ? 'Cambiar objetivo' : 'Cargar objetivo'}
+            </button>
+          )}
+
+          {editandoObjetivo && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 260, marginInline: 'auto' }}>
+              <input
+                type="number"
+                className="corte-input"
+                placeholder="Objetivo (ej: 200)"
+                value={nuevaMeta}
+                onChange={(e) => setNuevaMeta(e.target.value)}
+              />
+              <input
+                type="text"
+                className="corte-input"
+                placeholder="Premio (ej: Asado en el patio)"
+                value={nuevoPremio}
+                onChange={(e) => setNuevoPremio(e.target.value)}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <button className="scan-btn" onClick={guardarObjetivo} disabled={guardandoObjetivo}>
+                  Guardar
+                </button>
+                <button className="sort-btn" onClick={() => setEditandoObjetivo(false)}>
+                  Cancelar
+                </button>
+              </div>
             </div>
           )}
         </div>
