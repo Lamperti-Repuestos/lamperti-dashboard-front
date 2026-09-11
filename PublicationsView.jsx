@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
+import EasterEggGame from './EasterEggGame.jsx'
 
 function formatPrice(value) {
   return new Intl.NumberFormat('es-AR', {
@@ -15,6 +16,7 @@ export default function PublicationsView({ onUnauthorized }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [mostrarEasterEgg, setMostrarEasterEgg] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [soloSinStock, setSoloSinStock] = useState(false)
   const [sortMode, setSortMode] = useState('none') // none | stock | price | alpha
@@ -196,7 +198,11 @@ export default function PublicationsView({ onUnauthorized }) {
           type="text"
           placeholder="Buscar por título o SKU..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const valor = e.target.value
+            setQuery(valor)
+            if (valor.trim().toLowerCase() === 'aldomercho') setMostrarEasterEgg(true)
+          }}
         />
         <div className="tabs">
           <button
@@ -411,6 +417,7 @@ export default function PublicationsView({ onUnauthorized }) {
       </div>
 
       <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+      {mostrarEasterEgg && <EasterEggGame onCerrar={() => setMostrarEasterEgg(false)} />}
     </>
   )
 }
