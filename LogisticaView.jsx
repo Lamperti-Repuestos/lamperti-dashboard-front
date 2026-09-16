@@ -27,6 +27,9 @@ export default function LogisticaView({ onUnauthorized }) {
 
   const [historialAbierto, setHistorialAbierto] = useState(null)
   const [historialData, setHistorialData] = useState(null)
+  const [medicionesAbierto, setMedicionesAbierto] = useState(null)
+  const [medicionesData, setMedicionesData] = useState(null)
+  const [ultimoResultado, setUltimoResultado] = useState(null)
 
   const fetchInsumos = () => {
     setLoading(true)
@@ -150,6 +153,53 @@ export default function LogisticaView({ onUnauthorized }) {
       .then((d) => setHistorialData(d.historial))
   }
 
+  const verMediciones = (id) => {
+    if (medicionesAbierto === id) {
+      setMedicionesAbierto(null)
+      return
+    }
+    setMedicionesAbierto(id)
+    setUltimoResultado(null)
+    apiFetch(`/logistica/insumos/${id}/mediciones`, {}, onUnauthorized)
+      .then((res) => res.json())
+      .then((d) => setMedicionesData(d.mediciones))
+  }
+
+  const empezarMedicion = (id) => {
+    apiFetch(`/logistica/insumos/${id}/medicion/empezar`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        verMediciones(id)
+        setMedicionesAbierto(id)
+      })
+      .catch((err) => alert(`Error: ${err.message}`))
+  }
+
+  const terminarMedicion = (id) => {
+    apiFetch(`/logistica/insumos/${id}/medicion/terminar`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setUltimoResultado({ insumoId: id, ...d })
+        apiFetch(`/logistica/insumos/${id}/mediciones`, {}, onUnauthorized)
+          .then((res) => res.json())
+          .then((dd) => setMedicionesData(dd.mediciones))
+      })
+      .catch((err) => alert(`Error: ${err.message}`))
+  }
+
+  const aplicarComoRinde = (id, paquetes) => {
+    apiFetch(`/logistica/insumos/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rinde_por_unidad: paquetes }),
+    }, onUnauthorized).then(() => {
+      setUltimoResultado(null)
+      fetchInsumos()
+    })
+  }
+
   return (
     <>
       <div className="controls">
@@ -241,6 +291,9 @@ export default function LogisticaView({ onUnauthorized }) {
               <button className="sort-btn" onClick={() => verHistorial(i.id)}>
                 📈 {historialAbierto === i.id ? 'Ocultar' : 'Ver'} historial
               </button>
+              <button className="sort-btn" onClick={() => verMediciones(i.id)}>
+                📏 {medicionesAbierto === i.id ? 'Ocultar' : 'Medir'} rinde
+              </button>
               <button className="sort-btn" onClick={() => avisarInsumo(i.id, i.nombre)}>
                 📢 Avisar a Aldo
               </button>
@@ -257,6 +310,53 @@ export default function LogisticaView({ onUnauthorized }) {
                     <span>{formatoPesos.format(h.precio)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {medicionesAbierto === i.id && medicionesData && (
+              <div className="paste-box" style={{ margin: '0 0 16px 24px' }}>
+                <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 10px' }}>
+                  Marcá cuándo empezás a usar una unidad nueva, y cuándo se termina - contamos solo
+                  los paquetes embalados en el medio (con los datos de Control Embalaje).
+                </p>
+
+                {medicionesData.some((m) => m.en_curso) ? (
+                  <button className="scan-btn" onClick={() => terminarMedicion(i.id)}>
+                    ⏹ Se terminó ahora
+                  </button>
+                ) : (
+                  <button className="scan-btn" onClick={() => empezarMedicion(i.id)}>
+                    ▶ Empezar a medir (arranco a usar una unidad ahora)
+                  </button>
+                )}
+
+                {ultimoResultado && ultimoResultado.insumoId === i.id && (
+                  <div className="scan-result" style={{ marginTop: 10 }}>
+                    Se embalaron <strong>{ultimoResultado.paquetes_calculados}</strong> paquete(s) entre{' '}
+                    {new Date(ultimoResultado.fecha_inicio).toLocaleDateString('es-AR')} y{' '}
+                    {new Date(ultimoResultado.fecha_fin).toLocaleDateString('es-AR')}.
+                    <div style={{ marginTop: 8 }}>
+                      <button className="sort-btn" onClick={() => aplicarComoRinde(i.id, ultimoResultado.paquetes_calculados)}>
+                        ✓ Usar {ultimoResultado.paquetes_calculados} como el rinde de este insumo
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {medicionesData.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    {medicionesData.map((m) => (
+                      <div key={m.id} className="sale-line" style={{ fontSize: 12 }}>
+                        <span className="mono">
+                          {new Date(m.fecha_inicio).toLocaleDateString('es-AR')}
+                          {' → '}
+                          {m.fecha_fin ? new Date(m.fecha_fin).toLocaleDateString('es-AR') : 'en curso'}
+                        </span>
+                        <span>{m.paquetes_calculados != null ? `${m.paquetes_calculados} paquete(s)` : '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
