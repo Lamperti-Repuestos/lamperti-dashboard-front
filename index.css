@@ -440,6 +440,123 @@ button {
   font-size: 16px;
 }
 
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 45, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.tutorial-modal {
+  background: var(--cream);
+  border-radius: 18px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--gray-line);
+}
+
+.tutorial-progress {
+  height: 4px;
+  background: var(--gray-line);
+}
+
+.tutorial-progress > div {
+  height: 100%;
+  background: var(--navy);
+  transition: width 0.25s ease;
+}
+
+.tutorial-cuerpo {
+  padding: 22px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tutorial-seccion-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+}
+
+.tutorial-titulo {
+  margin: 0 0 12px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--navy);
+  line-height: 1.25;
+}
+
+.tutorial-texto {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--charcoal);
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-top: 1px solid var(--gray-line);
+}
+
+.tutorial-indice {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tutorial-indice-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid var(--gray-line);
+  border-radius: 10px;
+  background: var(--white);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--charcoal);
+  cursor: pointer;
+}
+
+.tutorial-indice-item.activo {
+  border-color: var(--navy);
+  background: #EEF2FF;
+}
+
+.header-ayuda {
+  flex-shrink: 0;
+  font-weight: 800;
+  min-width: 38px;
+}
+
 .easter-egg-overlay {
   position: fixed;
   inset: 0;

@@ -10,6 +10,7 @@ import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
 import PublicidadView from './PublicidadView.jsx'
 import ResumenView from './ResumenView.jsx'
+import TutorialView from './TutorialView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
@@ -55,6 +56,14 @@ export default function App() {
     return VIEWS.includes(guardada) ? guardada : 'resumen'
   })
   const [grupoAbierto, setGrupoAbierto] = useState(() => localStorage.getItem('dashboard_grupo') || null)
+  const [mostrarTutorial, setMostrarTutorial] = useState(
+    () => localStorage.getItem('dashboard_tutorial_visto') !== 'si'
+  )
+
+  const cerrarTutorial = () => {
+    localStorage.setItem('dashboard_tutorial_visto', 'si')
+    setMostrarTutorial(false)
+  }
 
   useEffect(() => {
     localStorage.setItem('dashboard_view', view)
@@ -127,6 +136,13 @@ export default function App() {
           <div className="header-text">
             <h1>Dashboard</h1>
           </div>
+          <button
+            className="view-tab header-ayuda"
+            onClick={() => setMostrarTutorial(true)}
+            title="Ver el tutorial"
+          >
+            ?
+          </button>
           <button className="view-tab logout-tab header-logout" onClick={handleLogout}>
             Salir
           </button>
@@ -179,6 +195,8 @@ export default function App() {
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
       </div>
+
+      {mostrarTutorial && <TutorialView onCerrar={cerrarTutorial} />}
     </>
   )
 }
