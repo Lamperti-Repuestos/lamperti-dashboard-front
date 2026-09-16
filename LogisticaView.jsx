@@ -140,7 +140,7 @@ export default function LogisticaView({ onUnauthorized }) {
   }
 
   const atenderAviso = (id) => {
-    apiFetch(`/logistica/avisos/${id}/atender`, { method: 'POST' }, onUnauthorized).then(() => {
+    apiFetch(`/logistica/avisos/${id}/recibido`, { method: 'POST' }, onUnauthorized).then(() => {
       fetchAvisos()
       fetchInsumos()
     })
@@ -224,7 +224,13 @@ export default function LogisticaView({ onUnauthorized }) {
                 {a.insumo_nombre}
                 <span className="id-cell mono">{new Date(a.fecha).toLocaleString('es-AR')}{a.nota && ` · ${a.nota}`}</span>
               </div>
-              <button className="scan-btn" onClick={() => atenderAviso(a.id)}>✅ Ya se compró</button>
+              {a.estado === 'pendiente' && <span className="badge badge-sin-explicar">⏳ Sin encargar</span>}
+              {a.estado === 'encargado' && (
+                <span className="badge badge-acordar">
+                  📦 Encargado {a.fecha_encargado && `(${new Date(a.fecha_encargado).toLocaleDateString('es-AR')})`}
+                </span>
+              )}
+              <button className="scan-btn" onClick={() => atenderAviso(a.id)}>✅ Ya llegó</button>
             </div>
           ))}
         </div>
