@@ -20,6 +20,7 @@ export default function LogisticaView({ onUnauthorized }) {
   const [unidad, setUnidad] = useState('')
   const [publicacionUrl, setPublicacionUrl] = useState('')
   const [rinde, setRinde] = useState('')
+  const [porcentajeUso, setPorcentajeUso] = useState('100')
   const [guardando, setGuardando] = useState(false)
 
   const [precioDraftId, setPrecioDraftId] = useState(null)
@@ -61,6 +62,7 @@ export default function LogisticaView({ onUnauthorized }) {
     setUnidad('')
     setPublicacionUrl('')
     setRinde('')
+    setPorcentajeUso('100')
     setEditandoId(null)
     setMostrarForm(false)
   }
@@ -70,6 +72,7 @@ export default function LogisticaView({ onUnauthorized }) {
     setUnidad(i.unidad || '')
     setPublicacionUrl(i.publicacion_url || '')
     setRinde(i.rinde_por_unidad != null ? String(i.rinde_por_unidad) : '')
+    setPorcentajeUso(String(i.porcentaje_uso ?? 100))
     setEditandoId(i.id)
     setMostrarForm(true)
   }
@@ -82,6 +85,7 @@ export default function LogisticaView({ onUnauthorized }) {
       unidad: unidad.trim() || null,
       publicacion_url: publicacionUrl.trim() || null,
       rinde_por_unidad: rinde ? Number(rinde) : null,
+      porcentaje_uso: porcentajeUso ? Number(porcentajeUso) : 100,
     }
     const promesa = editandoId
       ? apiFetch(`/logistica/insumos/${editandoId}`, {
@@ -235,6 +239,10 @@ export default function LogisticaView({ onUnauthorized }) {
           <input className="search-input" placeholder="Unidad (ej: paquete x100)" value={unidad} onChange={(e) => setUnidad(e.target.value)} style={{ marginBottom: 8 }} />
           <input className="search-input" placeholder="Link a la publicación de ML" value={publicacionUrl} onChange={(e) => setPublicacionUrl(e.target.value)} style={{ marginBottom: 8 }} />
           <input type="number" className="search-input" placeholder="Cuántos paquetes rinde una unidad" value={rinde} onChange={(e) => setRinde(e.target.value)} style={{ marginBottom: 8 }} />
+          <label className="corte-label" style={{ fontSize: 12 }}>
+            % de los paquetes en los que se usa (100 si es universal como las bolsas; menos si es como cinta o cartón, que no van en todos)
+          </label>
+          <input type="number" min="0" max="100" className="search-input" value={porcentajeUso} onChange={(e) => setPorcentajeUso(e.target.value)} style={{ marginBottom: 8 }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="scan-btn" onClick={guardarInsumo} disabled={guardando}>Guardar</button>
             <button className="sort-btn" onClick={limpiarForm}>Cancelar</button>
@@ -257,6 +265,7 @@ export default function LogisticaView({ onUnauthorized }) {
                 <span className="id-cell mono">
                   {i.unidad || 'sin unidad'}
                   {i.ultimo_precio != null && ` · Último precio: ${formatoPesos.format(i.ultimo_precio)}`}
+                  {i.porcentaje_uso < 100 && ` · Se usa en ${i.porcentaje_uso}% de los paquetes`}
                 </span>
               </div>
               {i.costo_por_paquete != null && (
@@ -335,9 +344,12 @@ export default function LogisticaView({ onUnauthorized }) {
                     Se embalaron <strong>{ultimoResultado.paquetes_calculados}</strong> paquete(s) entre{' '}
                     {new Date(ultimoResultado.fecha_inicio).toLocaleDateString('es-AR')} y{' '}
                     {new Date(ultimoResultado.fecha_fin).toLocaleDateString('es-AR')}.
+                    {ultimoResultado.porcentaje_uso < 100 && (
+                      <> Ajustado al {ultimoResultado.porcentaje_uso}% de uso: <strong>{ultimoResultado.paquetes_ajustados}</strong> paquete(s).</>
+                    )}
                     <div style={{ marginTop: 8 }}>
-                      <button className="sort-btn" onClick={() => aplicarComoRinde(i.id, ultimoResultado.paquetes_calculados)}>
-                        ✓ Usar {ultimoResultado.paquetes_calculados} como el rinde de este insumo
+                      <button className="sort-btn" onClick={() => aplicarComoRinde(i.id, ultimoResultado.paquetes_ajustados)}>
+                        ✓ Usar {ultimoResultado.paquetes_ajustados} como el rinde de este insumo
                       </button>
                     </div>
                   </div>
