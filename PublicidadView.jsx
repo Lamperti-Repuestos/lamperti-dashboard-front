@@ -42,27 +42,10 @@ function TooltipPersonalizado({ active, payload, formato }) {
   return (
     <div style={{
       background: 'var(--white)', border: '1px solid var(--gray-line)', borderRadius: 8,
-      padding: '10px 14px', fontSize: 12, width: 240, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+      padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
     }}>
       <div style={{ fontWeight: 700, marginBottom: 2 }}>{d.nombre}</div>
       <div className="mono">{formatearValor(d.valor, formato)}</div>
-      {d.detalle && (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--gray-line)' }}>
-          {d.detalle
-            .slice()
-            .sort((a, b) => b.valor - a.valor)
-            .slice(0, 5)
-            .map((item, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3, whiteSpace: 'nowrap' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.nombre.length > 20 ? item.nombre.slice(0, 20) + '…' : item.nombre}</span>
-                <span className="mono" style={{ flexShrink: 0 }}>{formatearValor(item.valor, formato)}</span>
-              </div>
-            ))}
-          {d.detalle.length > 5 && (
-            <div style={{ color: 'var(--gray-muted)', marginTop: 2 }}>+ {d.detalle.length - 5} más...</div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -80,21 +63,19 @@ function GraficoTorta({ datos, metricaId, formato }) {
 
   // Con muchos artículos la torta queda ilegible (porciones finitas,
   // etiquetas superpuestas) - agrupamos todo lo que no entre en el
-  // top 8 bajo "Otros", así se puede leer de verdad. El detalle
-  // completo sigue disponible en la lista de abajo.
+  // top 8 bajo "Otros" SOLO para que el gráfico se pueda leer. El
+  // detalle completo de verdad (título entero + SKU) vive siempre en
+  // la tabla de abajo, no acá adentro.
   const TOP = 8
   let datosGrafico = crudo
   if (crudo.length > TOP) {
     const top = crudo.slice(0, TOP)
     const restoValor = crudo.slice(TOP).reduce((acc, d) => acc + d.valor, 0)
-    datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP})`, valor: restoValor, detalle: crudo.slice(TOP) }]
+    datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP})`, valor: restoValor }]
   }
 
-  const acosPorNombre = {}
-  datos.forEach((d) => { acosPorNombre[d.nombre] = d.acos })
-
   return (
-    <ResponsiveContainer width="100%" height={340}>
+    <ResponsiveContainer width="100%" height={220}>
       <PieChart>
         <Pie
           data={datosGrafico}
@@ -102,21 +83,14 @@ function GraficoTorta({ datos, metricaId, formato }) {
           nameKey="nombre"
           cx="50%"
           cy="50%"
-          outerRadius={110}
-          label={({ percent }) => (percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : '')}
+          outerRadius={90}
+          label={({ percent }) => (percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : '')}
         >
           {datosGrafico.map((_, i) => (
             <Cell key={i} fill={COLORES[i % COLORES.length]} />
           ))}
         </Pie>
         <Tooltip content={<TooltipPersonalizado formato={formato} />} />
-        <Legend
-          wrapperStyle={{ fontSize: 12 }}
-          formatter={(nombre) => {
-            const acos = acosPorNombre[nombre]
-            return acos != null ? `${nombre} (ACOS: ${acos.toFixed(1)}%)` : nombre
-          }}
-        />
       </PieChart>
     </ResponsiveContainer>
   )
@@ -233,7 +207,10 @@ export default function PublicidadView({ onUnauthorized }) {
       )}
 
       <div className="list">
-        {data?.campañas?.map((c) => (
+        {data?.campañas
+          ?.slice()
+          .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0))
+          .map((c) => (
           <div key={c.id}>
             <div className="row" style={{ cursor: 'pointer' }} onClick={() => abrirCampania(c)}>
               <div className="title-cell">
@@ -265,16 +242,20 @@ export default function PublicidadView({ onUnauthorized }) {
                   <div className="empty-state">Sin artículos con datos en esta campaña en el período.</div>
                 )}
 
-                {articulosData?.articulos?.map((a) => (
-                  <div key={a.item_id} className="row">
-                    <div className="title-cell">
-                      {a.titulo || a.item_id}
-                      <span className="id-cell mono">{a.item_id} · {a.status}</span>
+                {articulosData?.articulos
+                  ?.slice()
+                  .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0))
+                  .map((a) => (
+                    <div key={a.item_id} className="row">
+                      <div className="title-cell">
+                        {a.titulo || a.item_id}
+                        <span className="id-cell mono">SKU: {a.sku} · {a.item_id} · {a.status}</span>
+                      </div>
+                      <span className="badge badge-flex">{formatoPesos.format(a.gasto)}</span>
+                      <span className="badge badge-colecta">{a.ventas_atribuidas} venta(s)</span>
+                      {a.acos != null && <span className="id-cell mono">ACOS: {a.acos.toFixed(1)}%</span>}
                     </div>
-                    <span className="badge badge-flex">{formatoPesos.format(a.gasto)}</span>
-                    <span className="badge badge-colecta">{a.ventas_atribuidas} venta(s)</span>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
