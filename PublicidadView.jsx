@@ -19,6 +19,7 @@ const METRICAS = [
   { id: 'ventas_organicas', label: 'Ventas orgánicas (u.)', formato: 'numero' },
   { id: 'clicks', label: 'Clicks', formato: 'numero' },
   { id: 'impresiones', label: 'Impresiones', formato: 'numero' },
+  { id: 'acos', label: 'ACOS (%) - ver aviso abajo', formato: 'porcentaje' },
 ]
 
 const RANGOS = [
@@ -29,21 +30,36 @@ const RANGOS = [
 
 function formatearValor(valor, formato) {
   if (valor == null) return '—'
-  return formato === 'pesos' ? formatoPesos.format(valor) : valor.toLocaleString('es-AR')
+  if (formato === 'pesos') return formatoPesos.format(valor)
+  if (formato === 'porcentaje') return `${valor.toFixed(1)}%`
+  return valor.toLocaleString('es-AR')
 }
 
 function GraficoTorta({ datos, metricaId, formato }) {
   const metrica = METRICAS.find((m) => m.id === metricaId)
-  const datosGrafico = datos
+  const crudo = datos
     .map((d) => ({ nombre: d.nombre, valor: d[metricaId] || 0 }))
     .filter((d) => d.valor > 0)
+    .sort((a, b) => b.valor - a.valor)
 
-  if (datosGrafico.length === 0) {
+  if (crudo.length === 0) {
     return <div className="empty-state">Sin datos de "{metrica.label}" para graficar en este período.</div>
   }
 
+  // Con muchos artículos la torta queda ilegible (porciones finitas,
+  // etiquetas superpuestas) - agrupamos todo lo que no entre en el
+  // top 8 bajo "Otros", así se puede leer de verdad. El detalle
+  // completo sigue disponible en la lista de abajo.
+  const TOP = 8
+  let datosGrafico = crudo
+  if (crudo.length > TOP) {
+    const top = crudo.slice(0, TOP)
+    const restoValor = crudo.slice(TOP).reduce((acc, d) => acc + d.valor, 0)
+    datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP})`, valor: restoValor }]
+  }
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
+    <ResponsiveContainer width="100%" height={340}>
       <PieChart>
         <Pie
           data={datosGrafico}
@@ -52,7 +68,7 @@ function GraficoTorta({ datos, metricaId, formato }) {
           cx="50%"
           cy="50%"
           outerRadius={110}
-          label={({ nombre, percent }) => `${nombre.length > 18 ? nombre.slice(0, 18) + '…' : nombre} (${(percent * 100).toFixed(0)}%)`}
+          label={({ percent }) => (percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : '')}
         >
           {datosGrafico.map((_, i) => (
             <Cell key={i} fill={COLORES[i % COLORES.length]} />
@@ -163,6 +179,11 @@ export default function PublicidadView({ onUnauthorized }) {
 
       {data?.campañas?.length > 0 && (
         <div className="paste-box">
+          {metrica === 'acos' && (
+            <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 10px' }}>
+              ⚠ El ACOS es un porcentaje, no una cantidad - una torta no representa bien "cuánto pesa" cada campaña en el ACOS total. Sirve más para comparar barras que para ver proporción.
+            </p>
+          )}
           <label className="corte-label" style={{ marginBottom: 8 }}>
             {metricaActual.label} por campaña
           </label>
