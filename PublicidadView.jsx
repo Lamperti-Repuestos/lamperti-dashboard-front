@@ -58,6 +58,9 @@ function GraficoTorta({ datos, metricaId, formato }) {
     datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP})`, valor: restoValor }]
   }
 
+  const acosPorNombre = {}
+  datos.forEach((d) => { acosPorNombre[d.nombre] = d.acos })
+
   return (
     <ResponsiveContainer width="100%" height={340}>
       <PieChart>
@@ -75,7 +78,13 @@ function GraficoTorta({ datos, metricaId, formato }) {
           ))}
         </Pie>
         <Tooltip formatter={(valor) => formatearValor(valor, formato)} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Legend
+          wrapperStyle={{ fontSize: 12 }}
+          formatter={(nombre) => {
+            const acos = acosPorNombre[nombre]
+            return acos != null ? `${nombre} (ACOS: ${acos.toFixed(1)}%)` : nombre
+          }}
+        />
       </PieChart>
     </ResponsiveContainer>
   )
