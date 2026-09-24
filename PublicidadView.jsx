@@ -40,22 +40,26 @@ function TooltipPersonalizado({ active, payload, formato }) {
   const d = payload[0].payload
 
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--gray-line)', borderRadius: 8, padding: '8px 12px', fontSize: 12, maxWidth: 260 }}>
-      <strong>{d.nombre}</strong>: {formatearValor(d.valor, formato)}
+    <div style={{
+      background: 'var(--white)', border: '1px solid var(--gray-line)', borderRadius: 8,
+      padding: '10px 14px', fontSize: 12, width: 240, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 2 }}>{d.nombre}</div>
+      <div className="mono">{formatearValor(d.valor, formato)}</div>
       {d.detalle && (
-        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--gray-line)' }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--gray-line)' }}>
           {d.detalle
             .slice()
             .sort((a, b) => b.valor - a.valor)
-            .slice(0, 10)
+            .slice(0, 5)
             .map((item, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span>{item.nombre.length > 28 ? item.nombre.slice(0, 28) + '…' : item.nombre}</span>
-                <span className="mono">{formatearValor(item.valor, formato)}</span>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3, whiteSpace: 'nowrap' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.nombre.length > 20 ? item.nombre.slice(0, 20) + '…' : item.nombre}</span>
+                <span className="mono" style={{ flexShrink: 0 }}>{formatearValor(item.valor, formato)}</span>
               </div>
             ))}
-          {d.detalle.length > 10 && (
-            <div style={{ color: 'var(--gray-muted)', marginTop: 4 }}>+ {d.detalle.length - 10} más...</div>
+          {d.detalle.length > 5 && (
+            <div style={{ color: 'var(--gray-muted)', marginTop: 2 }}>+ {d.detalle.length - 5} más...</div>
           )}
         </div>
       )}
