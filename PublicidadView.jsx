@@ -9,6 +9,17 @@ const formatoPesos = new Intl.NumberFormat('es-AR', {
 })
 
 const COLORES = ['#1A2B6B', '#2E4A9E', '#4A67B8', '#6B84C9', '#8CA1D8', '#ADBEE7', '#B8860B', '#2E7D46', '#B03A2E', '#6B4A9E']
+const TOP_TORTA = 8
+
+function colorPorRango(indice) {
+  // Mismo criterio que agrupa la torta: los primeros TOP_TORTA tienen
+  // color propio, todo lo que sigue comparte el color de "Otros"
+  // (el que está en la posición TOP_TORTA de la paleta) - así una
+  // fila de la lista se puede reconocer de un vistazo contra su
+  // porción en el gráfico, sin tener que scrollear.
+  const i = indice < TOP_TORTA ? indice : TOP_TORTA
+  return COLORES[i % COLORES.length]
+}
 
 const METRICAS = [
   { id: 'ingresos', label: 'Ingresos ($)', formato: 'pesos' },
@@ -66,12 +77,11 @@ function GraficoTorta({ datos, metricaId, formato }) {
   // top 8 bajo "Otros" SOLO para que el gráfico se pueda leer. El
   // detalle completo de verdad (título entero + SKU) vive siempre en
   // la tabla de abajo, no acá adentro.
-  const TOP = 8
   let datosGrafico = crudo
-  if (crudo.length > TOP) {
-    const top = crudo.slice(0, TOP)
-    const restoValor = crudo.slice(TOP).reduce((acc, d) => acc + d.valor, 0)
-    datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP})`, valor: restoValor }]
+  if (crudo.length > TOP_TORTA) {
+    const top = crudo.slice(0, TOP_TORTA)
+    const restoValor = crudo.slice(TOP_TORTA).reduce((acc, d) => acc + d.valor, 0)
+    datosGrafico = [...top, { nombre: `Otros (${crudo.length - TOP_TORTA})`, valor: restoValor }]
   }
 
   return (
@@ -210,10 +220,11 @@ export default function PublicidadView({ onUnauthorized }) {
         {data?.campañas
           ?.slice()
           .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0))
-          .map((c) => (
-          <div key={c.id}>
-            <div className="row" style={{ cursor: 'pointer' }} onClick={() => abrirCampania(c)}>
-              <div className="title-cell">
+          .map((c, indice) => (
+            <div key={c.id}>
+              <div className="row" style={{ cursor: 'pointer' }} onClick={() => abrirCampania(c)}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: colorPorRango(indice), flexShrink: 0 }} />
+                <div className="title-cell">
                 {c.nombre}
                 <span className="id-cell mono">{c.status} · {c.clicks} clicks · {c.impresiones} impresiones</span>
               </div>
@@ -245,8 +256,9 @@ export default function PublicidadView({ onUnauthorized }) {
                 {articulosData?.articulos
                   ?.slice()
                   .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0))
-                  .map((a) => (
+                  .map((a, indice) => (
                     <div key={a.item_id} className="row">
+                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: colorPorRango(indice), flexShrink: 0 }} />
                       <div className="title-cell">
                         {a.titulo || a.item_id}
                         <span className="id-cell mono">SKU: {a.sku} · {a.item_id} · {a.status}</span>
