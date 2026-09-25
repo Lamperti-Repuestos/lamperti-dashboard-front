@@ -69,6 +69,13 @@ export default function App() {
     setMostrarTutorial(false)
   }
 
+  const [tema, setTema] = useState(() => localStorage.getItem('dashboard_tema') || 'claro')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', tema === 'oscuro' ? 'dark' : 'light')
+    localStorage.setItem('dashboard_tema', tema)
+  }, [tema])
+
   useEffect(() => {
     localStorage.setItem('dashboard_view', view)
     if (grupoAbierto) localStorage.setItem('dashboard_grupo', grupoAbierto)
@@ -146,6 +153,13 @@ export default function App() {
             title="Ver el tutorial"
           >
             ?
+          </button>
+          <button
+            className="view-tab header-ayuda"
+            onClick={() => setTema((t) => (t === 'oscuro' ? 'claro' : 'oscuro'))}
+            title="Cambiar tema"
+          >
+            {tema === 'oscuro' ? '☀️' : '🌙'}
           </button>
           <button className="view-tab logout-tab header-logout" onClick={handleLogout}>
             Salir
