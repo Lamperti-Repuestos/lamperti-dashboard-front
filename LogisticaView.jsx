@@ -139,6 +139,18 @@ export default function LogisticaView({ onUnauthorized }) {
     })
   }
 
+  const marcarEncargado = (id) => {
+    apiFetch(`/logistica/avisos/${id}/encargado`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        if (!res.ok) {
+          const d = await res.json()
+          throw new Error(d.detail || 'Error')
+        }
+        fetchAvisos()
+      })
+      .catch((err) => alert(`Error: ${err.message}`))
+  }
+
   const atenderAviso = (id) => {
     apiFetch(`/logistica/avisos/${id}/recibido`, { method: 'POST' }, onUnauthorized).then(() => {
       fetchAvisos()
@@ -229,6 +241,9 @@ export default function LogisticaView({ onUnauthorized }) {
                 <span className="badge badge-acordar">
                   📦 Encargado {a.fecha_encargado && `(${new Date(a.fecha_encargado).toLocaleDateString('es-AR')})`}
                 </span>
+              )}
+              {a.estado === 'pendiente' && (
+                <button className="scan-btn" onClick={() => marcarEncargado(a.id)}>📦 Encargado</button>
               )}
               <button className="scan-btn" onClick={() => atenderAviso(a.id)}>✅ Ya llegó</button>
             </div>
