@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiFetch } from './api.js'
 
@@ -64,6 +64,94 @@ export default function CostosView({ onUnauthorized }) {
   const elegirPeriodo = (key) => {
     setPeriodoElegido(key)
     fetchCostos(key)
+    setPorPublicacionData(null) // el período cambió, lo que teníamos cargado ya no aplica
+  }
+
+  // --- Costos por publicación ---
+  const periodQuery = periodoElegido ? `?period_key=${periodoElegido}` : ''
+  const [mostrarPorPublicacion, setMostrarPorPublicacion] = useState(false)
+  const [porPublicacionData, setPorPublicacionData] = useState(null)
+  const [cargandoPorPublicacion, setCargandoPorPublicacion] = useState(false)
+  const [errorPorPublicacion, setErrorPorPublicacion] = useState(null)
+  const [progresoPorPublicacion, setProgresoPorPublicacion] = useState(null)
+  const [actualizandoPorPublicacion, setActualizandoPorPublicacion] = useState(false)
+  const [msgActualizarPorPublicacion, setMsgActualizarPorPublicacion] = useState(null)
+  const yaRefresquePorPublicacion = useRef(true)
+
+  useEffect(() => {
+    if (!mostrarPorPublicacion) return
+    let cancelado = false
+
+    const consultarProgreso = () => {
+      apiFetch('/metricas/costos/publicaciones/progreso', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((d) => {
+          if (cancelado) return
+          setProgresoPorPublicacion(d)
+          if (d.corriendo) {
+            yaRefresquePorPublicacion.current = false
+          } else if (!yaRefresquePorPublicacion.current) {
+            yaRefresquePorPublicacion.current = true
+            apiFetch(`/metricas/costos/publicaciones${periodQuery}`, {}, onUnauthorized)
+              .then((res) => res.json())
+              .then(setPorPublicacionData)
+          }
+        })
+        .catch(() => {})
+    }
+
+    consultarProgreso()
+    const intervalo = setInterval(consultarProgreso, 2000)
+    return () => {
+      cancelado = true
+      clearInterval(intervalo)
+    }
+  }, [mostrarPorPublicacion, periodQuery, onUnauthorized])
+
+  const togglePorPublicacion = () => {
+    const abrir = !mostrarPorPublicacion
+    setMostrarPorPublicacion(abrir)
+    if (abrir && !porPublicacionData) {
+      setCargandoPorPublicacion(true)
+      setErrorPorPublicacion(null)
+      apiFetch(`/metricas/costos/publicaciones${periodQuery}`, {}, onUnauthorized)
+        .then(async (res) => {
+          const d = await res.json()
+          if (!res.ok) throw new Error(d.detail || 'Error')
+          return d
+        })
+        .then((d) => {
+          setPorPublicacionData(d)
+          setCargandoPorPublicacion(false)
+        })
+        .catch((err) => {
+          setErrorPorPublicacion(err.message)
+          setCargandoPorPublicacion(false)
+        })
+    }
+  }
+
+  const actualizarPorPublicacionAhora = () => {
+    setActualizandoPorPublicacion(true)
+    setMsgActualizarPorPublicacion(null)
+    apiFetch(`/metricas/costos/publicaciones/actualizar${periodQuery}`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setMsgActualizarPorPublicacion(
+          d.ya_estaba_corriendo
+            ? '⏳ Ya había una actualización en curso - esperá a que termine.'
+            : '✅ Calculando... ML solo deja 5 pedidos/minuto a este endpoint, puede tardar varios minutos. Se actualiza solo cuando termina.'
+        )
+        setActualizandoPorPublicacion(false)
+      })
+      .catch((err) => {
+        setMsgActualizarPorPublicacion(`❌ ${err.message}`)
+        setActualizandoPorPublicacion(false)
+      })
   }
 
   const cargosOrdenados = data?.cargos?.slice().sort((a, b) => b.monto - a.monto) || []
@@ -175,6 +263,73 @@ export default function CostosView({ onUnauthorized }) {
                   <span className="badge badge-explicada">- {formatoPesos.format(b.monto)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          <button className="sort-btn" onClick={togglePorPublicacion} style={{ marginTop: 12 }}>
+            📦 {mostrarPorPublicacion ? 'Ocultar' : 'Ver'} costos por publicación
+          </button>
+
+          {mostrarPorPublicacion && (
+            <div className="list">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 6px 12px' }}>
+                <label className="corte-label" style={{ marginBottom: 0 }}>
+                  Desglose por SKU - {periodoElegido || 'período más reciente'}
+                </label>
+                <button
+                  className="sort-btn"
+                  onClick={actualizarPorPublicacionAhora}
+                  disabled={actualizandoPorPublicacion || progresoPorPublicacion?.corriendo}
+                >
+                  {(actualizandoPorPublicacion || progresoPorPublicacion?.corriendo) ? '🔄 Calculando...' : '🔄 Calcular / actualizar'}
+                </button>
+              </div>
+
+              {msgActualizarPorPublicacion && (
+                <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+                  {msgActualizarPorPublicacion}
+                </p>
+              )}
+
+              {progresoPorPublicacion?.corriendo && (
+                <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+                  Página {progresoPorPublicacion.paginas} · {progresoPorPublicacion.lineas_procesadas} líneas · {progresoPorPublicacion.publicaciones_encontradas} publicaciones hasta ahora (ML limita a 5 pedidos/minuto, puede tardar)
+                </p>
+              )}
+
+              {cargandoPorPublicacion && <div className="loading-state">Cargando...</div>}
+              {errorPorPublicacion && <div className="error-state">Error: {errorPorPublicacion}</div>}
+
+              {porPublicacionData && !porPublicacionData.disponible && !progresoPorPublicacion?.corriendo && (
+                <div className="empty-state">Todavía no se calculó para este período. Tocá "Calcular / actualizar".</div>
+              )}
+
+              {porPublicacionData?.disponible && (
+                <>
+                  <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+                    Actualizado hace {Math.round(porPublicacionData.actualizado_hace_seg / 60)} min
+                  </p>
+                  {porPublicacionData.publicaciones.map((p) => (
+                    <div key={p.item_id} className="row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                      <div style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8 }}>
+                        <div className="title-cell">{p.titulo}</div>
+                        <span className="badge badge-flex">{formatoPesos.format(p.total)}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-muted)' }}>
+                        {Object.entries(p.por_subtipo).map(([k, v]) => `${k}: ${formatoPesos.format(v)}`).join(' · ')}
+                      </div>
+                    </div>
+                  ))}
+                  {porPublicacionData.publicaciones.length === 0 && (
+                    <div className="empty-state">Sin cargos asignables a publicaciones en este período.</div>
+                  )}
+                  {porPublicacionData.no_asignable?.total > 0 && (
+                    <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '8px 0 0 12px' }}>
+                      No asignable a una publicación puntual (ej: envíos combinados): {formatoPesos.format(porPublicacionData.no_asignable.total)}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
         </>
