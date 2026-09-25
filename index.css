@@ -368,6 +368,8 @@ button {
   border-radius: 6px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 14px;
+  color: var(--charcoal);
+  background: var(--card-bg);
 }
 
 .stock-save-btn {
@@ -404,6 +406,7 @@ button {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 14px;
   color: var(--charcoal);
+  background: var(--card-bg);
   max-width: 120px;
 }
 
@@ -1116,6 +1119,8 @@ button {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
   resize: vertical;
+  color: var(--charcoal);
+  background: var(--card-bg);
 }
 
 .paste-result {
