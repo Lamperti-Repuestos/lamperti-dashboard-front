@@ -103,15 +103,21 @@ export default function CostosView({ onUnauthorized }) {
         <>
           <div className="summary">
             <div className="summary-item">
-              <div className="value mono">{formatoPesos.format(data.total_cargos)}</div>
-              <div className="label">Total de cargos</div>
+              <div className="value mono">{formatoPesos.format(data.ventas_concretadas)}</div>
+              <div className="label">Ventas concretadas</div>
             </div>
-            {data.total_cobrado != null && (
-              <div className="summary-item">
-                <div className="value mono">{formatoPesos.format(data.total_cobrado)}</div>
-                <div className="label">Total cobrado</div>
-              </div>
-            )}
+            <div className="summary-item">
+              <div className="value mono">{formatoPesos.format(data.total_cargos)}</div>
+              <div className="label">Cargos e inversiones</div>
+            </div>
+            <div className="summary-item">
+              <div className="value mono">{formatoPesos.format(data.total_percepciones)}</div>
+              <div className="label">Impuestos</div>
+            </div>
+            <div className="summary-item">
+              <div className="value mono">{formatoPesos.format(data.recibiste)}</div>
+              <div className="label">Recibiste{data.rentabilidad_pct != null && ` (${data.rentabilidad_pct}%)`}</div>
+            </div>
             {data.total_deuda > 0 && (
               <div className="summary-item warn">
                 <div className="value mono">{formatoPesos.format(data.total_deuda)}</div>
