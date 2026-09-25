@@ -9,6 +9,7 @@ import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
 import PublicidadView from './PublicidadView.jsx'
+import CostosView from './CostosView.jsx'
 import ResumenView from './ResumenView.jsx'
 import TutorialView from './TutorialView.jsx'
 import LogisticaView from './LogisticaView.jsx'
@@ -17,7 +18,7 @@ import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'postventa', 'metricas', 'publicidad']
+const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'postventa', 'metricas', 'publicidad', 'costos']
 
 const GRUPOS = [
   {
@@ -46,6 +47,7 @@ const GRUPOS = [
     vistas: [
       { id: 'metricas', label: 'Métricas' },
       { id: 'publicidad', label: 'Publicidad' },
+      { id: 'costos', label: 'Costos' },
     ],
   },
 ]
@@ -214,6 +216,7 @@ export default function App() {
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
+        {view === 'costos' && <CostosView onUnauthorized={handleUnauthorized} />}
       </div>
 
       {mostrarTutorial && <TutorialView onCerrar={cerrarTutorial} />}
