@@ -1,6 +1,36 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
 
+/**
+ * Reduce la foto a un tamaño manejable ANTES de subirla - una foto de
+ * cámara moderna puede pesar varios MB / tener resolución enorme, y
+ * armar el FormData con eso tal cual puede quedarse sin memoria en el
+ * navegador del celular y refrescar la página sola. Si algo falla acá
+ * (navegador viejo sin createImageBitmap, etc.), seguimos con el
+ * archivo original en vez de trabar la carga.
+ */
+async function comprimirFoto(archivo, maxDim = 1600, calidad = 0.8) {
+  try {
+    const bitmap = await createImageBitmap(archivo)
+    let { width, height } = bitmap
+    if (width > maxDim || height > maxDim) {
+      const escala = maxDim / Math.max(width, height)
+      width = Math.round(width * escala)
+      height = Math.round(height * escala)
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height)
+    bitmap.close?.()
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', calidad))
+    if (!blob) return archivo
+    return new File([blob], archivo.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } catch {
+    return archivo
+  }
+}
+
 export default function DevolucionesProveedoresView({ onUnauthorized }) {
   const [devoluciones, setDevoluciones] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -18,12 +48,18 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
   const [motivo, setMotivo] = useState('')
   const [nota, setNota] = useState('')
   const [fotoElegida, setFotoElegida] = useState(null)
+  const [comprimiendoFoto, setComprimiendoFoto] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorForm, setErrorForm] = useState(null)
   const inputFotoRef = useRef(null)
 
   const [mostrarStats, setMostrarStats] = useState(false)
   const [stats, setStats] = useState(null)
+
+  const [resolucionAbiertaId, setResolucionAbiertaId] = useState(null)
+  const [resolucionTipo, setResolucionTipo] = useState('nota_credito')
+  const [resolucionDetalle, setResolucionDetalle] = useState('')
+  const [guardandoResolucion, setGuardandoResolucion] = useState(false)
 
   const fetchDevoluciones = () => {
     setCargando(true)
@@ -150,6 +186,34 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
       .then((blob) => window.open(URL.createObjectURL(blob), '_blank'))
   }
 
+  const abrirResolucion = (d) => {
+    setResolucionAbiertaId(d.id)
+    setResolucionTipo(d.resolucion_tipo || 'nota_credito')
+    setResolucionDetalle(d.resolucion_detalle || '')
+  }
+
+  const guardarResolucion = (id) => {
+    setGuardandoResolucion(true)
+    const formData = new FormData()
+    formData.append('tipo', resolucionTipo)
+    if (resolucionDetalle.trim()) formData.append('detalle', resolucionDetalle.trim())
+    apiFetch(`/devoluciones-proveedores/${id}/resolucion`, { method: 'POST', body: formData }, onUnauthorized)
+      .then(() => {
+        setGuardandoResolucion(false)
+        setResolucionAbiertaId(null)
+        fetchDevoluciones()
+      })
+      .catch(() => setGuardandoResolucion(false))
+  }
+
+  const ETIQUETAS_RESOLUCION = {
+    nota_credito: '🧾 Nota de crédito',
+    reemplazo: '🔁 Reemplazo de producto',
+    reembolso: '💵 Reembolso',
+    rechazado: '❌ Rechazado por el proveedor',
+    otro: 'Otro',
+  }
+
   const toggleStats = () => {
     const abrir = !mostrarStats
     setMostrarStats(abrir)
@@ -214,6 +278,17 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
                   <span className="badge badge-flex">{p.cantidad}</span>
                 </div>
               ))}
+              {stats.por_resolucion?.length > 0 && (
+                <>
+                  <label className="corte-label" style={{ margin: '10px 0 6px 12px' }}>Cómo se resolvieron</label>
+                  {stats.por_resolucion.map((r) => (
+                    <div key={r.tipo} className="row">
+                      <div className="title-cell">{ETIQUETAS_RESOLUCION[r.tipo] || r.tipo}</div>
+                      <span className="badge badge-flex">{r.cantidad}</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -251,8 +326,8 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
           <input className="search-input" placeholder="Motivo (ej: Pico roto)" value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ marginBottom: 8 }} />
           <input className="search-input" placeholder="Nota opcional" value={nota} onChange={(e) => setNota(e.target.value)} style={{ marginBottom: 8 }} />
 
-          <button className="sort-btn" onClick={elegirFoto} style={{ marginBottom: 8 }}>
-            📷 {fotoElegida ? fotoElegida.name : 'Agregar foto (opcional)'}
+          <button className="sort-btn" onClick={elegirFoto} style={{ marginBottom: 8 }} disabled={comprimiendoFoto}>
+            📷 {comprimiendoFoto ? 'Procesando foto...' : fotoElegida ? fotoElegida.name : 'Agregar foto (opcional)'}
           </button>
           <input
             ref={inputFotoRef}
@@ -260,7 +335,15 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
             accept="image/*"
             capture="environment"
             style={{ display: 'none' }}
-            onChange={(e) => setFotoElegida(e.target.files?.[0] || null)}
+            onChange={async (e) => {
+              const archivo = e.target.files?.[0]
+              e.target.value = ''
+              if (!archivo) return
+              setComprimiendoFoto(true)
+              const comprimida = await comprimirFoto(archivo)
+              setFotoElegida(comprimida)
+              setComprimiendoFoto(false)
+            }}
           />
 
           {errorForm && <div className="error-state" style={{ marginBottom: 8 }}>{errorForm}</div>}
@@ -280,31 +363,72 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
           <div className="empty-state">Sin devoluciones acá.</div>
         )}
         {devoluciones.map((d) => (
-          <div key={d.id} className="row" style={{ alignItems: 'flex-start' }}>
-            <div className="title-cell">
-              {d.producto}
-              <span style={{ display: 'block', fontWeight: 400, marginTop: 2 }}>
-                {d.proveedor}{d.motivo && ` · ${d.motivo}`}
-              </span>
-              {d.sku && <span className="id-cell mono" style={{ display: 'block' }}>SKU {d.sku}</span>}
-              {d.nota && <span style={{ display: 'block', fontWeight: 400, fontSize: 12, marginTop: 2 }}>{d.nota}</span>}
-              <span className="id-cell mono">
-                {new Date(d.creado_en).toLocaleDateString('es-AR')}
-                {d.devuelto_en && ` · devuelto ${new Date(d.devuelto_en).toLocaleDateString('es-AR')}`}
-              </span>
+          <div key={d.id}>
+            <div className="row" style={{ alignItems: 'flex-start' }}>
+              <div className="title-cell">
+                {d.producto}
+                <span style={{ display: 'block', fontWeight: 400, marginTop: 2 }}>
+                  {d.proveedor}{d.motivo && ` · ${d.motivo}`}
+                </span>
+                {d.sku && <span className="id-cell mono" style={{ display: 'block' }}>SKU {d.sku}</span>}
+                {d.nota && <span style={{ display: 'block', fontWeight: 400, fontSize: 12, marginTop: 2 }}>{d.nota}</span>}
+                {d.resolucion_tipo && (
+                  <span style={{ display: 'block', fontWeight: 400, fontSize: 12, marginTop: 4, color: 'var(--navy)' }}>
+                    {ETIQUETAS_RESOLUCION[d.resolucion_tipo] || d.resolucion_tipo}
+                    {d.resolucion_detalle && ` — ${d.resolucion_detalle}`}
+                  </span>
+                )}
+                <span className="id-cell mono">
+                  {new Date(d.creado_en).toLocaleDateString('es-AR')}
+                  {d.devuelto_en && ` · devuelto ${new Date(d.devuelto_en).toLocaleDateString('es-AR')}`}
+                </span>
+              </div>
+              {d.tiene_foto && (
+                <button className="sort-btn" onClick={() => verFoto(d.id)}>📷 Ver foto</button>
+              )}
+              {d.estado === 'pendiente' ? (
+                <span className="badge badge-sin-explicar">⏳ Pendiente</span>
+              ) : (
+                <span className="badge badge-acordar">✅ Devuelto</span>
+              )}
+              {d.estado === 'pendiente' && (
+                <button className="scan-btn" onClick={() => marcarDevuelto(d.id)}>✅ Ya lo devolví</button>
+              )}
+              {d.estado === 'devuelto' && resolucionAbiertaId !== d.id && (
+                <button className="sort-btn" onClick={() => abrirResolucion(d)}>
+                  📝 {d.resolucion_tipo ? 'Editar resolución' : 'Cargar resolución'}
+                </button>
+              )}
+              <button className="revert-btn" onClick={() => borrar(d.id)}>✕</button>
             </div>
-            {d.tiene_foto && (
-              <button className="sort-btn" onClick={() => verFoto(d.id)}>📷 Ver foto</button>
+
+            {resolucionAbiertaId === d.id && (
+              <div className="paste-box" style={{ marginTop: -8, marginBottom: 8 }}>
+                <select
+                  className="corte-input"
+                  style={{ width: '100%', marginBottom: 8 }}
+                  value={resolucionTipo}
+                  onChange={(e) => setResolucionTipo(e.target.value)}
+                >
+                  {Object.entries(ETIQUETAS_RESOLUCION).map(([valor, etiqueta]) => (
+                    <option key={valor} value={valor}>{etiqueta}</option>
+                  ))}
+                </select>
+                <input
+                  className="search-input"
+                  placeholder="Detalle (ej: NC por $15.000, o qué producto te mandaron)"
+                  value={resolucionDetalle}
+                  onChange={(e) => setResolucionDetalle(e.target.value)}
+                  style={{ marginBottom: 8 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="scan-btn" onClick={() => guardarResolucion(d.id)} disabled={guardandoResolucion}>
+                    {guardandoResolucion ? '⏳ Guardando...' : '💾 Guardar'}
+                  </button>
+                  <button className="revert-btn" onClick={() => setResolucionAbiertaId(null)} disabled={guardandoResolucion}>Cancelar</button>
+                </div>
+              </div>
             )}
-            {d.estado === 'pendiente' ? (
-              <span className="badge badge-sin-explicar">⏳ Pendiente</span>
-            ) : (
-              <span className="badge badge-acordar">✅ Devuelto</span>
-            )}
-            {d.estado === 'pendiente' && (
-              <button className="scan-btn" onClick={() => marcarDevuelto(d.id)}>✅ Ya lo devolví</button>
-            )}
-            <button className="revert-btn" onClick={() => borrar(d.id)}>✕</button>
           </div>
         ))}
       </div>
