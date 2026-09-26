@@ -18,6 +18,8 @@ export default function NotasView({ onUnauthorized }) {
   const [cargandoArchivos, setCargandoArchivos] = useState(true)
   const [subiendo, setSubiendo] = useState(false)
   const [errorArchivo, setErrorArchivo] = useState(null)
+  const [archivoPendiente, setArchivoPendiente] = useState(null)
+  const [notaArchivo, setNotaArchivo] = useState('')
   const inputArchivoRef = useRef(null)
 
   const fetchNotas = () => {
@@ -68,15 +70,27 @@ export default function NotasView({ onUnauthorized }) {
 
   const elegirArchivo = () => inputArchivoRef.current?.click()
 
-  const subirArchivo = (e) => {
+  const archivoElegido = (e) => {
     const archivo = e.target.files?.[0]
-    e.target.value = '' // para poder subir el mismo archivo dos veces seguidas si hace falta
+    e.target.value = '' // para poder elegir el mismo archivo dos veces seguidas si hace falta
     if (!archivo) return
+    setErrorArchivo(null)
+    setArchivoPendiente(archivo)
+    setNotaArchivo('')
+  }
 
+  const cancelarSubida = () => {
+    setArchivoPendiente(null)
+    setNotaArchivo('')
+  }
+
+  const confirmarSubida = () => {
+    if (!archivoPendiente) return
     setSubiendo(true)
     setErrorArchivo(null)
     const formData = new FormData()
-    formData.append('archivo', archivo)
+    formData.append('archivo', archivoPendiente)
+    if (notaArchivo.trim()) formData.append('nota', notaArchivo.trim())
     apiFetch('/notas/archivos', { method: 'POST', body: formData }, onUnauthorized)
       .then(async (res) => {
         const d = await res.json()
@@ -85,6 +99,8 @@ export default function NotasView({ onUnauthorized }) {
       })
       .then(() => {
         setSubiendo(false)
+        setArchivoPendiente(null)
+        setNotaArchivo('')
         fetchArchivos()
       })
       .catch((err) => {
@@ -145,20 +161,40 @@ export default function NotasView({ onUnauthorized }) {
       <div className="paste-box" style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <label className="corte-label" style={{ marginBottom: 0 }}>Archivos compartidos</label>
-          <button className="scan-btn" onClick={elegirArchivo} disabled={subiendo}>
-            {subiendo ? '⏳ Subiendo...' : '📎 Subir archivo'}
+          <button className="scan-btn" onClick={elegirArchivo} disabled={subiendo || !!archivoPendiente}>
+            📎 Subir archivo
           </button>
           <input
             ref={inputArchivoRef}
             type="file"
             style={{ display: 'none' }}
-            onChange={subirArchivo}
+            onChange={archivoElegido}
             accept=".pdf,.jpg,.jpeg,.png,.webp"
           />
         </div>
         <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '6px 0 0' }}>
           PDF o foto, hasta 20 MB - para pasar algo (una etiqueta, una foto) de una compu a la otra.
         </p>
+
+        {archivoPendiente && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--gray-line)' }}>
+            <p style={{ fontSize: 13, margin: '0 0 8px', fontWeight: 600 }}>{archivoPendiente.name}</p>
+            <input
+              className="search-input"
+              placeholder="Nota opcional (ej: Etiqueta para el bulto 3)"
+              value={notaArchivo}
+              onChange={(e) => setNotaArchivo(e.target.value)}
+              style={{ marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="scan-btn" onClick={confirmarSubida} disabled={subiendo}>
+                {subiendo ? '⏳ Subiendo...' : '💾 Confirmar subida'}
+              </button>
+              <button className="revert-btn" onClick={cancelarSubida} disabled={subiendo}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
         {errorArchivo && <div className="error-state" style={{ marginTop: 8 }}>Error: {errorArchivo}</div>}
       </div>
 
@@ -168,9 +204,10 @@ export default function NotasView({ onUnauthorized }) {
           <div className="empty-state">Sin archivos compartidos todavía.</div>
         )}
         {archivos.map((a) => (
-          <div key={a.id} className="row">
+          <div key={a.id} className="row" style={{ alignItems: 'flex-start' }}>
             <div className="title-cell">
               {a.nombre}
+              {a.nota && <span style={{ display: 'block', fontWeight: 400, marginTop: 2 }}>{a.nota}</span>}
               <span className="id-cell mono">{formatoTamano(a.tamano_bytes)} · {new Date(a.creado_en).toLocaleString('es-AR')}</span>
             </div>
             <button className="sort-btn" onClick={() => abrirArchivo(a.id, a.nombre)}>👁 Abrir</button>
