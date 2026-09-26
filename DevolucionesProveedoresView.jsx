@@ -10,6 +10,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
 
   const [mostrarForm, setMostrarForm] = useState(false)
   const [proveedor, setProveedor] = useState('')
+  const [sugerenciasProveedor, setSugerenciasProveedor] = useState([])
   const [producto, setProducto] = useState('')
   const [skuElegido, setSkuElegido] = useState(null)
   const [sugerencias, setSugerencias] = useState([])
@@ -47,6 +48,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
 
   const limpiarForm = () => {
     setProveedor('')
+    setSugerenciasProveedor([])
     setProducto('')
     setSkuElegido(null)
     setSugerencias([])
@@ -54,6 +56,23 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
     setNota('')
     setFotoElegida(null)
     setErrorForm(null)
+  }
+
+  const cambiarProveedor = (valor) => {
+    setProveedor(valor)
+    if (!valor.trim()) {
+      setSugerenciasProveedor([])
+      return
+    }
+    const q = valor.trim().toLowerCase()
+    setSugerenciasProveedor(
+      proveedores.filter((p) => p.toLowerCase().includes(q) && p.toLowerCase() !== q)
+    )
+  }
+
+  const elegirProveedor = (p) => {
+    setProveedor(p)
+    setSugerenciasProveedor([])
   }
 
   const cambiarProducto = (valor) => {
@@ -203,10 +222,16 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
       {mostrarForm && (
         <div className="paste-box">
           <label className="corte-label" style={{ marginBottom: 8 }}>Nueva devolución</label>
-          <input className="search-input" placeholder="Proveedor" value={proveedor} onChange={(e) => setProveedor(e.target.value)} style={{ marginBottom: 8 }} list="lista-proveedores" />
-          <datalist id="lista-proveedores">
-            {proveedores.map((p) => <option key={p} value={p} />)}
-          </datalist>
+          <input className="search-input" placeholder="Proveedor" value={proveedor} onChange={(e) => cambiarProveedor(e.target.value)} style={{ marginBottom: sugerenciasProveedor.length > 0 ? 2 : 8 }} />
+          {sugerenciasProveedor.length > 0 && (
+            <div className="list" style={{ marginBottom: 8 }}>
+              {sugerenciasProveedor.map((p) => (
+                <div key={p} className="row" style={{ cursor: 'pointer' }} onClick={() => elegirProveedor(p)}>
+                  <div className="title-cell">{p}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <input className="search-input" placeholder="Producto (ej: Depósito 20L)" value={producto} onChange={(e) => cambiarProducto(e.target.value)} style={{ marginBottom: skuElegido ? 2 : 8 }} />
           {skuElegido && (
             <div style={{ fontSize: 11, color: 'var(--gray-muted)', margin: '0 0 8px 2px' }}>
