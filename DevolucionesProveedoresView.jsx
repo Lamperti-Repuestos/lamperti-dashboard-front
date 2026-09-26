@@ -173,7 +173,16 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
   }
 
   const marcarDevuelto = (id) => {
-    apiFetch(`/devoluciones-proveedores/${id}/devuelto`, { method: 'POST' }, onUnauthorized).then(fetchDevoluciones)
+    apiFetch(`/devoluciones-proveedores/${id}/devuelto`, { method: 'POST' }, onUnauthorized).then(() => {
+      // si el filtro estaba en "Pendientes", el ítem desaparecería de la
+      // vista justo antes de poder cargarle la resolución (o borrarlo si
+      // era una prueba) - lo evitamos mostrando todas
+      if (filtroEstado === 'pendiente') setFiltroEstado('')
+      else fetchDevoluciones()
+      setResolucionAbiertaId(id)
+      setResolucionTipo('nota_credito')
+      setResolucionDetalle('')
+    })
   }
 
   const borrar = (id) => {
