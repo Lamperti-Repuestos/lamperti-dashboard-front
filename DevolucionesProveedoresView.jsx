@@ -11,6 +11,9 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [proveedor, setProveedor] = useState('')
   const [producto, setProducto] = useState('')
+  const [skuElegido, setSkuElegido] = useState(null)
+  const [sugerencias, setSugerencias] = useState([])
+  const debounceRef = useRef(null)
   const [motivo, setMotivo] = useState('')
   const [nota, setNota] = useState('')
   const [fotoElegida, setFotoElegida] = useState(null)
@@ -45,10 +48,34 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
   const limpiarForm = () => {
     setProveedor('')
     setProducto('')
+    setSkuElegido(null)
+    setSugerencias([])
     setMotivo('')
     setNota('')
     setFotoElegida(null)
     setErrorForm(null)
+  }
+
+  const cambiarProducto = (valor) => {
+    setProducto(valor)
+    setSkuElegido(null) // si edita el texto a mano, ya no vale el SKU que tenía asociado
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (valor.trim().length < 2) {
+      setSugerencias([])
+      return
+    }
+    debounceRef.current = setTimeout(() => {
+      apiFetch(`/contabilium/buscar-producto?q=${encodeURIComponent(valor.trim())}`, {}, onUnauthorized)
+        .then((res) => (res.ok ? res.json() : { resultados: [] }))
+        .then((d) => setSugerencias(d.resultados || []))
+        .catch(() => setSugerencias([])) // si Contabilium falla, seguimos con carga a mano sin trabar nada
+    }, 400)
+  }
+
+  const elegirSugerencia = (s) => {
+    setProducto(s.nombre ? `${s.codigo} - ${s.nombre}` : s.codigo)
+    setSkuElegido(s.codigo)
+    setSugerencias([])
   }
 
   const elegirFoto = () => inputFotoRef.current?.click()
@@ -63,6 +90,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
     const formData = new FormData()
     formData.append('proveedor', proveedor.trim())
     formData.append('producto', producto.trim())
+    if (skuElegido) formData.append('sku', skuElegido)
     if (motivo.trim()) formData.append('motivo', motivo.trim())
     if (nota.trim()) formData.append('nota', nota.trim())
     if (fotoElegida) formData.append('foto', fotoElegida)
@@ -179,7 +207,22 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
           <datalist id="lista-proveedores">
             {proveedores.map((p) => <option key={p} value={p} />)}
           </datalist>
-          <input className="search-input" placeholder="Producto (ej: Depósito 20L)" value={producto} onChange={(e) => setProducto(e.target.value)} style={{ marginBottom: 8 }} />
+          <input className="search-input" placeholder="Producto (ej: Depósito 20L)" value={producto} onChange={(e) => cambiarProducto(e.target.value)} style={{ marginBottom: skuElegido ? 2 : 8 }} />
+          {skuElegido && (
+            <div style={{ fontSize: 11, color: 'var(--gray-muted)', margin: '0 0 8px 2px' }}>
+              ✅ Asociado al SKU {skuElegido} de Contabilium
+            </div>
+          )}
+          {sugerencias.length > 0 && (
+            <div className="list" style={{ marginBottom: 8 }}>
+              {sugerencias.map((s) => (
+                <div key={s.codigo} className="row" style={{ cursor: 'pointer' }} onClick={() => elegirSugerencia(s)}>
+                  <div className="title-cell">{s.nombre || '(sin nombre)'}</div>
+                  <span className="id-cell mono">{s.codigo}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <input className="search-input" placeholder="Motivo (ej: Pico roto)" value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ marginBottom: 8 }} />
           <input className="search-input" placeholder="Nota opcional" value={nota} onChange={(e) => setNota(e.target.value)} style={{ marginBottom: 8 }} />
 
@@ -218,6 +261,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
               <span style={{ display: 'block', fontWeight: 400, marginTop: 2 }}>
                 {d.proveedor}{d.motivo && ` · ${d.motivo}`}
               </span>
+              {d.sku && <span className="id-cell mono" style={{ display: 'block' }}>SKU {d.sku}</span>}
               {d.nota && <span style={{ display: 'block', fontWeight: 400, fontSize: 12, marginTop: 2 }}>{d.nota}</span>}
               <span className="id-cell mono">
                 {new Date(d.creado_en).toLocaleDateString('es-AR')}
