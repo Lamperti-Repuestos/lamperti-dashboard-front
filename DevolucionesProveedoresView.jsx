@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 /**
  * Reduce la foto a un tamaño manejable ANTES de subirla - una foto de
@@ -55,6 +56,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
 
   const [mostrarStats, setMostrarStats] = useState(false)
   const [stats, setStats] = useState(null)
+  const [zoomUrl, setZoomUrl] = useState(null)
 
   const [resolucionAbiertaId, setResolucionAbiertaId] = useState(null)
   const [resolucionTipo, setResolucionTipo] = useState('nota_credito')
@@ -192,7 +194,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
   const verFoto = (id) => {
     apiFetch(`/devoluciones-proveedores/${id}/foto`, {}, onUnauthorized)
       .then((res) => res.blob())
-      .then((blob) => window.open(URL.createObjectURL(blob), '_blank'))
+      .then((blob) => setZoomUrl(URL.createObjectURL(blob)))
   }
 
   const abrirResolucion = (d) => {
@@ -441,6 +443,8 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
           </div>
         ))}
       </div>
+
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
     </>
   )
 }
