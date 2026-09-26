@@ -14,11 +14,12 @@ import ResumenView from './ResumenView.jsx'
 import TutorialView from './TutorialView.jsx'
 import LogisticaView from './LogisticaView.jsx'
 import NotasView from './NotasView.jsx'
+import DevolucionesProveedoresView from './DevolucionesProveedoresView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'postventa', 'metricas', 'publicidad', 'costos']
+const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos']
 
 const GRUPOS = [
   {
@@ -34,6 +35,7 @@ const GRUPOS = [
       { id: 'cotejo', label: 'Cotejo Packing List' },
       { id: 'logistica', label: 'Logística' },
       { id: 'notas', label: 'Notas' },
+      { id: 'devoluciones', label: 'Devoluciones a proveedores' },
     ],
   },
   {
@@ -213,6 +215,7 @@ export default function App() {
         {view === 'cotejo' && <CotejoPackingListView onUnauthorized={handleUnauthorized} />}
         {view === 'logistica' && <LogisticaView onUnauthorized={handleUnauthorized} />}
         {view === 'notas' && <NotasView onUnauthorized={handleUnauthorized} />}
+        {view === 'devoluciones' && <DevolucionesProveedoresView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
