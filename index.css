@@ -461,6 +461,24 @@ button {
   padding: 12px;
   color: var(--white);
   text-align: center;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+.resumen-tile-neutro {
+  background: var(--card-bg);
+  border: 1px solid var(--gray-line);
+  color: var(--charcoal);
+}
+
+.resumen-tile-flecha {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  font-size: 15px;
+  opacity: 0.6;
 }
 
 .resumen-tile-valor {
@@ -1165,6 +1183,36 @@ button {
   border: 2px dashed var(--gray-line);
   border-radius: 12px;
   background: var(--card-bg);
+}
+
+.hero-ventas {
+  position: relative;
+  margin: var(--pad);
+  padding: 20px 16px;
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.hero-ventas-menu {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gray-muted);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hero-ventas-menu:hover {
+  background: var(--gray-line);
+  color: var(--charcoal);
 }
 
 .cotejo-card {

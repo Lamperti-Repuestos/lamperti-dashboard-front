@@ -176,7 +176,7 @@ export default function App() {
         <div className="header-brand">
           <img src={logo70} alt="Lamperti 70° Aniversario" className="header-logo" />
           <div className="header-text">
-            <h1>Dashboard</h1>
+            <h1>Miguelito</h1>
           </div>
           <button
             className="view-tab header-ayuda"
