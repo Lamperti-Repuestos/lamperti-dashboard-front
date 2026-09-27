@@ -352,6 +352,10 @@ export default function StockView({ onUnauthorized }) {
         <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
           Filtros {filtrosActivos > 0 ? `(${filtrosActivos}) ` : ''}{mostrarFiltros ? '▲' : '▼'}
         </button>
+
+        <button className="sort-btn" onClick={abrirModalFull}>
+          📦 Chequear discrepancias por Full
+        </button>
       </div>
 
       {mostrarFiltros && (
@@ -398,10 +402,6 @@ export default function StockView({ onUnauthorized }) {
 
           <button className="sort-btn" onClick={toggleDiscrepancias}>
             ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
-          </button>
-
-          <button className="sort-btn" onClick={abrirModalFull}>
-            📦 Chequear discrepancias por Full
           </button>
         </div>
       )}
