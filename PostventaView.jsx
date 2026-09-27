@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
+import ConfirmModal from './ConfirmModal.jsx'
 
 const ETIQUETAS_ROL = {
   complainant: 'Comprador',
@@ -91,6 +92,7 @@ export default function PostventaView({ onUnauthorized }) {
   const [enviando, setEnviando] = useState(false)
   const [msgEnvio, setMsgEnvio] = useState(null)
   const [aprobando, setAprobando] = useState(false)
+  const [confirmacion, setConfirmacion] = useState(null)
 
   const fetchLista = () => {
     setLoading(true)
@@ -163,22 +165,26 @@ export default function PostventaView({ onUnauthorized }) {
   }
 
   const aprobarDevolucion = (returnId, claimId) => {
-    if (!confirm('¿Confirmás que el producto devuelto llegó en las condiciones esperadas?')) return
-    setAprobando(true)
-    apiFetch(`/postventa/devoluciones/${returnId}/aprobar`, { method: 'POST' }, onUnauthorized)
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || 'Error')
-      })
-      .then(() => {
-        setMsgEnvio('✅ Devolución aprobada.')
-        setAprobando(false)
-        recargarDetalle(claimId)
-      })
-      .catch((err) => {
-        setMsgEnvio(`Error: ${err.message}`)
-        setAprobando(false)
-      })
+    setConfirmacion({
+      mensaje: '¿Confirmás que el producto devuelto llegó en las condiciones esperadas?',
+      onConfirmar: () => {
+        setAprobando(true)
+        apiFetch(`/postventa/devoluciones/${returnId}/aprobar`, { method: 'POST' }, onUnauthorized)
+          .then(async (res) => {
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.detail || 'Error')
+          })
+          .then(() => {
+            setMsgEnvio('✅ Devolución aprobada.')
+            setAprobando(false)
+            recargarDetalle(claimId)
+          })
+          .catch((err) => {
+            setMsgEnvio(`Error: ${err.message}`)
+            setAprobando(false)
+          })
+      },
+    })
   }
 
   const normalizar = (s) =>
@@ -423,6 +429,15 @@ export default function PostventaView({ onUnauthorized }) {
           </div>
         ))}
       </div>
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
     </>
   )
 }

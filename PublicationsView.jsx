@@ -233,10 +233,11 @@ export default function PublicationsView({ onUnauthorized }) {
       {mostrarFiltros && (
         <div className="controls">
           <button
-            className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
+            className="sort-btn btn-toggle"
+            aria-pressed={soloSinStock}
             onClick={() => setSoloSinStock((v) => !v)}
           >
-            {soloSinStock ? '✓ ' : ''}Sin stock
+            Sin stock
           </button>
           <div className="tabs">
             <button

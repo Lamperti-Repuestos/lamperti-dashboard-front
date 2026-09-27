@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
 import EtiquetasView from './EtiquetasView.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
+import AlertModal from './AlertModal.jsx'
 
 export default function ControlEmbalajeView({ onUnauthorized }) {
   const [items, setItems] = useState([])
@@ -13,6 +15,8 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [confirmacion, setConfirmacion] = useState(null)
+  const [aviso, setAviso] = useState(null)
   const [horasCruce, setHorasCruce] = useState(24)
   const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
   const [escuchando, setEscuchando] = useState(false)
@@ -127,11 +131,13 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
 
   const finalizarEmbalaje = () => {
     const sinEmbalar = items.filter((it) => !it.checked).length
-    const confirmMsg = sinEmbalar > 0
+    const mensaje = sinEmbalar > 0
       ? `Todavía hay ${sinEmbalar} sin embalar. ¿Finalizar igual? Se guarda todo en el historial y se vacía la lista.`
       : '¿Finalizar el embalaje de hoy? Se guarda en el historial y se vacía la lista.'
-    if (!confirm(confirmMsg)) return
+    setConfirmacion({ mensaje, onConfirmar: ejecutarFinalizarEmbalaje })
+  }
 
+  const ejecutarFinalizarEmbalaje = () => {
     setFinalizando(true)
     apiFetch('/control-embalaje/finalizar', { method: 'POST' }, onUnauthorized)
       .then(async (res) => {
@@ -167,7 +173,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   }
 
   const limpiarTodo = () => {
-    if (!confirm('¿Vaciar todo el checklist? Se borra todo lo que hay, embalado o no.')) return
+    setConfirmacion({
+      mensaje: '¿Vaciar todo el checklist? Se borra todo lo que hay, embalado o no.',
+      peligroso: true,
+      onConfirmar: ejecutarLimpiarTodo,
+    })
+  }
+
+  const ejecutarLimpiarTodo = () => {
     setLimpiando(true)
     apiFetch('/control-embalaje', { method: 'DELETE' }, onUnauthorized)
       .then(() => {
@@ -180,7 +193,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const buscarPorVoz = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      alert('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
+      setAviso('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
       return
     }
     const recognition = new SpeechRecognition()
@@ -373,10 +386,11 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           </button>
         </div>
         <button
-          className={`sort-btn ${ocultarEmbalados ? 'toggle-on-green' : ''}`}
+          className="sort-btn btn-toggle"
+          aria-pressed={ocultarEmbalados}
           onClick={() => setOcultarEmbalados((v) => !v)}
         >
-          {ocultarEmbalados ? '✓ ' : ''}Ocultar embalados
+          Ocultar embalados
         </button>
         <button className="scan-btn" onClick={finalizarEmbalaje} disabled={finalizando || items.length === 0}>
           ✅ Finalizar embalaje
@@ -512,6 +526,16 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       </div>
 
       <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+      {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
 }

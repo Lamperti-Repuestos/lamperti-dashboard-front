@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
+import AlertModal from './AlertModal.jsx'
 
 const normalizarBusqueda = (s) =>
   (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '')
 
 export default function PedidosFullView({ onUnauthorized }) {
   const [envios, setEnvios] = useState([])
+  const [confirmacion, setConfirmacion] = useState(null)
+  const [aviso, setAviso] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [enviandoId, setEnviandoId] = useState(null)
@@ -168,7 +172,7 @@ export default function PedidosFullView({ onUnauthorized }) {
         })
         setEditandoParcialId(null)
       })
-      .catch((err) => alert(`Error: ${err.message}`))
+      .catch((err) => setAviso(`Error: ${err.message}`))
   }
 
   const empezarEdicionCantidad = (item) => {
@@ -200,26 +204,32 @@ export default function PedidosFullView({ onUnauthorized }) {
   }
 
   const borrarEnvio = (envio) => {
-    if (!confirm(`¿Borrar "${envio.nombre}" entero (${envio.items.length} productos)? No se puede deshacer.`)) return
-    apiFetch(`/full/envios/${envio.pedido_id}`, { method: 'DELETE' }, onUnauthorized)
-      .then(() => fetchPipeline())
+    setConfirmacion({
+      mensaje: `¿Borrar "${envio.nombre}" entero (${envio.items.length} productos)? No se puede deshacer.`,
+      peligroso: true,
+      onConfirmar: () => apiFetch(`/full/envios/${envio.pedido_id}`, { method: 'DELETE' }, onUnauthorized)
+        .then(() => fetchPipeline()),
+    })
   }
 
   const marcarEnviado = (envio) => {
     const faltan = envio.items.filter((it) => it.estado !== 'embalado').length
     if (faltan > 0) {
-      alert(`Todavía hay ${faltan} producto(s) sin embalar en "${envio.nombre}".`)
+      setAviso(`Todavía hay ${faltan} producto(s) sin embalar en "${envio.nombre}".`)
       return
     }
-    if (!confirm(`¿Marcar "${envio.nombre}" (${envio.items.length} productos) como enviado?`)) return
-
-    setEnviandoId(envio.pedido_id)
-    apiFetch(`/full/envios/${envio.pedido_id}/enviar`, { method: 'POST' }, onUnauthorized)
-      .then(() => {
-        setEnviandoId(null)
-        fetchPipeline()
-      })
-      .catch(() => setEnviandoId(null))
+    setConfirmacion({
+      mensaje: `¿Marcar "${envio.nombre}" (${envio.items.length} productos) como enviado?`,
+      onConfirmar: () => {
+        setEnviandoId(envio.pedido_id)
+        apiFetch(`/full/envios/${envio.pedido_id}/enviar`, { method: 'POST' }, onUnauthorized)
+          .then(() => {
+            setEnviandoId(null)
+            fetchPipeline()
+          })
+          .catch(() => setEnviandoId(null))
+      },
+    })
   }
 
   return (
@@ -465,6 +475,16 @@ export default function PedidosFullView({ onUnauthorized }) {
       </div>
 
       <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+      {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
 }

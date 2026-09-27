@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
+import ConfirmModal from './ConfirmModal.jsx'
+import AlertModal from './AlertModal.jsx'
 
 const formatoPesos = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -11,6 +13,8 @@ export default function LogisticaView({ onUnauthorized }) {
   const [insumos, setInsumos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [confirmacion, setConfirmacion] = useState(null)
+  const [aviso, setAviso] = useState(null)
   const [avisos, setAvisos] = useState([])
   const [mostrarAvisos, setMostrarAvisos] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -109,8 +113,11 @@ export default function LogisticaView({ onUnauthorized }) {
   }
 
   const borrarInsumo = (id) => {
-    if (!confirm('¿Borrar este insumo? Se pierde su historial de precios también.')) return
-    apiFetch(`/logistica/insumos/${id}`, { method: 'DELETE' }, onUnauthorized).then(fetchInsumos)
+    setConfirmacion({
+      mensaje: '¿Borrar este insumo? Se pierde su historial de precios también.',
+      peligroso: true,
+      onConfirmar: () => apiFetch(`/logistica/insumos/${id}`, { method: 'DELETE' }, onUnauthorized).then(fetchInsumos),
+    })
   }
 
   const guardarPrecio = (id) => {
@@ -128,14 +135,16 @@ export default function LogisticaView({ onUnauthorized }) {
   }
 
   const avisarInsumo = (id, nombreInsumo) => {
-    if (!confirm(`¿Avisar por Telegram que hace falta reponer "${nombreInsumo}"?`)) return
-    apiFetch(`/logistica/insumos/${id}/avisar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    }, onUnauthorized).then(() => {
-      fetchInsumos()
-      fetchAvisos()
+    setConfirmacion({
+      mensaje: `¿Avisar por Telegram que hace falta reponer "${nombreInsumo}"?`,
+      onConfirmar: () => apiFetch(`/logistica/insumos/${id}/avisar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }, onUnauthorized).then(() => {
+        fetchInsumos()
+        fetchAvisos()
+      }),
     })
   }
 
@@ -148,7 +157,7 @@ export default function LogisticaView({ onUnauthorized }) {
         }
         fetchAvisos()
       })
-      .catch((err) => alert(`Error: ${err.message}`))
+      .catch((err) => setAviso(`Error: ${err.message}`))
   }
 
   const atenderAviso = (id) => {
@@ -189,7 +198,7 @@ export default function LogisticaView({ onUnauthorized }) {
         verMediciones(id)
         setMedicionesAbierto(id)
       })
-      .catch((err) => alert(`Error: ${err.message}`))
+      .catch((err) => setAviso(`Error: ${err.message}`))
   }
 
   const terminarMedicion = (id) => {
@@ -202,7 +211,7 @@ export default function LogisticaView({ onUnauthorized }) {
           .then((res) => res.json())
           .then((dd) => setMedicionesData(dd.mediciones))
       })
-      .catch((err) => alert(`Error: ${err.message}`))
+      .catch((err) => setAviso(`Error: ${err.message}`))
   }
 
   const aplicarComoRinde = (id, paquetes) => {
@@ -395,6 +404,16 @@ export default function LogisticaView({ onUnauthorized }) {
           </div>
         ))}
       </div>
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+      {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
 }

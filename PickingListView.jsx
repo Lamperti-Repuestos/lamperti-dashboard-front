@@ -308,10 +308,11 @@ export default function PickingListView({ onUnauthorized }) {
 
         <div className="toggle-group">
           <button
-            className={`sort-btn ${onlyFaltantes ? 'toggle-on-red' : ''}`}
+            className="sort-btn btn-toggle"
+            aria-pressed={onlyFaltantes}
             onClick={() => setOnlyFaltantes((v) => !v)}
           >
-            {onlyFaltantes ? '✓ ' : ''}Solo faltantes
+            Solo faltantes
           </button>
         </div>
       </div>

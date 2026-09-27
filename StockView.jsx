@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
+import Modal from './Modal.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 
 export default function StockView({ onUnauthorized }) {
   const [umbral, setUmbral] = useState(15)
@@ -182,16 +184,20 @@ export default function StockView({ onUnauthorized }) {
   }
 
   const [revirtiendoId, setRevirtiendoId] = useState(null)
+  const [confirmacion, setConfirmacion] = useState(null)
   const [revertirError, setRevertirError] = useState(null)
 
   const [revertirInfo, setRevertirInfo] = useState(null)
 
   const revertirCambio = (alerta) => {
-    if (!confirm(
-      `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades ` +
-      `(el valor de antes del cambio)?`
-    )) return
+    setConfirmacion({
+      mensaje: `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades (el valor de antes del cambio)?`,
+      peligroso: true,
+      onConfirmar: () => ejecutarRevertirCambio(alerta),
+    })
+  }
 
+  const ejecutarRevertirCambio = (alerta) => {
     setRevirtiendoId(alerta.id)
     setRevertirError(null)
     setRevertirInfo(null)
@@ -327,8 +333,8 @@ export default function StockView({ onUnauthorized }) {
           {scanning ? 'Escaneando...' : '🔍 Escanear ahora'}
         </button>
 
-        <button className="sort-btn" onClick={() => setSoloPendientes((v) => !v)}>
-          {soloPendientes ? '✓ ' : ''}Solo pendientes
+        <button className="sort-btn btn-toggle" aria-pressed={soloPendientes} onClick={() => setSoloPendientes((v) => !v)}>
+          Solo pendientes
         </button>
 
         <div className="tabs">
@@ -570,15 +576,8 @@ export default function StockView({ onUnauthorized }) {
       )}
 
       {mostrarModalFull && (
-        <div className="tutorial-overlay" onClick={cerrarModalFull}>
-          <div className="tutorial-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="tutorial-header">
-              <strong>📦 Discrepancias por Full</strong>
-              <button className="header-ayuda" onClick={cerrarModalFull} aria-label="Cerrar">✕</button>
-            </div>
-
-            <div className="tutorial-cuerpo">
-              {!envioSeleccionado && (
+        <Modal titulo="📦 Discrepancias por Full" onCerrar={cerrarModalFull}>
+          {!envioSeleccionado && (
                 <>
                   <p className="tutorial-texto" style={{ marginBottom: 14 }}>
                     Elegí un Envío Full ya mandado para ver cómo venía el stock en
@@ -611,9 +610,9 @@ export default function StockView({ onUnauthorized }) {
                     </button>
                   ))}
                 </>
-              )}
+          )}
 
-              {envioSeleccionado && (
+          {envioSeleccionado && (
                 <>
                   <button
                     className="sort-btn"
@@ -660,10 +659,17 @@ export default function StockView({ onUnauthorized }) {
                     )
                   })}
                 </>
-              )}
-            </div>
-          </div>
-        </div>
+          )}
+        </Modal>
+      )}
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
       )}
     </>
   )
