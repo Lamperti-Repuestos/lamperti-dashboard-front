@@ -53,7 +53,7 @@ function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando,
   return (
     <div className="paste-box">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-        <label className="corte-label" style={{ marginBottom: 0 }}>{titulo}</label>
+        <h2 className="section-title" style={{ margin: 0 }}>{titulo}</h2>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {onDictar && (
             <button

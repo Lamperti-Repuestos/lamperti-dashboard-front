@@ -274,7 +274,7 @@ export default function FullView({ onUnauthorized }) {
                 )}
                 {r.encontrado && r.sku && (
                   <span className="stock-edit">
-                    <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>Enviar:</span>
+                    <span style={{ fontSize: 12, color: 'var(--gray-muted)' }}>Enviar:</span>
                     <input
                       type="number"
                       min={0}
@@ -285,7 +285,7 @@ export default function FullView({ onUnauthorized }) {
                       }
                     />
                     {r.sugerencia_enviar && (
-                      <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
                         (ML sugería {r.sugerencia_enviar})
                       </span>
                     )}

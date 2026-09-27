@@ -253,9 +253,9 @@ export default function LogisticaView({ onUnauthorized }) {
 
       {mostrarForm && (
         <div className="paste-box">
-          <label className="corte-label" style={{ marginBottom: 8 }}>
+          <h2 className="section-title" style={{ margin: '0 0 8px' }}>
             {editandoId ? 'Editar insumo' : 'Nuevo insumo'}
-          </label>
+          </h2>
           <input className="search-input" placeholder="Nombre (ej: Bolsas para embalar)" value={nombre} onChange={(e) => setNombre(e.target.value)} style={{ marginBottom: 8 }} />
           <input className="search-input" placeholder="Unidad (ej: paquete x100)" value={unidad} onChange={(e) => setUnidad(e.target.value)} style={{ marginBottom: 8 }} />
           <input className="search-input" placeholder="Link a la publicación de ML" value={publicacionUrl} onChange={(e) => setPublicacionUrl(e.target.value)} style={{ marginBottom: 8 }} />

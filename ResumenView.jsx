@@ -82,8 +82,8 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
             <span className="badge badge-colecta">📦 Colecta: {ventas.colecta}</span>
             <span className="badge badge-flex">🚚 Flex: {ventas.flex}</span>
-            <span className="badge badge-acordar">🏭 Full: {ventas.full}</span>
-            <span className="badge badge-multi">🤝 Acordar: {ventas.acordar}</span>
+            <span className="badge badge-full">🏭 Full: {ventas.full}</span>
+            <span className="badge badge-acordar">🤝 Acordar: {ventas.acordar}</span>
           </div>
 
           {ventas.proximo_objetivo && ventas.total < ventas.proximo_objetivo.meta && (
@@ -146,27 +146,27 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
         <Tile
           valor={data.total_pendiente_separar}
           label="Unidades pendientes de separar"
-          color="#1A2B6B"
+          color="var(--navy)"
           onClick={() => onIrA?.('picking')}
         />
         <Tile
           valor={data.productos_sobreventa}
           label="Producto(s) en sobreventa (48h)"
-          color={data.productos_sobreventa > 0 ? '#B03A2E' : '#2E7D46'}
+          color={data.productos_sobreventa > 0 ? 'var(--alerta)' : 'var(--ok)'}
           alerta={data.productos_sobreventa > 0}
           onClick={() => onIrA?.('metricas')}
         />
         <Tile
           valor={data.reclamos_con_deadline_hoy.length}
           label="Reclamo(s) con vencimiento hoy"
-          color={data.reclamos_con_deadline_hoy.length > 0 ? '#B8860B' : '#2E7D46'}
+          color={data.reclamos_con_deadline_hoy.length > 0 ? 'var(--atencion)' : 'var(--ok)'}
           alerta={data.reclamos_con_deadline_hoy.length > 0}
           onClick={() => onIrA?.('postventa')}
         />
         <Tile
           valor={data.reclamos_abiertos_total}
           label="Reclamos abiertos (total)"
-          color="#4A67B8"
+          color="var(--info)"
           onClick={() => onIrA?.('postventa')}
         />
       </div>

@@ -216,9 +216,9 @@ export default function CostosView({ onUnauthorized }) {
 
           {datosGrafico.length > 0 && (
             <div className="paste-box">
-              <label className="corte-label" style={{ marginBottom: 8 }}>
+              <h2 className="section-title" style={{ margin: '0 0 8px' }}>
                 Distribución de cargos - {data.period?.date_from} a {data.period?.date_to}
-              </label>
+              </h2>
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
@@ -256,7 +256,7 @@ export default function CostosView({ onUnauthorized }) {
 
           {data.bonificaciones?.length > 0 && (
             <div className="list">
-              <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>Bonificaciones</label>
+              <h2 className="section-title" style={{ margin: '0 0 6px 12px' }}>Bonificaciones</h2>
               {data.bonificaciones.map((b) => (
                 <div key={b.label} className="row">
                   <div className="title-cell">{b.label}</div>
@@ -273,9 +273,9 @@ export default function CostosView({ onUnauthorized }) {
           {mostrarPorPublicacion && (
             <div className="list">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 6px 12px' }}>
-                <label className="corte-label" style={{ marginBottom: 0 }}>
+                <h2 className="section-title" style={{ margin: 0 }}>
                   Desglose por SKU - {periodoElegido || 'período más reciente'}
-                </label>
+                </h2>
                 <button
                   className="sort-btn"
                   onClick={actualizarPorPublicacionAhora}
@@ -315,7 +315,7 @@ export default function CostosView({ onUnauthorized }) {
                         <div className="title-cell">{p.titulo}</div>
                         <span className="badge badge-flex">{formatoPesos.format(p.total)}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-muted)' }}>
+                      <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
                         {Object.entries(p.por_subtipo).map(([k, v]) => `${k}: ${formatoPesos.format(v)}`).join(' · ')}
                       </div>
                     </div>

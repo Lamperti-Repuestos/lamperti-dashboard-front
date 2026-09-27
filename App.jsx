@@ -112,28 +112,55 @@ export default function App() {
   // Swipe para cambiar de pestaña en celular (izquierda/derecha)
   const touchStart = useRef(null)
 
+  const elementoIgnoraSwipe = (el) => {
+    let n = el
+    while (n && n !== document.body) {
+      const tag = n.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+      if (n.scrollWidth > n.clientWidth) return true
+      n = n.parentElement
+    }
+    return false
+  }
+
   const handleTouchStart = (e) => {
     const t = e.touches[0]
-    touchStart.current = { x: t.clientX, y: t.clientY }
+    touchStart.current = {
+      x: t.clientX,
+      y: t.clientY,
+      ignorar: elementoIgnoraSwipe(e.target),
+    }
   }
 
   const handleTouchEnd = (e) => {
     if (!touchStart.current) return
-    const t = e.changedTouches[0]
-    const dx = t.clientX - touchStart.current.x
-    const dy = t.clientY - touchStart.current.y
+    const { x, y, ignorar } = touchStart.current
     touchStart.current = null
+    if (ignorar) return
+
+    const t = e.changedTouches[0]
+    const dx = t.clientX - x
+    const dy = t.clientY - y
 
     // Ignoramos gestos cortos o mayormente verticales (eso es scroll normal)
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
 
-    const currentIndex = VIEWS.indexOf(view)
-    if (dx < 0 && currentIndex < VIEWS.length - 1) {
-      setView(VIEWS[currentIndex + 1])
+    // El swipe se mueve solo dentro del grupo actual (o entre Resumen y
+    // el primer/último ítem del grupo) - nunca salta a otro grupo sin
+    // que se vea en el menú.
+    const vistasNavegables = grupoAbierto
+      ? GRUPOS.find((g) => g.id === grupoAbierto).vistas.map((v) => v.id)
+      : ['resumen']
+    const currentIndex = vistasNavegables.indexOf(view)
+    if (currentIndex === -1) return
+
+    if (dx < 0 && currentIndex < vistasNavegables.length - 1) {
+      irA(vistasNavegables[currentIndex + 1])
     } else if (dx > 0 && currentIndex > 0) {
-      setView(VIEWS[currentIndex - 1])
+      irA(vistasNavegables[currentIndex - 1])
     }
   }
+
 
   if (authed === null) {
     return <div className="loading-state">Cargando...</div>

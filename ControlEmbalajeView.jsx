@@ -330,7 +330,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     <>
       <div className="paste-box">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label className="corte-label" style={{ marginBottom: 0 }}>🖨 Etiquetas (imprimir / despachar)</label>
+          <h2 className="section-title" style={{ margin: 0 }}>🖨 Etiquetas (imprimir / despachar)</h2>
           <button className="sort-btn" onClick={() => setMostrarEtiquetas((v) => !v)}>
             {mostrarEtiquetas ? 'Ocultar' : 'Ver'}
           </button>

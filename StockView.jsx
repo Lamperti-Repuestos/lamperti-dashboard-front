@@ -473,9 +473,9 @@ export default function StockView({ onUnauthorized }) {
 
       {mostrarQuiebres && (
         <div className="list">
-          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>
+          <h2 className="section-title" style={{ margin: '0 0 6px 12px' }}>
             Quiebres de stock (últimos 90 días)
-          </label>
+          </h2>
           {cargandoQuiebres && <div className="loading-state">Cargando...</div>}
           {quiebresData && quiebresData.productos.length === 0 && (
             <div className="empty-state">Sin quiebres registrados todavía en este período.</div>
@@ -497,9 +497,9 @@ export default function StockView({ onUnauthorized }) {
       {mostrarDiscrepancias && (
         <div className="list">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 6px 12px' }}>
-            <label className="corte-label" style={{ marginBottom: 0 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>
               Stock en 0 en ML, pero con stock en Contabilium
-            </label>
+            </h2>
             <button
               className="sort-btn"
               onClick={actualizarDiscrepanciasAhora}

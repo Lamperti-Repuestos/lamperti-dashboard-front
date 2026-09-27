@@ -274,7 +274,7 @@ export default function PostventaView({ onUnauthorized }) {
                         )
                       })}
                     {!detalle.fecha_limite_real && detalle.claim.players?.some((p) => (p.available_actions || []).some((a) => a.mandatory && a.due_date)) && (
-                      <p style={{ fontSize: 11, color: 'var(--gray-muted)', marginTop: 2, marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 2, marginBottom: 10 }}>
                         ⚠ Esta es la fecha de esa acción puntual - si el mensaje del mediador (abajo) menciona otra fecha para la decisión, esa es la que vale.
                       </p>
                     )}
@@ -289,7 +289,7 @@ export default function PostventaView({ onUnauthorized }) {
                     {/* Ficha de la venta puntual */}
                     {detalle.orden && (
                       <div className="paste-box" style={{ margin: '0 0 12px' }}>
-                        <label className="corte-label" style={{ marginBottom: 8 }}>Detalle de la venta</label>
+                        <h2 className="section-title" style={{ margin: '0 0 8px' }}>Detalle de la venta</h2>
                         <div style={{ fontSize: 13, lineHeight: 1.7 }}>
                           <div><strong>Pedido:</strong> #{detalle.orden.id}</div>
                           <div>
@@ -406,7 +406,7 @@ export default function PostventaView({ onUnauthorized }) {
                     {/* Historial de estados */}
                     {detalle.historial_estados?.length > 0 && (
                       <div style={{ marginTop: 16 }}>
-                        <label className="corte-label" style={{ marginBottom: 6 }}>Historial</label>
+                        <h2 className="section-title" style={{ margin: '0 0 6px' }}>Historial</h2>
                         {detalle.historial_estados.map((h, i) => (
                           <div key={i} className="sale-line" style={{ fontSize: 12 }}>
                             <span className="mono">{new Date(h.date).toLocaleString('es-AR')}</span>

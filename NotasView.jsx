@@ -160,7 +160,7 @@ export default function NotasView({ onUnauthorized }) {
 
       <div className="paste-box" style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <label className="corte-label" style={{ marginBottom: 0 }}>Archivos compartidos</label>
+          <h2 className="section-title" style={{ margin: 0 }}>Archivos compartidos</h2>
           <button className="scan-btn" onClick={elegirArchivo} disabled={subiendo || !!archivoPendiente}>
             📎 Subir archivo
           </button>

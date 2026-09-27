@@ -413,7 +413,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                     </span>
                   </div>
 
-                  <label className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <label className="corte-label" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <input
                       type="checkbox"
                       checked={item.pedido_al_proveedor}
@@ -421,7 +421,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                     />
                     Pedido
                   </label>
-                  <label className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <label className="corte-label" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <input
                       type="checkbox"
                       checked={item.en_stock_local}
@@ -430,7 +430,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                     En stock
                   </label>
 
-                  <span className="corte-label" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span className="corte-label" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {editandoParcialId === item.id ? (
                       <>
                         <input
@@ -450,7 +450,7 @@ export default function PedidosFullView({ onUnauthorized }) {
                         <button className="stock-save-btn" onClick={() => guardarParcial(idx, item)}>✓</button>
                       </>
                     ) : (
-                      <button className="sort-btn" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => empezarEdicionParcial(item)}>
+                      <button className="sort-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => empezarEdicionParcial(item)}>
                         {item.estado === 'parcial'
                           ? `Parcial: ${item.cantidad_embalada}/${item.cantidad_total} ✎`
                           : 'Marcar parcial'}

@@ -275,14 +275,14 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
                   <div className="label">Pendientes ahora</div>
                 </div>
               </div>
-              <label className="corte-label" style={{ margin: '10px 0 6px 12px' }}>Lo que más se devolvió</label>
+              <h2 className="section-title" style={{ margin: '10px 0 6px 12px' }}>Lo que más se devolvió</h2>
               {stats.top_productos.map((p) => (
                 <div key={p.producto} className="row">
                   <div className="title-cell">{p.producto}</div>
                   <span className="badge badge-flex">{p.cantidad}</span>
                 </div>
               ))}
-              <label className="corte-label" style={{ margin: '10px 0 6px 12px' }}>Por proveedor</label>
+              <h2 className="section-title" style={{ margin: '10px 0 6px 12px' }}>Por proveedor</h2>
               {stats.top_proveedores.map((p) => (
                 <div key={p.proveedor} className="row">
                   <div className="title-cell">{p.proveedor}</div>
@@ -291,7 +291,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
               ))}
               {stats.por_resolucion?.length > 0 && (
                 <>
-                  <label className="corte-label" style={{ margin: '10px 0 6px 12px' }}>Cómo se resolvieron</label>
+                  <h2 className="section-title" style={{ margin: '10px 0 6px 12px' }}>Cómo se resolvieron</h2>
                   {stats.por_resolucion.map((r) => (
                     <div key={r.tipo} className="row">
                       <div className="title-cell">{ETIQUETAS_RESOLUCION[r.tipo] || r.tipo}</div>
@@ -307,7 +307,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
 
       {mostrarForm && (
         <div className="paste-box">
-          <label className="corte-label" style={{ marginBottom: 8 }}>Nueva devolución</label>
+          <h2 className="section-title" style={{ margin: '0 0 8px' }}>Nueva devolución</h2>
           <input className="search-input" placeholder="Proveedor" value={proveedor} onChange={(e) => cambiarProveedor(e.target.value)} style={{ marginBottom: sugerenciasProveedor.length > 0 ? 2 : 8 }} />
           {sugerenciasProveedor.length > 0 && (
             <div className="list" style={{ marginBottom: 8 }}>
@@ -320,7 +320,7 @@ export default function DevolucionesProveedoresView({ onUnauthorized }) {
           )}
           <input className="search-input" placeholder="Producto (ej: Depósito 20L)" value={producto} onChange={(e) => cambiarProducto(e.target.value)} style={{ marginBottom: skuElegido ? 2 : 8 }} />
           {skuElegido && (
-            <div style={{ fontSize: 11, color: 'var(--gray-muted)', margin: '0 0 8px 2px' }}>
+            <div style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 2px' }}>
               ✅ Asociado al SKU {skuElegido} de Contabilium
             </div>
           )}

@@ -7,7 +7,7 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
   return (
     <div className="paste-box">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-        <label className="corte-label" style={{ marginBottom: 0 }}>{titulo} ({items.length})</label>
+        <h2 className="section-title" style={{ margin: 0 }}>{titulo} ({items.length})</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="sort-btn" onClick={() => toggleTodos(items)}>
             {todosMarcados ? 'Desmarcar todas' : 'Marcar todas'}
@@ -48,7 +48,7 @@ function SeccionDespacho({ titulo, items, onImportar, importando }) {
   return (
     <div className="paste-box">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-        <label className="corte-label" style={{ marginBottom: 0 }}>{titulo} ({items.length})</label>
+        <h2 className="section-title" style={{ margin: 0 }}>{titulo} ({items.length})</h2>
         {items.length > 0 && (
           <button className="sort-btn" onClick={() => onImportar(items)} disabled={importando}>
             📥 Importar a Control Embalaje
