@@ -222,6 +222,86 @@ export default function StockView({ onUnauthorized }) {
       })
   }
 
+  const [mostrarModalFull, setMostrarModalFull] = useState(false)
+  const [enviosFull, setEnviosFull] = useState(null)
+  const [cargandoEnviosFull, setCargandoEnviosFull] = useState(false)
+  const [errorEnviosFull, setErrorEnviosFull] = useState(null)
+  const [envioSeleccionado, setEnvioSeleccionado] = useState(null)
+  const [descuadreData, setDescuadreData] = useState(null)
+  const [cargandoDescuadre, setCargandoDescuadre] = useState(false)
+  const [chequeandoAhora, setChequeandoAhora] = useState(false)
+  const [errorDescuadre, setErrorDescuadre] = useState(null)
+
+  const abrirModalFull = () => {
+    setMostrarModalFull(true)
+    setEnvioSeleccionado(null)
+    setDescuadreData(null)
+    setErrorDescuadre(null)
+    setCargandoEnviosFull(true)
+    setErrorEnviosFull(null)
+    apiFetch('/full/envios/enviados', {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setEnviosFull(d.envios)
+        setCargandoEnviosFull(false)
+      })
+      .catch((err) => {
+        setErrorEnviosFull(err.message)
+        setCargandoEnviosFull(false)
+      })
+  }
+
+  const elegirEnvioFull = (envio) => {
+    setEnvioSeleccionado(envio)
+    setDescuadreData(null)
+    setErrorDescuadre(null)
+    setCargandoDescuadre(true)
+    apiFetch(`/full/envios/${envio.id}/descuadre`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setDescuadreData(d)
+        setCargandoDescuadre(false)
+      })
+      .catch((err) => {
+        setErrorDescuadre(err.message)
+        setCargandoDescuadre(false)
+      })
+  }
+
+  const chequearAhoraFull = () => {
+    if (!envioSeleccionado) return
+    setChequeandoAhora(true)
+    setErrorDescuadre(null)
+    apiFetch(`/full/envios/${envioSeleccionado.id}/chequear-descuadre`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setDescuadreData(d)
+        setChequeandoAhora(false)
+      })
+      .catch((err) => {
+        setErrorDescuadre(err.message)
+        setChequeandoAhora(false)
+      })
+  }
+
+  const cerrarModalFull = () => {
+    setMostrarModalFull(false)
+    setEnvioSeleccionado(null)
+    setDescuadreData(null)
+  }
+
   const alertsFiltradas = (() => {
     let resultado = alerts.filter((a) => {
       if (Math.abs(a.diferencia) < magnitudMinima) return false
@@ -302,6 +382,10 @@ export default function StockView({ onUnauthorized }) {
 
         <button className="sort-btn" onClick={toggleDiscrepancias}>
           ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
+        </button>
+
+        <button className="sort-btn" onClick={abrirModalFull}>
+          📦 Chequear discrepancias por Full
         </button>
       </div>
 
@@ -471,6 +555,103 @@ export default function StockView({ onUnauthorized }) {
               <span className="badge badge-explicada">Contabilium: {p.stock_contabilium}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {mostrarModalFull && (
+        <div className="tutorial-overlay" onClick={cerrarModalFull}>
+          <div className="tutorial-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="tutorial-header">
+              <strong>📦 Discrepancias por Full</strong>
+              <button className="header-ayuda" onClick={cerrarModalFull} aria-label="Cerrar">✕</button>
+            </div>
+
+            <div className="tutorial-cuerpo">
+              {!envioSeleccionado && (
+                <>
+                  <p className="tutorial-texto" style={{ marginBottom: 14 }}>
+                    Elegí un Envío Full ya mandado para ver cómo venía el stock en
+                    Contabilium antes de cerrarlo, y compararlo contra el stock
+                    actual cuando quieras chequearlo (esto puede tardar horas o
+                    días en desconfigurarse, así que no hay apuro).
+                  </p>
+                  {cargandoEnviosFull && <div className="loading-state">Cargando envíos...</div>}
+                  {errorEnviosFull && <div className="error-state">Error: {errorEnviosFull}</div>}
+                  {enviosFull && enviosFull.length === 0 && (
+                    <div className="empty-state">Todavía no hay ningún Full mandado.</div>
+                  )}
+                  {enviosFull?.map((e) => (
+                    <button
+                      key={e.id}
+                      className="tutorial-indice-item"
+                      onClick={() => elegirEnvioFull(e)}
+                    >
+                      <span>
+                        {e.nombre}
+                        <span className="id-cell" style={{ display: 'block' }}>
+                          {e.fecha_enviado && new Date(e.fecha_enviado).toLocaleString('es-AR', {
+                            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                          })}
+                          {' · '}{e.total_skus} producto(s)
+                          {e.ya_chequeado > 0 && ` · ${e.ya_chequeado} ya chequeado(s)`}
+                        </span>
+                      </span>
+                      <span>›</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {envioSeleccionado && (
+                <>
+                  <button
+                    className="sort-btn"
+                    style={{ marginBottom: 12 }}
+                    onClick={() => { setEnvioSeleccionado(null); setDescuadreData(null) }}
+                  >
+                    ← Elegir otro envío
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                    <strong>{envioSeleccionado.nombre}</strong>
+                    <button
+                      className="scan-btn"
+                      onClick={chequearAhoraFull}
+                      disabled={chequeandoAhora}
+                    >
+                      {chequeandoAhora ? '🔄 Chequeando...' : '🔄 Chequear ahora'}
+                    </button>
+                  </div>
+
+                  {cargandoDescuadre && <div className="loading-state">Cargando...</div>}
+                  {errorDescuadre && <div className="error-state">Error: {errorDescuadre}</div>}
+
+                  {descuadreData?.snapshots.map((s) => {
+                    const tieneDespues = s.stock_despues !== null && s.stock_despues !== undefined
+                    const hayDiferencia = tieneDespues && s.diferencia !== 0
+                    return (
+                      <div key={s.sku} className="row">
+                        <div className="title-cell">
+                          {s.titulo}
+                          <span className="id-cell mono">SKU: {s.sku}</span>
+                        </div>
+                        <span className="badge badge-explicada">Antes: {s.stock_antes ?? '?'}</span>
+                        {tieneDespues ? (
+                          <span className={`badge ${hayDiferencia ? 'badge-sin-explicar' : 'badge-explicada'}`}>
+                            Ahora: {s.stock_despues} ({s.diferencia > 0 ? '+' : ''}{s.diferencia})
+                          </span>
+                        ) : (
+                          <span className="id-cell">Todavía sin chequear</span>
+                        )}
+                        {s.error_antes && <span className="id-cell">⚠ antes: {s.error_antes}</span>}
+                        {s.error_despues && <span className="id-cell">⚠ ahora: {s.error_despues}</span>}
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>
