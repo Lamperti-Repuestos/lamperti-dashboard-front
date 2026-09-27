@@ -19,6 +19,7 @@ export default function PublicationsView({ onUnauthorized }) {
   const [mostrarEasterEgg, setMostrarEasterEgg] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [soloSinStock, setSoloSinStock] = useState(false)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [sortMode, setSortMode] = useState('none') // none | stock | price | alpha
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
@@ -224,33 +225,41 @@ export default function PublicationsView({ onUnauthorized }) {
             Pausadas
           </button>
         </div>
-        <button
-          className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
-          onClick={() => setSoloSinStock((v) => !v)}
-        >
-          {soloSinStock ? '✓ ' : ''}Sin stock
+        <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
+          Filtros {(soloSinStock || sortMode !== 'none') ? '(1) ' : ''}{mostrarFiltros ? '▲' : '▼'}
         </button>
-        <div className="tabs">
-          <button
-            className={`tab ${sortMode === 'stock' ? 'active' : ''}`}
-            onClick={() => setSortMode((m) => (m === 'stock' ? 'none' : 'stock'))}
-          >
-            Stock ↑
-          </button>
-          <button
-            className={`tab ${sortMode === 'price' ? 'active' : ''}`}
-            onClick={() => setSortMode((m) => (m === 'price' ? 'none' : 'price'))}
-          >
-            Precio ↑
-          </button>
-          <button
-            className={`tab ${sortMode === 'alpha' ? 'active' : ''}`}
-            onClick={() => setSortMode((m) => (m === 'alpha' ? 'none' : 'alpha'))}
-          >
-            A-Z
-          </button>
-        </div>
       </div>
+
+      {mostrarFiltros && (
+        <div className="controls">
+          <button
+            className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
+            onClick={() => setSoloSinStock((v) => !v)}
+          >
+            {soloSinStock ? '✓ ' : ''}Sin stock
+          </button>
+          <div className="tabs">
+            <button
+              className={`tab ${sortMode === 'stock' ? 'active' : ''}`}
+              onClick={() => setSortMode((m) => (m === 'stock' ? 'none' : 'stock'))}
+            >
+              Stock ↑
+            </button>
+            <button
+              className={`tab ${sortMode === 'price' ? 'active' : ''}`}
+              onClick={() => setSortMode((m) => (m === 'price' ? 'none' : 'price'))}
+            >
+              Precio ↑
+            </button>
+            <button
+              className={`tab ${sortMode === 'alpha' ? 'active' : ''}`}
+              onClick={() => setSortMode((m) => (m === 'alpha' ? 'none' : 'alpha'))}
+            >
+              A-Z
+            </button>
+          </div>
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="summary">

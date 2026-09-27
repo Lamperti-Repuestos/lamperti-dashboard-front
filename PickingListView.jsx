@@ -76,6 +76,13 @@ export default function PickingListView({ onUnauthorized }) {
   const [hideChecked, setHideChecked] = useState(false)
   const [onlyChecked, setOnlyChecked] = useState(false)
   const [onlyFaltantes, setOnlyFaltantes] = useState(false)
+  const [mostrarCortes, setMostrarCortes] = useState(false)
+
+  const estadoFiltro = onlyChecked ? 'separados' : hideChecked ? 'pendientes' : 'todos'
+  const setEstadoFiltro = (v) => {
+    setOnlyChecked(v === 'separados')
+    setHideChecked(v === 'pendientes')
+  }
   const [expanded, setExpanded] = useState(() => new Set())
   const [zoomUrl, setZoomUrl] = useState(null)
 
@@ -236,26 +243,32 @@ export default function PickingListView({ onUnauthorized }) {
   return (
     <>
       <div className="controls">
-        <div className="corte-inputs">
-          <label className="corte-label">
-            Corte Flex
-            <input
-              type="time"
-              value={corteFlex}
-              onChange={(e) => setCorteFlex(e.target.value)}
-              className="corte-input"
-            />
-          </label>
-          <label className="corte-label">
-            Corte Colecta
-            <input
-              type="time"
-              value={corteColecta}
-              onChange={(e) => setCorteColecta(e.target.value)}
-              className="corte-input"
-            />
-          </label>
-        </div>
+        <button className="sort-btn" onClick={() => setMostrarCortes((v) => !v)}>
+          ⚙ Cortes {mostrarCortes ? '▲' : '▼'}
+        </button>
+
+        {mostrarCortes && (
+          <div className="corte-inputs">
+            <label className="corte-label">
+              Corte Flex
+              <input
+                type="time"
+                value={corteFlex}
+                onChange={(e) => setCorteFlex(e.target.value)}
+                className="corte-input"
+              />
+            </label>
+            <label className="corte-label">
+              Corte Colecta
+              <input
+                type="time"
+                value={corteColecta}
+                onChange={(e) => setCorteColecta(e.target.value)}
+                className="corte-input"
+              />
+            </label>
+          </div>
+        )}
 
         <div className="tabs">
           <button className={`tab ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
@@ -281,19 +294,19 @@ export default function PickingListView({ onUnauthorized }) {
           </button>
         </div>
 
+        <div className="tabs">
+          <button className={`tab ${estadoFiltro === 'todos' ? 'active' : ''}`} onClick={() => setEstadoFiltro('todos')}>
+            Todos
+          </button>
+          <button className={`tab ${estadoFiltro === 'pendientes' ? 'active' : ''}`} onClick={() => setEstadoFiltro('pendientes')}>
+            Pendientes
+          </button>
+          <button className={`tab ${estadoFiltro === 'separados' ? 'active' : ''}`} onClick={() => setEstadoFiltro('separados')}>
+            Separados
+          </button>
+        </div>
+
         <div className="toggle-group">
-          <button
-            className={`sort-btn ${onlyChecked ? 'toggle-on-green' : ''}`}
-            onClick={() => { setOnlyChecked((v) => !v); setHideChecked(false) }}
-          >
-            {onlyChecked ? '✓ ' : ''}Ver separados
-          </button>
-          <button
-            className={`sort-btn ${hideChecked ? 'toggle-on-green' : ''}`}
-            onClick={() => { setHideChecked((v) => !v); setOnlyChecked(false) }}
-          >
-            {hideChecked ? '✓ ' : ''}Ocultar separados
-          </button>
           <button
             className={`sort-btn ${onlyFaltantes ? 'toggle-on-red' : ''}`}
             onClick={() => setOnlyFaltantes((v) => !v)}

@@ -7,6 +7,7 @@ export default function StockView({ onUnauthorized }) {
   const [soloPendientes, setSoloPendientes] = useState(true)
   const [ordenMagnitud, setOrdenMagnitud] = useState('desc') // desc | asc | ninguno
   const [magnitudMinima, setMagnitudMinima] = useState(0)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [direccionFiltro, setDireccionFiltro] = useState('todos') // todos | positiva | negativa
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
@@ -302,6 +303,8 @@ export default function StockView({ onUnauthorized }) {
     setDescuadreData(null)
   }
 
+  const filtrosActivos = (umbral !== 15 ? 1 : 0) + (magnitudMinima > 0 ? 1 : 0) + (ordenMagnitud !== 'desc' ? 1 : 0) + (mostrarQuiebres ? 1 : 0) + (mostrarDiscrepancias ? 1 : 0)
+
   const alertsFiltradas = (() => {
     let resultado = alerts.filter((a) => {
       if (Math.abs(a.diferencia) < magnitudMinima) return false
@@ -320,21 +323,6 @@ export default function StockView({ onUnauthorized }) {
   return (
     <>
       <div className="controls">
-        <label className="corte-label">
-          Umbral (unidades)
-          <input
-            type="number"
-            className="corte-input"
-            value={umbral}
-            onChange={(e) => setUmbral(Number(e.target.value))}
-            min={1}
-            style={{ width: 90 }}
-          />
-        </label>
-        <span className="umbral-hint">
-          Las pausas por quedar en 0 sin venta que lo explique se avisan siempre, aunque sean chicas
-        </span>
-
         <button className="scan-btn" onClick={handleScan} disabled={scanning}>
           {scanning ? 'Escaneando...' : '🔍 Escanear ahora'}
         </button>
@@ -342,27 +330,6 @@ export default function StockView({ onUnauthorized }) {
         <button className="sort-btn" onClick={() => setSoloPendientes((v) => !v)}>
           {soloPendientes ? '✓ ' : ''}Solo pendientes
         </button>
-
-        <button
-          className="sort-btn"
-          onClick={() => setOrdenMagnitud((v) => (v === 'desc' ? 'asc' : v === 'asc' ? 'ninguno' : 'desc'))}
-        >
-          {ordenMagnitud === 'desc' && '↓ Mayor cambio primero'}
-          {ordenMagnitud === 'asc' && '↑ Menor cambio primero'}
-          {ordenMagnitud === 'ninguno' && '↕ Sin ordenar'}
-        </button>
-
-        <label className="corte-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          Cambio mínimo
-          <input
-            type="number"
-            className="corte-input"
-            value={magnitudMinima}
-            onChange={(e) => setMagnitudMinima(Number(e.target.value) || 0)}
-            min={0}
-            style={{ width: 70 }}
-          />
-        </label>
 
         <div className="tabs">
           <button className={`tab ${direccionFiltro === 'todos' ? 'active' : ''}`} onClick={() => setDireccionFiltro('todos')}>
@@ -376,18 +343,62 @@ export default function StockView({ onUnauthorized }) {
           </button>
         </div>
 
-        <button className="sort-btn" onClick={toggleQuiebres}>
-          📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
-        </button>
-
-        <button className="sort-btn" onClick={toggleDiscrepancias}>
-          ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
-        </button>
-
-        <button className="sort-btn" onClick={abrirModalFull}>
-          📦 Chequear discrepancias por Full
+        <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
+          Filtros {filtrosActivos > 0 ? `(${filtrosActivos}) ` : ''}{mostrarFiltros ? '▲' : '▼'}
         </button>
       </div>
+
+      {mostrarFiltros && (
+        <div className="controls">
+          <label className="corte-label">
+            Umbral (unidades)
+            <input
+              type="number"
+              className="corte-input"
+              value={umbral}
+              onChange={(e) => setUmbral(Number(e.target.value))}
+              min={1}
+              style={{ width: 90 }}
+            />
+          </label>
+          <span className="umbral-hint">
+            Las pausas por quedar en 0 sin venta que lo explique se avisan siempre, aunque sean chicas
+          </span>
+
+          <button
+            className="sort-btn"
+            onClick={() => setOrdenMagnitud((v) => (v === 'desc' ? 'asc' : v === 'asc' ? 'ninguno' : 'desc'))}
+          >
+            {ordenMagnitud === 'desc' && '↓ Mayor cambio primero'}
+            {ordenMagnitud === 'asc' && '↑ Menor cambio primero'}
+            {ordenMagnitud === 'ninguno' && '↕ Sin ordenar'}
+          </button>
+
+          <label className="corte-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Cambio mínimo
+            <input
+              type="number"
+              className="corte-input"
+              value={magnitudMinima}
+              onChange={(e) => setMagnitudMinima(Number(e.target.value) || 0)}
+              min={0}
+              style={{ width: 70 }}
+            />
+          </label>
+
+          <button className="sort-btn" onClick={toggleQuiebres}>
+            📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
+          </button>
+
+          <button className="sort-btn" onClick={toggleDiscrepancias}>
+            ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
+          </button>
+
+          <button className="sort-btn" onClick={abrirModalFull}>
+            📦 Chequear discrepancias por Full
+          </button>
+        </div>
+      )}
 
       {lastScan && (
         <div className="scan-result">

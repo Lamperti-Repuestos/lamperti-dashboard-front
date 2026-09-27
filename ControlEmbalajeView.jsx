@@ -12,6 +12,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false)
   const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [horasCruce, setHorasCruce] = useState(24)
   const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
   const [escuchando, setEscuchando] = useState(false)
@@ -351,13 +352,6 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button
-          className={`sort-btn ${escuchando ? 'toggle-on-red' : ''}`}
-          onClick={buscarPorVoz}
-          title="Buscar por voz"
-        >
-          {escuchando ? '🔴 Escuchando...' : '🎤 Voz'}
-        </button>
         <div className="tabs">
           <button
             className={`tab ${filtroTipo === 'todos' ? 'active' : ''}`}
@@ -384,27 +378,42 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
         >
           {ocultarEmbalados ? '✓ ' : ''}Ocultar embalados
         </button>
-        <label className="corte-label">
-          Cruce (hs)
-          <input
-            type="number"
-            className="corte-input"
-            value={horasCruce}
-            onChange={(e) => setHorasCruce(Number(e.target.value))}
-            min={1}
-            style={{ width: 60 }}
-          />
-        </label>
-        <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
-          🗑 Vaciar todo
-        </button>
         <button className="scan-btn" onClick={finalizarEmbalaje} disabled={finalizando || items.length === 0}>
           ✅ Finalizar embalaje
         </button>
-        <button className="sort-btn" onClick={toggleHistorial}>
-          📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} historial
+        <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
+          Filtros {mostrarFiltros ? '▲' : '▼'}
         </button>
       </div>
+
+      {mostrarFiltros && (
+        <div className="controls">
+          <button
+            className={`sort-btn ${escuchando ? 'toggle-on-red' : ''}`}
+            onClick={buscarPorVoz}
+            title="Buscar por voz"
+          >
+            {escuchando ? '🔴 Escuchando...' : '🎤 Voz'}
+          </button>
+          <label className="corte-label">
+            Cruce (hs)
+            <input
+              type="number"
+              className="corte-input"
+              value={horasCruce}
+              onChange={(e) => setHorasCruce(Number(e.target.value))}
+              min={1}
+              style={{ width: 60 }}
+            />
+          </label>
+          <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
+            🗑 Vaciar todo
+          </button>
+          <button className="sort-btn" onClick={toggleHistorial}>
+            📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} historial
+          </button>
+        </div>
+      )}
 
       {mostrarHistorial && (
         <div className="paste-box">
