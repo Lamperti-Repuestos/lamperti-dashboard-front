@@ -27,7 +27,6 @@ const GRUPOS = [
     id: 'operacion',
     nombre: 'Operación',
     vistas: [
-      { id: 'subagente', label: 'Asistente (beta)' },
       { id: 'picking', label: 'Para separar' },
       { id: 'publications', label: 'Publicaciones' },
       { id: 'stock', label: 'Stock' },
@@ -180,6 +179,13 @@ export default function App() {
           <div className="header-text">
             <h1>Miguelito</h1>
           </div>
+          <button
+            className={`view-tab header-ayuda ${view === 'subagente' ? 'active' : ''}`}
+            onClick={() => { setView('subagente'); setGrupoAbierto(null) }}
+            title="Asistente (beta)"
+          >
+            🤖
+          </button>
           <button
             className="view-tab header-ayuda"
             onClick={() => setMostrarTutorial(true)}
