@@ -15,17 +15,19 @@ import TutorialView from './TutorialView.jsx'
 import LogisticaView from './LogisticaView.jsx'
 import NotasView from './NotasView.jsx'
 import DevolucionesProveedoresView from './DevolucionesProveedoresView.jsx'
+import SubagenteView from './SubagenteView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos']
+const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'subagente']
 
 const GRUPOS = [
   {
     id: 'operacion',
     nombre: 'Operación',
     vistas: [
+      { id: 'subagente', label: 'Asistente (beta)' },
       { id: 'picking', label: 'Para separar' },
       { id: 'publications', label: 'Publicaciones' },
       { id: 'stock', label: 'Stock' },
@@ -233,6 +235,7 @@ export default function App() {
 
       <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={irA} />}
+        {view === 'subagente' && <SubagenteView onUnauthorized={handleUnauthorized} />}
         {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
