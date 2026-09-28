@@ -13,6 +13,8 @@ export default function StockView({ onUnauthorized }) {
   const [direccionFiltro, setDireccionFiltro] = useState('todos') // todos | positiva | negativa
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [poleandoScan, setPoleandoScan] = useState(false)
+  const [scanProgreso, setScanProgreso] = useState(null)
   const [error, setError] = useState(null)
   const [lastScan, setLastScan] = useState(null)
   const [mostrarQuiebres, setMostrarQuiebres] = useState(false)
@@ -151,12 +153,22 @@ export default function StockView({ onUnauthorized }) {
   const handleScan = () => {
     setScanning(true)
     setError(null)
+    setScanProgreso(null)
     apiFetch(`/ml/stock/scan?umbral=${umbral}`, { method: 'POST' }, onUnauthorized)
       .then((res) => {
         if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
         return res.json()
       })
       .then((json) => {
+        // Con Contabilium configurado, el escaneo corre en segundo plano
+        // (tarda varios minutos por el límite de la API) - el polling de
+        // abajo se encarga de mostrar el progreso y cortar 'scanning'
+        // cuando termine. Sin Contabilium, sigue siendo síncrono (fallback
+        // viejo contra ML) y ya viene con el resultado en 'json'.
+        if (json.iniciado || json.ya_estaba_corriendo) {
+          setPoleandoScan(true)
+          return
+        }
         setLastScan(json)
         setScanning(false)
         fetchAlerts()
@@ -166,6 +178,39 @@ export default function StockView({ onUnauthorized }) {
         setScanning(false)
       })
   }
+
+  useEffect(() => {
+    if (!poleandoScan) return
+    let cancelado = false
+
+    const consultarProgresoScan = () => {
+      apiFetch('/ml/stock/scan/progreso', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((d) => {
+          if (cancelado) return
+          setScanProgreso(d)
+          if (!d.corriendo) {
+            setPoleandoScan(false)
+            setScanning(false)
+            setLastScan({
+              productos_escaneados: d.revisados,
+              alertas_nuevas: d.alertas_nuevas || [],
+              umbral,
+              error: d.error,
+            })
+            fetchAlerts()
+          }
+        })
+        .catch(() => {})
+    }
+
+    consultarProgresoScan()
+    const intervalo = setInterval(consultarProgresoScan, 1500)
+    return () => {
+      cancelado = true
+      clearInterval(intervalo)
+    }
+  }, [poleandoScan, umbral, fetchAlerts, onUnauthorized])
 
   const toggleRevisado = (alerta) => {
     const nuevoValor = !alerta.revisado
@@ -406,10 +451,18 @@ export default function StockView({ onUnauthorized }) {
         </div>
       )}
 
-      {lastScan && (
+      {scanning && scanProgreso && scanProgreso.total > 0 && (
+        <div className="scan-result">
+          Escaneando contra Contabilium: {scanProgreso.revisados}/{scanProgreso.total}
+          {scanProgreso.sku_actual ? ` (SKU ${scanProgreso.sku_actual})` : ''} - puede tardar varios minutos.
+        </div>
+      )}
+
+      {!scanning && lastScan && (
         <div className="scan-result">
           Último escaneo: {lastScan.productos_escaneados} productos revisados,{' '}
           {lastScan.alertas_nuevas.length} alerta(s) nueva(s) (umbral ±{lastScan.umbral}).
+          {lastScan.error && ` ⚠ Se cortó antes de terminar: ${lastScan.error}`}
         </div>
       )}
 
@@ -443,6 +496,11 @@ export default function StockView({ onUnauthorized }) {
                 <div className="alert-title">
                   {a.title}
                   <span className="id-cell mono">SKU: {a.sku}</span>
+                  {a.fuente === 'contabilium' && (
+                    <span className="badge badge-explicada" title="Stock real (StockConReservas) de Contabilium">
+                      Contabilium
+                    </span>
+                  )}
                   {a.revertido && <span className="badge badge-revertido">↩ Revertido</span>}
                   {!a.revertido && a.motivo === 'pausa' && (
                     <span className="badge badge-sin-explicar">
