@@ -4,6 +4,28 @@ import { apiFetch } from './api.js'
 const SpeechRecognitionAPI =
   typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
+// Saca el markdown (asteriscos, links, headers, viñetas) antes de mandarlo
+// a hablar - si no, la voz lee los símbolos en vez de solo el texto.
+function limpiarMarkdown(texto) {
+  return texto
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-•]\s+/gm, '')
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+// Oración por oración (no todo en un solo utterance) - da pausas más
+// naturales entre frases en vez de una tirada monótona.
+function dividirEnOraciones(texto) {
+  return texto.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
+}
+
 export default function SubagenteView({ onUnauthorized }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -14,6 +36,28 @@ export default function SubagenteView({ onUnauthorized }) {
   const [escuchando, setEscuchando] = useState(false)
   const [leerRespuesta, setLeerRespuesta] = useState(true)
   const reconocimientoRef = useRef(null)
+  const vozRef = useRef(null)
+
+  // La lista de voces en Chrome carga async - a veces getVoices() da vacío
+  // en el primer llamado y recién se completa cuando dispara 'voiceschanged'.
+  useEffect(() => {
+    if (!window.speechSynthesis) return
+
+    const elegirMejorVoz = () => {
+      const voces = window.speechSynthesis.getVoices()
+      if (!voces.length) return
+      const esVoces = voces.filter((v) => v.lang?.toLowerCase().startsWith('es'))
+      const candidatas = esVoces.length ? esVoces : voces
+      vozRef.current =
+        candidatas.find((v) => /google|natural|neural|microsoft/i.test(v.name)) ||
+        candidatas.find((v) => v.lang?.toLowerCase() === 'es-ar') ||
+        candidatas[0]
+    }
+
+    elegirMejorVoz()
+    window.speechSynthesis.addEventListener('voiceschanged', elegirMejorVoz)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', elegirMejorVoz)
+  }, [])
 
   const fetchUso = () => {
     apiFetch('/subagente/uso', {}, onUnauthorized)
@@ -37,12 +81,16 @@ export default function SubagenteView({ onUnauthorized }) {
     fetchHistorial()
   }, [])
 
-  const leerEnVozAlta = (texto) => {
+  const leerEnVozAlta = (textoOriginal) => {
     if (!leerRespuesta || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(texto)
-    utterance.lang = 'es-AR'
-    window.speechSynthesis.speak(utterance)
+    const oraciones = dividirEnOraciones(limpiarMarkdown(textoOriginal))
+    for (const oracion of oraciones) {
+      const utterance = new SpeechSynthesisUtterance(oracion)
+      utterance.lang = 'es-AR'
+      if (vozRef.current) utterance.voice = vozRef.current
+      window.speechSynthesis.speak(utterance)
+    }
   }
 
   const enviarComando = (textoAEnviar) => {
