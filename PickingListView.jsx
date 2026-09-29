@@ -77,6 +77,7 @@ export default function PickingListView({ onUnauthorized }) {
   const [onlyChecked, setOnlyChecked] = useState(false)
   const [onlyFaltantes, setOnlyFaltantes] = useState(false)
   const [mostrarCortes, setMostrarCortes] = useState(false)
+  const [mostrarDiagnostico, setMostrarDiagnostico] = useState(false)
 
   const estadoFiltro = onlyChecked ? 'separados' : hideChecked ? 'pendientes' : 'todos'
   const setEstadoFiltro = (v) => {
@@ -240,12 +241,28 @@ export default function PickingListView({ onUnauthorized }) {
       data.grupos.reduce((acc, g) => acc + g.productos.filter((p) => p.faltante).length, 0)
     : 0
 
+  // "fulfillment" (Full) queda afuera a propósito, lo empaqueta ML - no es
+  // un problema. Cualquier OTRO tipo no reconocido sí merece mirarse.
+  const huboTipoInesperado = data?.debug
+    ? Object.keys(data.debug.logistic_type_no_reconocido || {}).some((t) => t !== 'fulfillment')
+    : false
+
   return (
     <>
       <div className="controls">
         <button className="sort-btn" onClick={() => setMostrarCortes((v) => !v)}>
           ⚙ Cortes {mostrarCortes ? '▲' : '▼'}
         </button>
+
+        {data?.debug && (
+          <button
+            className={`sort-btn ${(data.debug.shipment_fetch_fallo > 0 || huboTipoInesperado) ? 'toggle-on-red' : ''}`}
+            onClick={() => setMostrarDiagnostico((v) => !v)}
+            title="Por qué un pedido puede no aparecer acá - para chequear que no se esté perdiendo ninguno"
+          >
+            🔎 Diagnóstico {mostrarDiagnostico ? '▲' : '▼'}
+          </button>
+        )}
 
         {mostrarCortes && (
           <div className="corte-inputs">
@@ -316,6 +333,35 @@ export default function PickingListView({ onUnauthorized }) {
           </button>
         </div>
       </div>
+
+      {mostrarDiagnostico && data?.debug && (
+        <div className="scan-result" style={{ display: 'block' }}>
+          <p style={{ margin: '0 0 8px', fontWeight: 600 }}>
+            De {data.debug.orders_encontradas} pedido(s) pagos encontrados en el rango:
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>{data.debug.procesadas_flex_colecta} son Colecta/Flex y están en la lista de arriba.</li>
+            <li>{data.debug.sin_shipping_id_acordar} son Acordar entrega (sin envío, normal).</li>
+            {Object.entries(data.debug.logistic_type_no_reconocido || {}).map(([tipo, cant]) => (
+              <li key={tipo} style={tipo !== 'fulfillment' ? { color: '#B23A2E', fontWeight: 600 } : undefined}>
+                {cant} con tipo de envío "{tipo}"
+                {tipo === 'fulfillment'
+                  ? ' (Full - queda afuera a propósito, lo empaqueta ML)'
+                  : ' - ⚠ tipo no reconocido, revisar a mano'}
+              </li>
+            ))}
+            {Object.entries(data.debug.status_excluido || {}).map(([estado, cant]) => (
+              <li key={estado}>{cant} con envío ya en estado "{estado}" (no hace falta separarlos)</li>
+            ))}
+            {data.debug.shipment_fetch_fallo > 0 && (
+              <li style={{ color: '#B23A2E', fontWeight: 600 }}>
+                ⚠ {data.debug.shipment_fetch_fallo} pedido(s) no se pudieron chequear (falló la consulta a
+                ML) - estos NO aparecen en la lista de arriba y conviene revisarlos a mano en Mercado Libre.
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {!loading && !error && data && (
         <div className="summary">
