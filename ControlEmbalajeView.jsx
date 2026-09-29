@@ -364,6 +364,19 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
 
   const embalados = items.filter((it) => it.checked).length
 
+  // Cuánto falta embalar de cada tipo, sobre lo YA importado al control
+  // (no sobre lo que hay en ML sin importar todavía) - se recalcula solo
+  // cada vez que se tilda algo o se importa una tanda nueva, porque las
+  // dos cosas actualizan 'items'.
+  const pendientesPorTipo = useMemo(() => {
+    const sinEmbalar = items.filter((it) => !it.checked)
+    return {
+      colecta: sinEmbalar.filter((it) => it.tipo_envio === 'colecta').length,
+      flex: sinEmbalar.filter((it) => it.tipo_envio === 'flex').length,
+      todos: sinEmbalar.length,
+    }
+  }, [items])
+
   return (
     <>
       <div className="paste-box">
@@ -394,19 +407,19 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
             className={`tab ${filtroTipo === 'todos' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('todos')}
           >
-            Todos
+            Todos ({pendientesPorTipo.todos})
           </button>
           <button
             className={`tab tab-colecta ${filtroTipo === 'colecta' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('colecta')}
           >
-            Colecta
+            Colecta ({pendientesPorTipo.colecta})
           </button>
           <button
             className={`tab tab-flex ${filtroTipo === 'flex' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('flex')}
           >
-            Flex
+            Flex ({pendientesPorTipo.flex})
           </button>
         </div>
         <button
