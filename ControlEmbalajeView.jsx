@@ -14,6 +14,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false)
   const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
+  const [soloNoEncontrados, setSoloNoEncontrados] = useState(false)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [confirmacion, setConfirmacion] = useState(null)
   const [aviso, setAviso] = useState(null)
@@ -129,6 +130,28 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       })
   }
 
+  const toggleNoEncontrado = (item) => {
+    const nuevo = !item.no_encontrado
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, no_encontrado: nuevo } : it))
+    )
+    apiFetch(`/control-embalaje/${item.id}/no-encontrado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ no_encontrado: nuevo }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.detail || 'Error')
+        }
+      })
+      .catch((err) => {
+        setMsg(`Error al marcar no encontrado: ${err.message}`)
+        fetchLista()
+      })
+  }
+
   const finalizarEmbalaje = () => {
     const sinEmbalar = items.filter((it) => !it.checked).length
     const mensaje = sinEmbalar > 0
@@ -150,6 +173,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           `✅ Embalaje finalizado y guardado`,
           `Total: ${data.total} · Embalados: ${data.embalados} · Sin embalar: ${data.sin_embalar}`,
           `Faltantes (cruzado con "Para separar"): ${data.faltantes}`,
+          `No encontrados al embalar: ${data.no_encontrados}`,
           `Colecta: ${data.colecta} · Flex: ${data.flex}`,
         ]
         setMsg(lineas.join('\n'))
@@ -333,10 +357,10 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, '')
 
-  const filtered = useMemo(
-    () => aplicarFiltros(items, query, filtroTipo, ocultarEmbalados),
-    [items, query, ocultarEmbalados, filtroTipo]
-  )
+  const filtered = useMemo(() => {
+    const base = aplicarFiltros(items, query, filtroTipo, ocultarEmbalados)
+    return soloNoEncontrados ? base.filter((it) => it.no_encontrado) : base
+  }, [items, query, ocultarEmbalados, filtroTipo, soloNoEncontrados])
 
   const embalados = items.filter((it) => it.checked).length
 
@@ -391,6 +415,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           onClick={() => setOcultarEmbalados((v) => !v)}
         >
           Ocultar embalados
+        </button>
+        <button
+          className="sort-btn btn-toggle"
+          aria-pressed={soloNoEncontrados}
+          onClick={() => setSoloNoEncontrados((v) => !v)}
+          title="Para que Gastón revise rápido lo que no se encontró"
+        >
+          🔍 Solo no encontrados
         </button>
         <button className="scan-btn" onClick={finalizarEmbalaje} disabled={finalizando || items.length === 0}>
           ✅ Finalizar embalaje
@@ -509,6 +541,9 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               {!item.faltante_en_picking && item.separado_en_picking && (
                 <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
               )}
+              {item.no_encontrado && (
+                <span className="badge badge-sin-explicar">🔍 No se encontró esta venta al embalar</span>
+              )}
               {item.etiqueta_impresa && (
                 <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
               )}
@@ -519,6 +554,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
                 title="Marcar como faltante en el local"
               >
                 {item.faltante_en_picking ? '⚠ Faltante' : 'Faltante'}
+              </button>
+              <button
+                type="button"
+                className={`faltante-btn ${item.no_encontrado ? 'faltante-btn-active' : ''}`}
+                onClick={() => toggleNoEncontrado(item)}
+                title="No encontré ESTA venta al ir a embalarla (sin tocar Para separar ni otras ventas del mismo producto)"
+              >
+                {item.no_encontrado ? '🔍 No encontrado' : 'No encontrado'}
               </button>
             </div>
           </div>
