@@ -294,28 +294,51 @@ export default function PedidorView({ onUnauthorized }) {
           {!cargandoMetricas && !errorMetricas && metricasFiltradas.length === 0 && (
             <div className="empty-state">Sin pedidos de {proveedor} desde {desdeMetricas}. 🎉</div>
           )}
-          {!cargandoMetricas && metricasFiltradas.map((m) => (
-            <div key={m.codigo} className="row" style={{ alignItems: 'flex-start' }}>
-              <div className="title-cell">
-                {m.descripcion || <span style={{ color: 'var(--gray-muted)' }}>(sin descripción)</span>}
-                <span className="id-cell mono">Código: {m.codigo}</span>
-                <span className="id-cell">
-                  Pedido <strong>{m.veces}</strong> {m.veces === 1 ? 'vez' : 'veces'}
-                  {m.cantidad_total != null && ` · ${m.cantidad_total} unidades en total`}
-                  {m.cantidades_no_numericas.length > 0 && ` (+ ${m.cantidades_no_numericas.join(', ')})`}
-                </span>
-                <span className="id-cell">
-                  {m.primera_fecha === m.ultima_fecha
-                    ? `Única vez: ${m.primera_fecha}`
-                    : `De ${m.primera_fecha} a ${m.ultima_fecha}`}
-                  {m.promedio_dias_entre_pedidos != null && ` · cada ~${m.promedio_dias_entre_pedidos} días`}
-                </span>
-                <span className="id-cell">
-                  Destinos: {m.destinos.map((d) => `${d.destino} (${d.veces})`).join(', ')}
-                </span>
+          {!cargandoMetricas && metricasFiltradas.map((m) => {
+            const badgeDestino = (destino) => {
+              if (destino === 'ml') return 'badge-colecta'
+              if (destino === 'full') return 'badge-full'
+              if (destino.startsWith('ambos')) return 'badge-multi'
+              if (destino === '(sin destino)') return 'badge-acordar'
+              return 'badge-acordar'
+            }
+            return (
+              <div key={m.codigo} className="row" style={{ alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  fontSize: 26, fontWeight: 800, color: 'var(--navy)', lineHeight: 1,
+                  minWidth: 46, textAlign: 'center',
+                }}>
+                  {m.veces}
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--gray-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    {m.veces === 1 ? 'vez' : 'veces'}
+                  </div>
+                </div>
+                <div className="title-cell" style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 700 }}>
+                    {m.descripcion || <span style={{ color: 'var(--gray-muted)' }}>(sin descripción)</span>}
+                  </span>
+                  <span className="id-cell mono">{m.codigo}</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {m.cantidad_total != null && (
+                      <span className="badge badge-acordar">📦 {m.cantidad_total} unidades</span>
+                    )}
+                    {m.destinos.map((d) => (
+                      <span key={d.destino} className={`badge ${badgeDestino(d.destino)}`} title={d.ejemplos.join(' · ')}>
+                        {d.destino} · {d.veces}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 6 }}>
+                    {m.primera_fecha === m.ultima_fecha
+                      ? `Única vez: ${m.primera_fecha}`
+                      : `De ${m.primera_fecha} a ${m.ultima_fecha}`}
+                    {m.promedio_dias_entre_pedidos != null && ` · en promedio cada ~${m.promedio_dias_entre_pedidos} días`}
+                    {m.cantidades_no_numericas.length > 0 && ` · también: ${m.cantidades_no_numericas.join(', ')}`}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </>
       )}
