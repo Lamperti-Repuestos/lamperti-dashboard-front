@@ -47,13 +47,34 @@ export default function PedidorView({ onUnauthorized }) {
       })
   }, [proveedor])
 
+  function toggleEnCarrito(item, index) {
+    const nuevoValor = !item.en_carrito
+    setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: nuevoValor } : p)))
+    const ruta = nuevoValor ? '/pedidor/carrito/marcar' : '/pedidor/carrito/desmarcar'
+    apiFetch(ruta, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        proveedor,
+        codigo: item.codigo,
+        fecha: item.fecha || '',
+        descripcion: item.descripcion,
+      }),
+    }, onUnauthorized).catch(() => {
+      // si falló, revertimos el optimistic update
+      setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: !nuevoValor } : p)))
+    })
+  }
+
   return (
     <>
       <div className="paste-box">
         <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 10px' }}>
           Lee en vivo la planilla de pedidos (solo lectura) - una pestaña por proveedor.
           Cargar el pedido en el sitio del proveedor sigue siendo manual (o pedíselo a Claude
-          en una sesión, que lo arma asistido por navegador).
+          en una sesión, que lo arma asistido por navegador). Marcá "En carrito" a medida que
+          los vayas cargando - queda guardado acá (la planilla no se toca) para poder retomar
+          en otro momento del día sin repasar todo de nuevo.
         </p>
         {cargandoProveedores && <div className="loading-state">Cargando proveedores...</div>}
         {!cargandoProveedores && (
@@ -77,7 +98,11 @@ export default function PedidorView({ onUnauthorized }) {
           <div className="empty-state">Sin pendientes para {proveedor}. 🎉</div>
         )}
         {!cargando && pendientes.map((p, i) => (
-          <div key={i} className="row" style={{ alignItems: 'flex-start' }}>
+          <div
+            key={i}
+            className="row"
+            style={{ alignItems: 'flex-start', opacity: p.en_carrito ? 0.55 : 1 }}
+          >
             <div className="title-cell">
               {p.descripcion || <span style={{ color: 'var(--gray-muted)' }}>(sin descripción)</span>}
               <span className="id-cell mono">
@@ -86,6 +111,14 @@ export default function PedidorView({ onUnauthorized }) {
               </span>
               {p.destino && <span className="id-cell">Destino: {p.destino}</span>}
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={!!p.en_carrito}
+                onChange={() => toggleEnCarrito(p, i)}
+              />
+              {p.en_carrito ? 'En carrito' : 'Marcar'}
+            </label>
           </div>
         ))}
       </div>
