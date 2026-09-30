@@ -49,7 +49,7 @@ export default function PedidorView({ onUnauthorized }) {
 
   function toggleEnCarrito(item, index) {
     const nuevoValor = !item.en_carrito
-    setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: nuevoValor } : p)))
+    setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: nuevoValor, planillaError: null } : p)))
     const ruta = nuevoValor ? '/pedidor/carrito/marcar' : '/pedidor/carrito/desmarcar'
     apiFetch(ruta, {
       method: 'POST',
@@ -58,23 +58,38 @@ export default function PedidorView({ onUnauthorized }) {
         proveedor,
         codigo: item.codigo,
         fecha: item.fecha || '',
+        fila: item.fila,
         descripcion: item.descripcion,
       }),
-    }, onUnauthorized).catch(() => {
-      // si falló, revertimos el optimistic update
-      setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: !nuevoValor } : p)))
-    })
+    }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok || !d.ok) throw new Error(d.detail || 'Error')
+        if (nuevoValor && d.planilla_actualizada) {
+          // se escribió "en carrito" en la planilla de verdad: el item
+          // ya no es un pendiente, lo sacamos de la lista
+          setPendientes((prev) => prev.filter((_, i) => i !== index))
+        } else if (!d.planilla_actualizada) {
+          // quedó marcado acá pero no se pudo escribir en la planilla real
+          setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, planillaError: d.planilla_error } : p)))
+        }
+      })
+      .catch(() => {
+        // si falló por completo, revertimos el optimistic update
+        setPendientes((prev) => prev.map((p, i) => (i === index ? { ...p, en_carrito: !nuevoValor } : p)))
+      })
   }
 
   return (
     <>
       <div className="paste-box">
         <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 10px' }}>
-          Lee en vivo la planilla de pedidos (solo lectura) - una pestaña por proveedor.
+          Lee en vivo la planilla de pedidos - una pestaña por proveedor.
           Cargar el pedido en el sitio del proveedor sigue siendo manual (o pedíselo a Claude
           en una sesión, que lo arma asistido por navegador). Marcá "En carrito" a medida que
-          los vayas cargando - queda guardado acá (la planilla no se toca) para poder retomar
-          en otro momento del día sin repasar todo de nuevo.
+          los vayas cargando - escribe "en carrito" en la planilla real y el ítem sale de la
+          lista de pendientes, para poder retomar en otro momento del día sin repasar todo de
+          nuevo.
         </p>
         {cargandoProveedores && <div className="loading-state">Cargando proveedores...</div>}
         {!cargandoProveedores && (
@@ -110,6 +125,11 @@ export default function PedidorView({ onUnauthorized }) {
                 {p.fecha && ` · ${p.fecha}`}
               </span>
               {p.destino && <span className="id-cell">Destino: {p.destino}</span>}
+              {p.planillaError && (
+                <span className="id-cell" style={{ color: 'var(--red, #c0392b)' }}>
+                  ⚠ No se pudo escribir en la planilla: {p.planillaError}
+                </span>
+              )}
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}>
               <input
