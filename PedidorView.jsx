@@ -28,6 +28,7 @@ export default function PedidorView({ onUnauthorized }) {
   const [errorCupos, setErrorCupos] = useState(null)
   const [nuevaMarca, setNuevaMarca] = useState('')
   const [nuevosTramos, setNuevosTramos] = useState([{ monto: '', descuento_pct: '' }])
+  const [topeGlobal, setTopeGlobal] = useState('')
 
   useEffect(() => {
     apiFetch('/pedidor/proveedores', {}, onUnauthorized)
@@ -140,6 +141,13 @@ export default function PedidorView({ onUnauthorized }) {
   }
 
   const marcasConDatos = [...new Set([...cupos.map((c) => c.marca), ...gastos.map((g) => g.marca)])].sort()
+
+  const topeAutomatico = Math.max(
+    ...gastos.map((g) => g.monto_gastado),
+    ...cupos.flatMap((c) => c.tramos.map((t) => t.monto)),
+    1,
+  )
+  const topeEfectivo = topeGlobal !== '' && Number(topeGlobal) > 0 ? Number(topeGlobal) : topeAutomatico * 1.05
 
   const metricasFiltradas = busquedaMetricas.trim()
     ? metricas.filter((m) => {
@@ -330,6 +338,17 @@ export default function PedidorView({ onUnauthorized }) {
               onChange={(e) => setMesCupos(e.target.value)}
             />
           </label>
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Escala de las barras ($):
+            <input
+              type="number"
+              className="search-input"
+              style={{ width: 150 }}
+              placeholder={topeAutomatico.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+              value={topeGlobal}
+              onChange={(e) => setTopeGlobal(e.target.value)}
+            />
+          </label>
         </div>
 
         {errorCupos && <div className="error-state">Error: {errorCupos}</div>}
@@ -344,7 +363,7 @@ export default function PedidorView({ onUnauthorized }) {
             const gastoInfo = gastos.find((g) => g.marca === marca)
             const gasto = gastoInfo ? gastoInfo.monto_gastado : 0
             const tramos = cupo ? cupo.tramos : []
-            const tope = Math.max(gasto, ...tramos.map((t) => t.monto), 1) * 1.05
+            const tope = topeEfectivo
             const tramoAlcanzado = [...tramos].reverse().find((t) => gasto >= t.monto)
             const proximoTramo = tramos.find((t) => gasto < t.monto)
             return (
