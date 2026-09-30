@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 
+function mesActual() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function PedidorView({ onUnauthorized }) {
-  const [vista, setVista] = useState('pendientes') // 'pendientes' | 'metricas'
+  const [vista, setVista] = useState('pendientes') // 'pendientes' | 'metricas' | 'cupos'
   const [proveedores, setProveedores] = useState([])
   const [proveedor, setProveedor] = useState('')
   const [pendientes, setPendientes] = useState([])
@@ -15,6 +20,14 @@ export default function PedidorView({ onUnauthorized }) {
   const [errorMetricas, setErrorMetricas] = useState(null)
   const [busquedaMetricas, setBusquedaMetricas] = useState('')
   const [desdeMetricas, setDesdeMetricas] = useState('2025-01-01')
+
+  const [mesCupos, setMesCupos] = useState(mesActual())
+  const [cupos, setCupos] = useState([])
+  const [gastos, setGastos] = useState([])
+  const [cargandoCupos, setCargandoCupos] = useState(false)
+  const [errorCupos, setErrorCupos] = useState(null)
+  const [nuevaMarca, setNuevaMarca] = useState('')
+  const [nuevosTramos, setNuevosTramos] = useState([{ monto: '', descuento_pct: '' }])
 
   useEffect(() => {
     apiFetch('/pedidor/proveedores', {}, onUnauthorized)
@@ -74,6 +87,59 @@ export default function PedidorView({ onUnauthorized }) {
         setCargandoMetricas(false)
       })
   }, [proveedor, vista, desdeMetricas])
+
+  function cargarCupos() {
+    if (!proveedor) return
+    setCargandoCupos(true)
+    setErrorCupos(null)
+    const params = new URLSearchParams({ proveedor, mes: mesCupos })
+    Promise.all([
+      apiFetch(`/pedidor/cupos?${params}`, {}, onUnauthorized).then((r) => r.json()),
+      apiFetch(`/pedidor/gasto-marca?${params}`, {}, onUnauthorized).then((r) => r.json()),
+    ])
+      .then(([cuposData, gastosData]) => {
+        setCupos(cuposData.cupos || [])
+        setGastos(gastosData.gastos || [])
+        setCargandoCupos(false)
+      })
+      .catch((err) => {
+        setErrorCupos(err.message)
+        setCargandoCupos(false)
+      })
+  }
+
+  useEffect(() => {
+    if (vista === 'cupos') cargarCupos()
+  }, [proveedor, vista, mesCupos])
+
+  function guardarCupo(e) {
+    e.preventDefault()
+    const tramosLimpios = nuevosTramos
+      .filter((t) => t.monto !== '' && t.descuento_pct !== '')
+      .map((t) => ({ monto: Number(t.monto), descuento_pct: Number(t.descuento_pct) }))
+    if (!nuevaMarca.trim() || tramosLimpios.length === 0) return
+    apiFetch('/pedidor/cupos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proveedor, marca: nuevaMarca.trim(), mes: mesCupos, tramos: tramosLimpios }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok || !d.ok) throw new Error(d.detail || 'Error')
+        setNuevaMarca('')
+        setNuevosTramos([{ monto: '', descuento_pct: '' }])
+        cargarCupos()
+      })
+      .catch((err) => setErrorCupos(err.message))
+  }
+
+  function borrarCupo(id) {
+    apiFetch(`/pedidor/cupos/${id}`, { method: 'DELETE' }, onUnauthorized)
+      .then(() => cargarCupos())
+      .catch((err) => setErrorCupos(err.message))
+  }
+
+  const marcasConDatos = [...new Set([...cupos.map((c) => c.marca), ...gastos.map((g) => g.marca)])].sort()
 
   const metricasFiltradas = busquedaMetricas.trim()
     ? metricas.filter((m) => {
@@ -142,6 +208,9 @@ export default function PedidorView({ onUnauthorized }) {
           </button>
           <button className={`tab ${vista === 'metricas' ? 'active' : ''}`} onClick={() => setVista('metricas')}>
             Métricas
+          </button>
+          <button className={`tab ${vista === 'cupos' ? 'active' : ''}`} onClick={() => setVista('cupos')}>
+            Cupos por marca
           </button>
         </div>
       </div>
@@ -240,6 +309,125 @@ export default function PedidorView({ onUnauthorized }) {
             </div>
           ))}
         </div>
+      </>
+      )}
+
+      {vista === 'cupos' && (
+      <>
+        <div className="paste-box" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: 0, flex: '1 1 100%' }}>
+            El gasto real no se actualiza solo (el sitio del proveedor exige login) - se
+            actualiza a pedido, en una sesión con Claude. Los cupos (tramos de descuento que
+            manda el corredor) se cargan acá a mano, una vez por mes.
+          </p>
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Mes:
+            <input
+              type="month"
+              className="search-input"
+              style={{ width: 150 }}
+              value={mesCupos}
+              onChange={(e) => setMesCupos(e.target.value)}
+            />
+          </label>
+        </div>
+
+        {errorCupos && <div className="error-state">Error: {errorCupos}</div>}
+
+        <div className="list">
+          {cargandoCupos && <div className="loading-state">Cargando cupos de {proveedor}...</div>}
+          {!cargandoCupos && marcasConDatos.length === 0 && (
+            <div className="empty-state">Todavía no hay cupos ni gasto cargado para {proveedor} en {mesCupos}.</div>
+          )}
+          {!cargandoCupos && marcasConDatos.map((marca) => {
+            const cupo = cupos.find((c) => c.marca === marca)
+            const gastoInfo = gastos.find((g) => g.marca === marca)
+            const gasto = gastoInfo ? gastoInfo.monto_gastado : 0
+            const tramos = cupo ? cupo.tramos : []
+            const tope = Math.max(gasto, ...tramos.map((t) => t.monto), 1) * 1.05
+            const tramoAlcanzado = [...tramos].reverse().find((t) => gasto >= t.monto)
+            const proximoTramo = tramos.find((t) => gasto < t.monto)
+            return (
+              <div key={marca} className="row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'baseline' }}>
+                  <strong>{marca}</strong>
+                  <span className="id-cell mono">
+                    ${gasto.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    {gastoInfo && ` · actualizado ${new Date(gastoInfo.actualizado_en).toLocaleDateString('es-AR')}`}
+                  </span>
+                </div>
+                <div style={{ position: 'relative', width: '100%', height: 22, background: 'var(--gray-line)', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{
+                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                    width: `${Math.min(100, (gasto / tope) * 100)}%`,
+                    background: tramoAlcanzado ? 'var(--atencion, #c99a2e)' : 'var(--navy, #1b2a4a)',
+                    transition: 'width 0.3s',
+                  }} />
+                  {tramos.map((t, i) => (
+                    <div key={i} title={`$${t.monto.toLocaleString('es-AR')} → ${t.descuento_pct}% dto`} style={{
+                      position: 'absolute', left: `${Math.min(100, (t.monto / tope) * 100)}%`, top: 0, bottom: 0,
+                      width: 2, background: 'var(--charcoal, #333)',
+                    }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--gray-muted)' }}>
+                  {tramoAlcanzado
+                    ? `Dto. actual: ${tramoAlcanzado.descuento_pct}%`
+                    : tramos.length > 0 ? 'Todavía sin descuento' : 'Sin cupo cargado'}
+                  {proximoTramo && ` · faltan $${(proximoTramo.monto - gasto).toLocaleString('es-AR', { maximumFractionDigits: 0 })} para ${proximoTramo.descuento_pct}%`}
+                </div>
+                {cupo && (
+                  <button
+                    className="tab"
+                    style={{ fontSize: 12, padding: '4px 8px', alignSelf: 'flex-start' }}
+                    onClick={() => borrarCupo(cupo.id)}
+                  >
+                    Borrar cupo de {marca}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <form onSubmit={guardarCupo} className="paste-box" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <strong style={{ fontSize: 14 }}>Cargar / actualizar cupo de una marca</strong>
+          <input
+            className="search-input"
+            placeholder="Marca (ej: BOSCH)"
+            value={nuevaMarca}
+            onChange={(e) => setNuevaMarca(e.target.value)}
+          />
+          {nuevosTramos.map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                className="search-input" type="number" placeholder="Monto ($)" style={{ width: 160 }}
+                value={t.monto}
+                onChange={(e) => setNuevosTramos((prev) => prev.map((x, j) => (j === i ? { ...x, monto: e.target.value } : x)))}
+              />
+              <input
+                className="search-input" type="number" placeholder="% dto." style={{ width: 100 }}
+                value={t.descuento_pct}
+                onChange={(e) => setNuevosTramos((prev) => prev.map((x, j) => (j === i ? { ...x, descuento_pct: e.target.value } : x)))}
+              />
+              {nuevosTramos.length > 1 && (
+                <button type="button" className="tab" style={{ fontSize: 12, padding: '4px 8px' }}
+                  onClick={() => setNuevosTramos((prev) => prev.filter((_, j) => j !== i))}>
+                  Quitar
+                </button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="tab" style={{ fontSize: 12, padding: '4px 8px' }}
+              onClick={() => setNuevosTramos((prev) => [...prev, { monto: '', descuento_pct: '' }])}>
+              + Agregar tramo
+            </button>
+            <button type="submit" className="tab active" style={{ fontSize: 12, padding: '4px 8px' }}>
+              Guardar
+            </button>
+          </div>
+        </form>
       </>
       )}
     </>
