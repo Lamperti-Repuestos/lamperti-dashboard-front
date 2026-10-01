@@ -4,6 +4,36 @@ import { apiFetch } from './api.js'
 const MAX_FOTOS = 6
 const LADO_MAX = 1600
 
+// Medidas del paquete: ML las exige para el envío. Se recuerdan por categoría (y las últimas usadas)
+// para no volver a escribirlas en cada producto parecido.
+const PAQUETE_VACIO = { alto: '', ancho: '', largo: '', peso: '' }
+const leerPaquetes = () => {
+  try { return JSON.parse(localStorage.getItem('alta_paquete')) || { por: {}, ultimo: null } } catch { return { por: {}, ultimo: null } }
+}
+const recordarPaquete = (categoria, paquete) => {
+  try {
+    const d = leerPaquetes()
+    d.ultimo = paquete
+    if (categoria) d.por[categoria] = paquete
+    localStorage.setItem('alta_paquete', JSON.stringify(d))
+  } catch { /* sin storage: no se recuerda */ }
+}
+const paqueteCompleto = (p) => [p.alto, p.ancho, p.largo, p.peso].every((x) => parseFloat(x) > 0)
+const atributosPaquete = (p) => [
+  { id: 'SELLER_PACKAGE_HEIGHT', value_name: `${parseFloat(p.alto)} cm` },
+  { id: 'SELLER_PACKAGE_WIDTH', value_name: `${parseFloat(p.ancho)} cm` },
+  { id: 'SELLER_PACKAGE_LENGTH', value_name: `${parseFloat(p.largo)} cm` },
+  { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${parseFloat(p.peso)} g` },
+]
+// El IVA de los repuestos es 21 %: se deja elegido (se ve y se puede cambiar). El resto lo decide la persona.
+const conPredeterminados = (a) => {
+  if (a.id === 'VALUE_ADDED_TAX' && !a.value_id && a.valores && a.valores.length) {
+    const v = a.valores.find((x) => /^21([.,]0+)?\s*%?$/.test(x.name.trim()))
+    if (v) return { ...a, value_id: v.id, pedido: true }
+  }
+  return { ...a, pedido: !a.valor && !a.value_id }
+}
+
 // Borrador: lo que se está cargando se guarda en el celular (IndexedDB, que sí admite fotos) para
 // recuperarlo si Android cierra la página mientras se mira la competencia en la app de ML u otra app.
 const BD_NOMBRE = 'lamperti_alta_rapida'
@@ -170,6 +200,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const inputGaleria = useRef(null)
   // Cámara dentro de la página: evita salir a la app de cámara, que en celulares con poca RAM
   // hace que Android cierre la pestaña del navegador ("memoria insuficiente") y se pierda la foto.
+  const [paquete, setPaquete] = useState(PAQUETE_VACIO)
+  const [paqueteDeAntes, setPaqueteDeAntes] = useState(false) // cargado de la última vez: conviene revisarlo
   const [restaurado, setRestaurado] = useState(false) // ya se intentó recuperar el borrador
   const [avisoBorrador, setAvisoBorrador] = useState(false)
   const [camara, setCamara] = useState(false)
@@ -275,7 +307,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
       setSugerencia({ categoria: data.categoria, categoria_nombre: data.categoria_nombre })
       buscarReferencia(data.titulo, data.categoria)
       // 'pedido' = vino vacío: se queda visible aunque la persona ya esté escribiendo
-      setAtributos((data.atributos || []).map((a) => ({ ...a, pedido: !a.valor && !a.value_id })))
+      setAtributos((data.atributos || []).map(conPredeterminados))
       if (data.codigo_visible && !codigo) setSku(data.codigo_visible)
     } catch (e) {
       setError(`No pude sugerir el título: ${e.message}. Lo podés escribir a mano.`)
@@ -284,6 +316,15 @@ export default function AltaRapidaView({ onUnauthorized }) {
     }
   }
 
+  // Al conocer la categoría, si no hay medidas puestas se cargan las de la última vez
+  useEffect(() => {
+    const cat = sugerencia && sugerencia.categoria
+    if (!cat || paquete.alto || paquete.ancho || paquete.largo || paquete.peso) return
+    const d = leerPaquetes()
+    const previo = d.por[cat] || d.ultimo
+    if (previo) { setPaquete(previo); setPaqueteDeAntes(true) }
+  }, [sugerencia])
+
   // Recupera lo que se estaba cargando (si la página se cerró por memoria o por cambiar de app)
   useEffect(() => {
     leerBorrador()
@@ -291,6 +332,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
         if (!d || Date.now() - d.t > BORRADOR_VIGENCIA_MS) return
         setSku(d.sku || ''); setPrecio(d.precio || ''); setCantidad(d.cantidad || '1'); setTitulo(d.titulo || '')
         setSugerencia(d.sugerencia || null); setAtributos(d.atributos || []); setRef(d.ref || null)
+        setPaquete(d.paquete || PAQUETE_VACIO)
         setFotos((d.fotos || []).map((f) => ({
           file: f.file, url: URL.createObjectURL(f.file), blanco: !!f.blanco,
           original: f.original ? { file: f.original, url: URL.createObjectURL(f.original) } : undefined,
@@ -313,19 +355,20 @@ export default function AltaRapidaView({ onUnauthorized }) {
     }
     const t = setTimeout(() => {
       guardarBorrador({
-        t: Date.now(), sku, precio, cantidad, titulo, sugerencia, atributos,
+        t: Date.now(), sku, precio, cantidad, titulo, sugerencia, atributos, paquete,
         ref: ref === 'cargando' ? null : ref,
         fotos: fotos.map((f) => ({ file: f.file, blanco: !!f.blanco, original: f.original ? f.original.file : null })),
         cola,
       }).catch(() => { /* sin lugar o sin permiso: se sigue sin borrador */ })
     }, 400)
     return () => clearTimeout(t)
-  }, [restaurado, sku, precio, cantidad, titulo, sugerencia, atributos, ref, fotos, cola, resultado])
+  }, [restaurado, sku, precio, cantidad, titulo, sugerencia, atributos, paquete, ref, fotos, cola, resultado])
 
   const descartarBorrador = () => {
     setFotos((prev) => { soltar(prev); return [] })
     setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
     setSugerencia(null); setAtributos([]); setRef(null); setCola([]); setResultado(null); setError(null)
+    setPaquete(PAQUETE_VACIO); setPaqueteDeAntes(false)
     setAvisoBorrador(false)
     borrarBorrador().catch(() => {})
   }
@@ -346,7 +389,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
     setFotos((prev) => { soltar(prev); return [foto] })
     fondoAutomatico([foto])
     setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
-    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null); setPaquete(PAQUETE_VACIO); setPaqueteDeAntes(false)
     window.scrollTo({ top: 0 })
     leerCodigoDeFoto(foto.file)
     sugerir(foto.file, '')
@@ -626,12 +669,24 @@ export default function AltaRapidaView({ onUnauthorized }) {
       fd.append('categoria', (sugerencia && sugerencia.categoria) || '')
       fd.append(
         'atributos',
-        JSON.stringify(atributos.map((a) => ({ id: a.id, value_name: a.valor, value_id: a.value_id })))
+        JSON.stringify([
+          ...atributos.map((a) => ({ id: a.id, value_name: a.valor, value_id: a.value_id })),
+          ...(paqueteCompleto(paquete) ? atributosPaquete(paquete) : []),
+        ])
       )
       fotos.forEach((x) => fd.append('fotos', x.file))
       const res = await apiFetch('/publicador/rapido/publicar', { method: 'POST', body: fd }, onUnauthorized)
       if (!res.ok) throw new Error((await res.json()).detail || `Error ${res.status}`)
-      setResultado(await res.json())
+      const data = await res.json()
+      setResultado(data)
+      if (data.estado !== 'error' && paqueteCompleto(paquete)) recordarPaquete(sugerencia && sugerencia.categoria, paquete)
+      // Datos que ML pidió y no teníamos: aparecen en pantalla para completarlos
+      if (data.faltantes && data.faltantes.length) {
+        setAtributos((prev) => [
+          ...prev,
+          ...data.faltantes.filter((f) => !prev.some((a) => a.id === f.id)).map((f) => conPredeterminados({ ...f, pedido: true })),
+        ])
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -646,7 +701,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
       return cargarDesdeArchivo(siguiente)
     }
     setFotos((prev) => { soltar(prev); return [] }); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
-    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null); setPaquete(PAQUETE_VACIO); setPaqueteDeAntes(false)
     window.scrollTo({ top: 0 })
     // Ya con la cámara lista para el siguiente producto (el toque del botón habilita abrirla)
     setTimeout(abrirCamara, 50)
@@ -941,6 +996,23 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div style={{ minWidth: 30, textAlign: 'center', fontSize: 22, fontWeight: 600 }}>{cantidad || 1}</div>
             <button onClick={() => cambiarCantidad(1)} style={{ ...estiloSecundario, width: 48, minHeight: 58, fontSize: 24 }}>+</button>
           </div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 4 }}>
+          Paquete para el envío{paqueteDeAntes ? ' (las medidas de la última vez: revisalas)' : ''}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {[['alto', 'Alto cm'], ['ancho', 'Ancho cm'], ['largo', 'Largo cm'], ['peso', 'Peso g']].map(([k, et]) => (
+            <label key={k} style={{ display: 'block' }}>
+              <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginBottom: 2 }}>{et}</div>
+              <input style={{ ...estiloInput, fontSize: 18, padding: '10px 6px', textAlign: 'center',
+                  borderColor: resultado && resultado.falta_paquete && !(parseFloat(paquete[k]) > 0) ? 'var(--alerta)' : undefined }}
+                inputMode="decimal" value={paquete[k]}
+                onChange={(e) => { setPaquete({ ...paquete, [k]: e.target.value.replace(',', '.').replace(/[^0-9.]/g, '') }); setPaqueteDeAntes(false) }} />
+            </label>
+          ))}
         </div>
       </div>
 
