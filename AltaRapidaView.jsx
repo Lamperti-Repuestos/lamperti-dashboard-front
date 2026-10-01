@@ -72,6 +72,15 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const inputGaleria = useRef(null)
   const [escuchando, setEscuchando] = useState(null) // id de lo que se está dictando ('titulo', 'attr-ID') o null
   const reconocedor = useRef(null)
+  // Fondo blanco automático (es el estándar de las publicaciones de Lamperti): se recuerda por celular
+  const [fondoAuto, setFondoAuto] = useState(() => {
+    try { return localStorage.getItem('alta_fondo_auto') !== 'no' } catch { return true }
+  })
+  const cambiarFondoAuto = () => {
+    const nuevo = !fondoAuto
+    setFondoAuto(nuevo)
+    try { localStorage.setItem('alta_fondo_auto', nuevo ? 'si' : 'no') } catch { /* sin storage: queda para esta sesión */ }
+  }
   const [ref, setRef] = useState(null) // precios de referencia de ML: null = sin pedir, 'cargando', o la respuesta
   const [cola, setCola] = useState([]) // fotos de galería que esperan su turno, una por producto
   const [decision, setDecision] = useState(null) // fotos elegidas esperando 'mismo producto / cada una un producto'
@@ -177,6 +186,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
   // Arranca un producto nuevo con esta foto: sugerencia de título + lectura de código
   const cargarProducto = (foto) => {
     setFotos([foto])
+    fondoAutomatico([foto])
     setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
     setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
     window.scrollTo({ top: 0 })
@@ -204,6 +214,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
       return
     }
     setFotos([...fotos, ...nuevas])
+    fondoAutomatico(nuevas)
     // La primera foto dispara la sugerencia sola (si todavía no hay título)
     if (fotos.length === 0 && !titulo) {
       leerCodigoDeFoto(nuevas[0].file)
@@ -222,6 +233,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
     const nuevas = decision.slice(0, MAX_FOTOS)
     setDecision(null)
     setFotos(nuevas)
+    fondoAutomatico(nuevas)
     leerCodigoDeFoto(nuevas[0].file)
     sugerir(nuevas[0].file, sku)
   }
@@ -299,11 +311,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
 
   // Fondo blanco: el backend recorta el producto y lo pone sobre blanco. Es por foto y reversible:
   // si el recorte sale mal (piezas brillantes u oscuras), se vuelve al original con un toque.
-  const aplicarFondo = async (url) => {
-    const foto = fotos.find((f) => f.url === url)
-    if (!foto) return
+  const aplicarFondo = async (foto, auto = false) => {
+    const url = foto.url
     setFotos((prev) => prev.map((f) => (f.url === url ? { ...f, procesando: true } : f)))
-    setError(null)
+    if (!auto) setError(null)
     try {
       const fd = new FormData()
       fd.append('foto', foto.file)
@@ -315,8 +326,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
         : f)))
     } catch (e) {
       setFotos((prev) => prev.map((f) => (f.url === url ? { ...f, procesando: false } : f)))
-      setError(e.message)
+      setError(auto ? `No pude sacar el fondo de una foto, quedó la original (${e.message})` : e.message)
     }
+  }
+
+  // Una por una: el backend recorta de a una foto por vez
+  const fondoAutomatico = (lista) => {
+    if (!fondoAuto) return
+    lista.reduce((p, f) => p.then(() => aplicarFondo(f, true)), Promise.resolve())
   }
 
   const volverOriginal = (url) =>
@@ -488,7 +505,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div key={x.url} style={{ position: 'relative', flex: '0 0 auto' }}>
               <img src={x.url} alt="" style={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 10 }} />
               <button onClick={() => sacarFoto(i)} aria-label="Quitar foto" style={{ position: 'absolute', top: -6, right: -6, width: 30, height: 30, borderRadius: 15, border: 'none', background: 'var(--alerta)', color: '#fff', fontSize: 18 }}>×</button>
-              <button onClick={() => (x.blanco ? volverOriginal(x.url) : aplicarFondo(x.url))} disabled={x.procesando}
+              <button onClick={() => (x.blanco ? volverOriginal(x.url) : aplicarFondo(x))} disabled={x.procesando}
                 style={{ display: 'block', width: 110, marginTop: 4, minHeight: 36, fontSize: 13, borderRadius: 8, cursor: 'pointer',
                   border: '1px solid var(--gray-line)', background: x.blanco ? 'var(--navy)' : 'var(--card-bg)', color: x.blanco ? '#fff' : 'var(--charcoal)' }}>
                 {x.procesando ? 'Procesando…' : x.blanco ? 'Volver al original' : 'Fondo blanco'}
@@ -503,6 +520,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
           )}
         </div>
       )}
+
+      <button onClick={cambiarFondoAuto} style={{ ...estiloChip(fondoAuto), minHeight: 40, fontSize: 14, margin: '10px 0 0' }}>
+        Fondo blanco automático: {fondoAuto ? 'Sí' : 'No'}
+      </button>
 
       {fotos.length > 0 && (
         <div style={{ margin: '14px 0', padding: 12, borderRadius: 12, background: 'var(--card-bg)', border: '1px solid var(--gray-line)' }}>
@@ -629,8 +650,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
       )}
 
       <div style={{ position: 'sticky', bottom: 0, padding: '10px 0', background: 'var(--cream)' }}>
-        <button style={{ ...estiloBoton, opacity: publicando ? 0.6 : 1 }} onClick={publicar} disabled={publicando || pensando}>
-          {publicando ? 'Publicando… (puede tardar unos segundos)' : prueba ? 'Probar (no publica)' : 'Publicar'}
+        <button style={{ ...estiloBoton, opacity: publicando ? 0.6 : 1 }} onClick={publicar} disabled={publicando || pensando || fotos.some((f) => f.procesando)}>
+          {publicando ? 'Publicando… (puede tardar unos segundos)' : fotos.some((f) => f.procesando) ? 'Preparando fotos…' : prueba ? 'Probar (no publica)' : 'Publicar'}
         </button>
       </div>
 
