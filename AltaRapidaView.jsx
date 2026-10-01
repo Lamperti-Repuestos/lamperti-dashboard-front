@@ -30,6 +30,11 @@ const estiloChip = (activo) => ({
   border: `1px solid ${activo ? 'var(--navy)' : 'var(--gray-line)'}`,
   background: activo ? 'var(--navy)' : 'var(--card-bg)', color: activo ? '#fff' : 'var(--charcoal)',
 })
+const estiloMic = (activo) => ({
+  minWidth: 56, minHeight: 56, borderRadius: 12, fontSize: 24, cursor: 'pointer',
+  border: `2px solid ${activo ? 'var(--alerta)' : 'var(--gray-line)'}`,
+  background: activo ? 'var(--alerta)' : 'var(--card-bg)', color: activo ? '#fff' : 'var(--charcoal)',
+})
 const estiloSecundario = { ...estiloBoton, background: 'var(--card-bg)', color: 'var(--charcoal)', border: '1px solid var(--gray-line)', fontWeight: 500 }
 
 function Campo({ etiqueta, children, nota }) {
@@ -65,6 +70,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const [msgConfig, setMsgConfig] = useState(null)
   const inputFoto = useRef(null)
   const inputGaleria = useRef(null)
+  const [escuchando, setEscuchando] = useState(null) // id de lo que se está dictando ('titulo', 'attr-ID') o null
+  const reconocedor = useRef(null)
   const [ref, setRef] = useState(null) // precios de referencia de ML: null = sin pedir, 'cargando', o la respuesta
   const [cola, setCola] = useState([]) // fotos de galería que esperan su turno, una por producto
   const [decision, setDecision] = useState(null) // fotos elegidas esperando 'mismo producto / cada una un producto'
@@ -98,6 +105,42 @@ export default function AltaRapidaView({ onUnauthorized }) {
       setRef({ disponible: false, motivo: 'sin conexión' })
     }
   }
+
+  // Dictado por voz: reconocimiento del navegador (Chrome de Android), sin servidor.
+  const SpeechRec = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
+
+  const dictar = (id, alTerminar) => {
+    if (!SpeechRec) return
+    if (escuchando) { // segundo toque: cortar
+      reconocedor.current && reconocedor.current.stop()
+      return
+    }
+    const rec = new SpeechRec()
+    rec.lang = 'es-AR'
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    rec.onresult = (ev) => {
+      const texto = Array.from(ev.results).map((r) => r[0].transcript).join(' ').trim()
+      if (texto) alTerminar(texto)
+    }
+    rec.onerror = (ev) => {
+      if (ev.error === 'not-allowed') setError('Falta el permiso del micrófono. Tocá el candado de la barra del navegador y permitilo.')
+      else if (ev.error !== 'aborted' && ev.error !== 'no-speech') setError('No pude escuchar. Probá de nuevo.')
+    }
+    rec.onend = () => setEscuchando(null)
+    reconocedor.current = rec
+    setError(null)
+    setEscuchando(id)
+    rec.start()
+  }
+
+  // Lo dictado reemplaza el título; después se actualizan los precios de referencia
+  const dictarTitulo = () =>
+    dictar('titulo', (texto) => {
+      const t = (texto.charAt(0).toUpperCase() + texto.slice(1)).slice(0, 60)
+      setTitulo(t)
+      buscarReferencia(t, sugerencia && sugerencia.categoria)
+    })
 
   const sugerir = async (fotoFile, codigo) => {
     setPensando(true)
@@ -437,7 +480,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div style={{ color: 'var(--gray-muted)' }}>Mirando la foto…</div>
           ) : editandoTitulo || !titulo ? (
             <>
-              <textarea style={{ ...estiloInput, minHeight: 72 }} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título de la publicación" />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <textarea style={{ ...estiloInput, minHeight: 72 }} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={escuchando === 'titulo' ? 'Escuchando…' : 'Título de la publicación'} />
+                {SpeechRec && <button type="button" onClick={dictarTitulo} aria-label="Dictar título" style={estiloMic(escuchando === 'titulo')}>{escuchando === 'titulo' ? '■' : '🎤'}</button>}
+              </div>
               <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>{titulo.length}/60</div>
               <button style={{ ...estiloSecundario, minHeight: 44, marginTop: 8 }} onClick={() => { if (titulo) { setEditandoTitulo(false); buscarReferencia(titulo, sugerencia && sugerencia.categoria) } else sugerir(fotos[0].file, sku) }}>
                 {titulo ? 'Listo' : 'Sugerir con la foto'}
@@ -449,6 +495,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
                 <div style={{ fontWeight: 600, fontSize: 17 }}>{titulo}</div>
                 {sugerencia && sugerencia.categoria_nombre && <div style={{ fontSize: 13, color: 'var(--gray-muted)', marginTop: 4 }}>{sugerencia.categoria_nombre}</div>}
               </div>
+              {SpeechRec && <button type="button" onClick={dictarTitulo} aria-label="Dictar título" style={estiloMic(escuchando === 'titulo')}>{escuchando === 'titulo' ? '■' : '🎤'}</button>}
               <button onClick={() => setEditandoTitulo(true)} aria-label="Editar título" style={{ minWidth: 44, minHeight: 44, border: '1px solid var(--gray-line)', borderRadius: 10, background: 'none', color: 'var(--charcoal)', fontSize: 18 }}>✎</button>
             </div>
           )}
@@ -529,7 +576,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
                   {a.valores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
               ) : (
-                <input style={estiloInput} value={a.valor} onChange={(e) => editarAtributo(i, { valor: e.target.value })} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input style={estiloInput} value={a.valor} onChange={(e) => editarAtributo(i, { valor: e.target.value })} placeholder={escuchando === `attr-${a.id}` ? 'Escuchando…' : ''} />
+                  {SpeechRec && <button type="button" onClick={() => dictar(`attr-${a.id}`, (t) => editarAtributo(i, { valor: t }))} aria-label={`Dictar ${a.nombre}`} style={{ ...estiloMic(escuchando === `attr-${a.id}`), minHeight: 48 }}>{escuchando === `attr-${a.id}` ? '■' : '🎤'}</button>}
+                </div>
               )}
             </div>
           ))}
