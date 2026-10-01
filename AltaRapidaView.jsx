@@ -72,12 +72,14 @@ async function achicar(file, onUnauthorized) {
   return new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
 }
 
-// Abre la búsqueda pública de ML con el título: ahí se ve la competencia con los ojos
-const linkCompetencia = (titulo) => {
-  const slug = titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return `https://listado.mercadolibre.com.ar/${slug}`
-}
+// Búsqueda pública de ML (se abre en ML: ahí se ve la competencia con los ojos)
+const slugML = (texto) => texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const urlML = (texto) => `https://listado.mercadolibre.com.ar/${slugML(texto)}`
+// Un link por modelo ("grifo de calefacción Ford EcoSport", "… Ford Ka"); sin perfil, uno con el título
+const linksCompetencia = (titulo, perfil) => (perfil && perfil.modelos && perfil.modelos.length)
+  ? perfil.modelos.map((m) => ({ etiqueta: m, url: urlML([perfil.tipo, perfil.marca, m].filter(Boolean).join(' ')) }))
+  : [{ etiqueta: '', url: urlML(titulo) }]
 
 const soltar = (lista) => lista.forEach((f) => {
   URL.revokeObjectURL(f.url)
@@ -669,6 +671,11 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div style={{ color: 'var(--gray-muted)' }}>Buscando precios de referencia…</div>
           ) : ref.disponible ? (
             <>
+              {ref.perfil && (
+                <div style={{ fontSize: 13, color: 'var(--gray-muted)', marginBottom: 4 }}>
+                  Comparado con: <b>{ref.perfil.tipo}</b>{ref.perfil.marca ? ` · ${ref.perfil.marca}` : ''}{ref.perfil.modelos.length ? ` · ${ref.perfil.modelos.join(' / ')}` : ''}
+                </div>
+              )}
               <div style={{ fontSize: 14, color: 'var(--gray-muted)' }}>
                 {ref.fuente === 'propias'
                   ? `Tus publicaciones parecidas (${ref.n})`
@@ -679,6 +686,11 @@ export default function AltaRapidaView({ onUnauthorized }) {
                   ? `$${Number(ref.min).toLocaleString('es-AR')}`
                   : `$${Number(ref.min).toLocaleString('es-AR')} – $${Number(ref.max).toLocaleString('es-AR')}`}
               </div>
+              {ref.perfil && ref.perfil.modelos.length > 0 && !ref.solo_exactas && (
+                <div style={{ fontSize: 13, color: 'var(--atencion)', marginBottom: 8 }}>
+                  Solo {ref.n_exactas} cubre{ref.n_exactas === 1 ? '' : 'n'} todos los modelos; el resto es de alguno de ellos (marcado abajo).
+                </div>
+              )}
               <button style={{ ...estiloChip(false), minHeight: 48, fontWeight: 600 }} onClick={() => setPrecio(String(Math.round(ref.mediana)))}>
                 Usar {ref.n > 1 ? 'la mediana' : 'este precio'}: ${Number(ref.mediana).toLocaleString('es-AR')}
               </button>
@@ -686,12 +698,17 @@ export default function AltaRapidaView({ onUnauthorized }) {
                 <summary style={{ cursor: 'pointer', color: 'var(--gray-muted)', fontSize: 14 }}>Ver cuáles</summary>
                 {ref.muestras.map((m, i) => (
                   <div key={i} style={{ fontSize: 14, marginTop: 6 }}>
-                    ${Number(m.precio).toLocaleString('es-AR')} · {m.permalink ? <a href={m.permalink} target="_blank" rel="noreferrer">{(m.titulo || '').slice(0, 60)}</a> : (m.titulo || '').slice(0, 60)}
+                    ${Number(m.precio).toLocaleString('es-AR')}
+                    {m.coincide && m.coincide.length > 0 && (
+                      <span style={{ marginLeft: 6, padding: '1px 8px', borderRadius: 10, fontSize: 12, background: m.completo ? 'var(--ok)' : 'var(--paused-bg)', color: m.completo ? '#fff' : 'var(--charcoal)' }}>
+                        {m.coincide.join(' + ')}
+                      </span>
+                    )} · {m.permalink ? <a href={m.permalink} target="_blank" rel="noreferrer">{(m.titulo || '').slice(0, 60)}</a> : (m.titulo || '').slice(0, 60)}
                   </div>
                 ))}
                 {ref.fuente === 'propias' && (
                   <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 8 }}>
-                    ML no deja ver los precios de otros vendedores, así que esto es lo que cobrás vos por productos parecidos.
+                    ML no deja ver los precios de otros vendedores, así que esto es lo que cobrás vos por el mismo repuesto para esos modelos.
                     {ref.diagnostico && ref.diagnostico.length > 0 && ` (${ref.diagnostico.join('; ')})`}
                   </div>
                 )}
@@ -699,7 +716,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
             </>
           ) : (
             <div style={{ fontSize: 13, color: 'var(--gray-muted)' }}>
-              Sin precios de referencia.
+              Sin precios de referencia{ref.perfil ? ` para ${ref.perfil.tipo}${ref.perfil.marca ? ' ' + ref.perfil.marca : ''}${ref.perfil.modelos.length ? ' ' + ref.perfil.modelos.join(' / ') : ''}` : ''}.
               <details>
                 <summary style={{ cursor: 'pointer' }}>Por qué</summary>
                 {(ref.diagnostico || [ref.motivo]).map((d, i) => <div key={i}>{d}</div>)}
@@ -710,11 +727,15 @@ export default function AltaRapidaView({ onUnauthorized }) {
       )}
 
       {titulo.trim().length >= 4 && (
-        <a href={linkCompetencia(titulo)} target="_blank" rel="noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, marginBottom: 12, borderRadius: 10,
-            border: '1px solid var(--gray-line)', background: 'var(--card-bg)', color: 'var(--navy)', fontWeight: 600, textDecoration: 'none' }}>
-          Ver la competencia en Mercado Libre ↗
-        </a>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {linksCompetencia(titulo, ref && ref !== 'cargando' ? ref.perfil : null).map((l) => (
+            <a key={l.url} href={l.url} target="_blank" rel="noreferrer"
+              style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 14px', borderRadius: 10,
+                border: '1px solid var(--gray-line)', background: 'var(--card-bg)', color: 'var(--navy)', fontWeight: 600, textDecoration: 'none' }}>
+              {l.etiqueta ? `Ver ${l.etiqueta} en Mercado Libre ↗` : 'Ver la competencia en Mercado Libre ↗'}
+            </a>
+          ))}
+        </div>
       )}
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>
