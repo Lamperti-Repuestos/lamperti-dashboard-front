@@ -3,7 +3,7 @@ import { apiFetch } from './api.js'
 
 const EJEMPLO = `SKU123
 SKU456\t5
-SKU789\t2\t18500\thttps://ejemplo.com/foto.jpg`
+SKU789\t2\t18500\thttps://ejemplo.com/foto.jpg\tFiltro de aceite Fram PH5796`
 
 const COLORES = {
   listo: 'var(--ok)',
@@ -12,7 +12,7 @@ const COLORES = {
   error: 'var(--alerta)',
 }
 
-// Una fila por línea: SKU [cantidad] [precio] [foto]. Separador: tab, ; o coma
+// Una fila por línea: SKU [cantidad] [precio] [foto] [título]. Separador: tab, ; o coma
 // (tab = pegado directo desde Excel). Lo que falta lo completa Contabilium.
 function parsearTexto(texto) {
   return texto
@@ -20,7 +20,7 @@ function parsearTexto(texto) {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((linea) => {
-      const [sku, cant, precio, foto] = linea.split(/\t|;|,/).map((x) => x.trim())
+      const [sku, cant, precio, foto, titulo] = linea.split(/\t|;|,/).map((x) => x.trim())
       const cantidad = cant ? parseInt(cant, 10) : null
       const p = precio ? parseFloat(precio.replace(',', '.')) : null
       return {
@@ -28,6 +28,7 @@ function parsearTexto(texto) {
         cantidad: Number.isNaN(cantidad) ? null : cantidad,
         precio: Number.isNaN(p) ? null : p,
         fotos: foto ? [foto] : [],
+        titulo: titulo || null,
       }
     })
     .filter((f) => f.sku)
@@ -121,7 +122,8 @@ export default function PublicadorView({ onUnauthorized }) {
     <div>
       <h2>Publicador masivo</h2>
       <p style={{ color: 'var(--gray-muted)', marginTop: 0 }}>
-        Pegá los SKUs del stock físico. Contabilium completa nombre, precio y stock; si ya está
+        Pegá los SKUs del stock físico. Si el SKU está en Contabilium, ahí se toma nombre, precio y stock;
+        si no está, completás título, precio y cantidad y se da de alta en Contabilium al publicar. Si ya está
         publicado en ML repone stock, y si no, lo crea. Antes de publicar, ML valida cada uno.
       </p>
 
@@ -139,7 +141,7 @@ export default function PublicadorView({ onUnauthorized }) {
       <textarea
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        placeholder={`Un producto por línea: SKU [cantidad] [precio] [foto]\n\n${EJEMPLO}`}
+        placeholder={`Un producto por línea: SKU [cantidad] [precio] [foto] [título]\n\n${EJEMPLO}`}
         rows={7}
         style={{ ...inp, fontFamily: 'monospace', padding: 10 }}
         disabled={ocupado}
@@ -184,11 +186,12 @@ export default function PublicadorView({ onUnauthorized }) {
               </thead>
               <tbody>
                 {filas.map((f, i) => {
-                  const crear = f.accion === 'crear'
+                  // Si no está en Contabilium, todo es editable: ahí se completa lo que falta para darlo de alta
+                  const crear = f.accion === 'crear' || f.en_contabilium === false
                   return (
                     <tr key={f.sku} style={{ borderBottom: '1px solid var(--gray-line)', verticalAlign: 'top' }}>
                       <td style={{ color: COLORES[f.estado], fontWeight: 600 }}>{f.estado}</td>
-                      <td>{f.sku}</td>
+                      <td>{f.sku}{f.en_contabilium === false && <div style={{ fontSize: 12, color: 'var(--atencion)' }}>nuevo en Contabilium</div>}</td>
                       <td>{f.accion || '-'}</td>
                       <td><input style={inp} value={f.titulo || ''} disabled={!crear} maxLength={60} onChange={(e) => editar(i, 'titulo', e.target.value)} /></td>
                       <td><input style={{ ...inp, width: 60 }} type="number" min="0" value={f.cantidad ?? ''} onChange={(e) => editar(i, 'cantidad', e.target.value === '' ? null : parseInt(e.target.value, 10))} /></td>
