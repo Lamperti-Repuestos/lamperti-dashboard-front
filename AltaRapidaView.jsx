@@ -234,6 +234,27 @@ export default function AltaRapidaView({ onUnauthorized }) {
     cargarConfig()
   }
 
+  // Descripción desde un .txt: UTF-8, o Windows-1252 si el archivo viene de un Bloc de notas viejo
+  const subirTxt = async (e) => {
+    const f = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!f) return
+    const bytes = await f.arrayBuffer()
+    let texto
+    try {
+      texto = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    } catch {
+      texto = new TextDecoder('windows-1252').decode(bytes)
+    }
+    texto = texto.replace(/^\uFEFF/, '').trim()
+    setDescripcion(texto)
+    const res = await apiFetch('/publicador/config/descripcion', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }),
+    }, onUnauthorized)
+    setMsgConfig(res.ok ? 'Descripción cargada desde el archivo.' : 'No se pudo guardar la descripción.')
+    cargarConfig()
+  }
+
   const subirPlaca = async (e) => {
     const f = e.target.files && e.target.files[0]
     e.target.value = ''
@@ -404,12 +425,16 @@ export default function AltaRapidaView({ onUnauthorized }) {
           <Campo etiqueta="Descripción fija (va igual en todas las publicaciones)">
             <textarea style={{ ...estiloInput, minHeight: 200 }} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
           </Campo>
-          <button style={estiloSecundario} onClick={guardarDescripcion}>Guardar descripción</button>
+          <label style={{ ...estiloBoton, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', marginBottom: 8 }}>
+            Subir descripción desde archivo .txt
+            <input type="file" accept=".txt,text/plain" onChange={subirTxt} style={{ display: 'none' }} />
+          </label>
+          <button style={estiloSecundario} onClick={guardarDescripcion}>Guardar lo que escribí arriba</button>
           <div style={{ height: 16 }} />
           <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 6 }}>Placa gris (va como última foto)</div>
           {placaUrl && <img src={placaUrl} alt="Placa" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />}
           <label style={{ ...estiloSecundario, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
-            {placaUrl ? 'Cambiar placa' : 'Subir placa'}
+            {placaUrl ? 'Cambiar placa (JPEG)' : 'Subir placa (JPEG)'}
             <input type="file" accept="image/*" onChange={subirPlaca} style={{ display: 'none' }} />
           </label>
           {msgConfig && <p style={{ color: 'var(--ok)' }}>{msgConfig}</p>}
