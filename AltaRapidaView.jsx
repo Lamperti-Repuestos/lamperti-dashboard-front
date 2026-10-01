@@ -297,6 +297,31 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const cambiarCantidad = (d) => setCantidad(String(Math.max(1, (parseInt(cantidad, 10) || 1) + d)))
   const precioLindo = precio ? Number(precio).toLocaleString('es-AR') : ''
 
+  // Fondo blanco: el backend recorta el producto y lo pone sobre blanco. Es por foto y reversible:
+  // si el recorte sale mal (piezas brillantes u oscuras), se vuelve al original con un toque.
+  const aplicarFondo = async (url) => {
+    const foto = fotos.find((f) => f.url === url)
+    if (!foto) return
+    setFotos((prev) => prev.map((f) => (f.url === url ? { ...f, procesando: true } : f)))
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('foto', foto.file)
+      const res = await apiFetch('/publicador/rapido/fondo-blanco', { method: 'POST', body: fd }, onUnauthorized)
+      if (!res.ok) throw new Error((await res.json()).detail || `Error ${res.status}`)
+      const archivo = new File([await res.blob()], `fondo-blanco-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      setFotos((prev) => prev.map((f) => (f.url === url
+        ? { file: archivo, url: URL.createObjectURL(archivo), blanco: true, original: f.original || { file: f.file, url: f.url } }
+        : f)))
+    } catch (e) {
+      setFotos((prev) => prev.map((f) => (f.url === url ? { ...f, procesando: false } : f)))
+      setError(e.message)
+    }
+  }
+
+  const volverOriginal = (url) =>
+    setFotos((prev) => prev.map((f) => (f.url === url && f.original ? { file: f.original.file, url: f.original.url } : f)))
+
   const sacarFoto = (i) => setFotos((prev) => prev.filter((_, idx) => idx !== i))
 
   const editarAtributo = (i, cambios) =>
@@ -463,6 +488,11 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div key={x.url} style={{ position: 'relative', flex: '0 0 auto' }}>
               <img src={x.url} alt="" style={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 10 }} />
               <button onClick={() => sacarFoto(i)} aria-label="Quitar foto" style={{ position: 'absolute', top: -6, right: -6, width: 30, height: 30, borderRadius: 15, border: 'none', background: 'var(--alerta)', color: '#fff', fontSize: 18 }}>×</button>
+              <button onClick={() => (x.blanco ? volverOriginal(x.url) : aplicarFondo(x.url))} disabled={x.procesando}
+                style={{ display: 'block', width: 110, marginTop: 4, minHeight: 36, fontSize: 13, borderRadius: 8, cursor: 'pointer',
+                  border: '1px solid var(--gray-line)', background: x.blanco ? 'var(--navy)' : 'var(--card-bg)', color: x.blanco ? '#fff' : 'var(--charcoal)' }}>
+                {x.procesando ? 'Procesando…' : x.blanco ? 'Volver al original' : 'Fondo blanco'}
+              </button>
             </div>
           ))}
           {fotos.length < MAX_FOTOS && (
