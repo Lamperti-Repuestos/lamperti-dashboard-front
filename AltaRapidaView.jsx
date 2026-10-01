@@ -72,6 +72,13 @@ async function achicar(file, onUnauthorized) {
   return new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
 }
 
+// Abre la búsqueda pública de ML con el título: ahí se ve la competencia con los ojos
+const linkCompetencia = (titulo) => {
+  const slug = titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return `https://listado.mercadolibre.com.ar/${slug}`
+}
+
 const soltar = (lista) => lista.forEach((f) => {
   URL.revokeObjectURL(f.url)
   if (f.original) URL.revokeObjectURL(f.original.url)
@@ -700,6 +707,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
             </div>
           )}
         </div>
+      )}
+
+      {titulo.trim().length >= 4 && (
+        <a href={linkCompetencia(titulo)} target="_blank" rel="noreferrer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, marginBottom: 12, borderRadius: 10,
+            border: '1px solid var(--gray-line)', background: 'var(--card-bg)', color: 'var(--navy)', fontWeight: 600, textDecoration: 'none' }}>
+          Ver la competencia en Mercado Libre ↗
+        </a>
       )}
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>
