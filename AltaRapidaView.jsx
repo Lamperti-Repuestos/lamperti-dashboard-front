@@ -32,11 +32,31 @@ const atributosPaquete = (p) => [
   { id: 'SELLER_PACKAGE_LENGTH', value_name: `${parseFloat(p.largo)} cm` },
   { id: 'SELLER_PACKAGE_WEIGHT', value_name: `${parseFloat(p.peso)} g` },
 ]
-// El IVA de los repuestos es 21 %: se deja elegido (se ve y se puede cambiar). El resto lo decide la persona.
+// Datos fiscales: no se le piden a la persona (en Contabilium nunca los toca).
+//  - IVA: siempre 21 %.
+//  - El resto (impuesto de importación, etc.): el valor de siempre de tus publicaciones (el más usado),
+//    o el que ya se eligió alguna vez. Quedan elegidos y ocultos; "cambiar" los muestra.
+const FISCALES = ['VALUE_ADDED_TAX', 'IMPORT_DUTY']
+const leerFiscales = () => { try { return JSON.parse(localStorage.getItem('alta_fiscales')) || {} } catch { return {} } }
+const recordarFiscales = (atributos) => {
+  try {
+    const d = leerFiscales()
+    atributos.filter((a) => FISCALES.includes(a.id) && (a.value_id || a.valor)).forEach((a) => { d[a.id] = { value_id: a.value_id, valor: a.valor } })
+    localStorage.setItem('alta_fiscales', JSON.stringify(d))
+  } catch { /* sin storage */ }
+}
 const conPredeterminados = (a) => {
-  if (a.id === 'VALUE_ADDED_TAX' && !a.value_id && a.valores && a.valores.length) {
-    const v = a.valores.find((x) => /^21([.,]0+)?\s*%?$/.test(x.name.trim()))
-    if (v) return { ...a, value_id: v.id, pedido: true }
+  const vals = a.valores || []
+  const vacio = !a.value_id && !a.valor
+  if (a.id === 'VALUE_ADDED_TAX' && vacio) {
+    const v = vals.find((x) => /^21([.,]0+)?\s*%?$/.test(x.name.trim()))
+    if (v) return { ...a, value_id: v.id, oculto: true, pedido: true }
+    if (!vals.length) return { ...a, valor: '21 %', oculto: true, pedido: true }
+  }
+  if (FISCALES.includes(a.id) && vacio) {
+    const recordado = leerFiscales()[a.id]
+    if (recordado && (recordado.value_id || recordado.valor)) return { ...a, ...recordado, oculto: true, pedido: true }
+    if (a.aprendido && vals.length) return { ...a, value_id: vals[0].id, oculto: true, pedido: true }
   }
   return { ...a, pedido: !a.valor && !a.value_id }
 }
@@ -208,6 +228,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
   // Cámara dentro de la página: evita salir a la app de cámara, que en celulares con poca RAM
   // hace que Android cierre la pestaña del navegador ("memoria insuficiente") y se pierda la foto.
   const [paquete, setPaquete] = useState(PAQUETE_VACIO)
+  const [reintento, setReintento] = useState(false) // al completarse solos los datos fiscales, se vuelve a probar sin pedir nada
+  const reintentoUsado = useRef(false)
   const [paqueteDeAntes, setPaqueteDeAntes] = useState(false) // cargado de la última vez: conviene revisarlo
   const [restaurado, setRestaurado] = useState(false) // ya se intentó recuperar el borrador
   const [avisoBorrador, setAvisoBorrador] = useState(false)
@@ -661,9 +683,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
     return f
   }
 
-  const publicar = async () => {
+  const publicar = async (esReintento = false) => {
     const f = faltantes()
     if (f.length) return setError(`Falta ${f.join(', ')}.`)
+    if (!esReintento) reintentoUsado.current = false
     setPublicando(true)
     setError(null)
     setResultado(null)
@@ -687,12 +710,16 @@ export default function AltaRapidaView({ onUnauthorized }) {
       const data = await res.json()
       setResultado(data)
       if (data.estado !== 'error' && paqueteCompleto(paquete)) recordarPaquete(sugerencia && sugerencia.categoria, paquete)
+      if (data.estado !== 'error') recordarFiscales(atributos)
       // Datos que ML pidió y no teníamos: aparecen en pantalla para completarlos
       if (data.faltantes && data.faltantes.length) {
-        setAtributos((prev) => [
-          ...prev,
-          ...data.faltantes.filter((f) => !prev.some((a) => a.id === f.id)).map((f) => conPredeterminados({ ...f, pedido: true })),
-        ])
+        const nuevos = data.faltantes.filter((f) => !atributos.some((a) => a.id === f.id)).map((f) => conPredeterminados({ ...f, pedido: true }))
+        setAtributos((prev) => [...prev, ...nuevos.filter((n) => !prev.some((a) => a.id === n.id))])
+        // Si todo lo que ML pedía se completó solo (IVA, importación) y no faltan las medidas: se reintenta una vez
+        if (nuevos.length && nuevos.every((n) => n.oculto) && !data.falta_paquete && !reintentoUsado.current) {
+          reintentoUsado.current = true
+          setReintento(true)
+        }
       }
     } catch (e) {
       setError(e.message)
@@ -700,6 +727,12 @@ export default function AltaRapidaView({ onUnauthorized }) {
       setPublicando(false)
     }
   }
+
+  useEffect(() => {
+    if (!reintento) return
+    setReintento(false)
+    publicar(true)
+  }, [reintento])
 
   const otro = () => {
     if (cola.length) {
@@ -1033,10 +1066,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
         </div>
       </div>
 
-      {atributos.some((a) => a.pedido) && (
+      {atributos.some((a) => a.pedido && !a.oculto) && (
         <div style={{ borderTop: '1px solid var(--gray-line)', paddingTop: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>ML pide estos datos</div>
-          {atributos.map((a, i) => !a.pedido ? null : (
+          {atributos.map((a, i) => (!a.pedido || a.oculto) ? null : (
             <div key={a.id} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 6 }}>{a.nombre}</div>
               {a.valores && a.valores.length > 0 && a.valores.length <= 12 ? (
@@ -1060,7 +1093,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
           ))}
         </div>
       )}
-      {atributos.some((a) => !a.pedido) && (
+      {atributos.some((a) => a.oculto) && (
+        <div style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 8 }}>
+          Datos fiscales automáticos: {atributos.filter((a) => a.oculto).map((a) => `${a.nombre} ${a.valor || (a.valores.find((v) => v.id === a.value_id) || {}).name || ''}`).join(' · ')}{' '}
+          <button style={{ background: 'none', border: 'none', textDecoration: 'underline', padding: 0, fontSize: 'inherit', color: 'var(--navy)', cursor: 'pointer' }}
+            onClick={() => setAtributos((prev) => prev.map((a) => (a.oculto ? { ...a, oculto: false } : a)))}>cambiar</button>
+        </div>
+      )}
+      {atributos.some((a) => !a.pedido && !a.oculto) && (
         <div style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 8 }}>
           Completado desde la foto: {atributos.filter((a) => !a.pedido).map((a) => a.valor || (a.valores.find((v) => v.id === a.value_id) || {}).name).join(' · ')}
         </div>
