@@ -25,6 +25,11 @@ const estiloBoton = {
   width: '100%', minHeight: 52, fontSize: 17, fontWeight: 600, borderRadius: 10, border: 'none',
   background: 'var(--yellow)', color: '#2E2E2E', cursor: 'pointer',
 }
+const estiloChip = (activo) => ({
+  minHeight: 44, padding: '0 16px', borderRadius: 22, fontSize: 16, cursor: 'pointer',
+  border: `1px solid ${activo ? 'var(--navy)' : 'var(--gray-line)'}`,
+  background: activo ? 'var(--navy)' : 'var(--card-bg)', color: activo ? '#fff' : 'var(--charcoal)',
+})
 const estiloSecundario = { ...estiloBoton, background: 'var(--card-bg)', color: 'var(--charcoal)', border: '1px solid var(--gray-line)', fontWeight: 500 }
 
 function Campo({ etiqueta, children, nota }) {
@@ -52,6 +57,9 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const [resultado, setResultado] = useState(null)
   const [error, setError] = useState(null)
   const [verConfig, setVerConfig] = useState(false)
+  const [editandoTitulo, setEditandoTitulo] = useState(false)
+  const [escaneando, setEscaneando] = useState(false)
+  const videoRef = useRef(null)
   const [descripcion, setDescripcion] = useState('')
   const [placaUrl, setPlacaUrl] = useState(null)
   const [msgConfig, setMsgConfig] = useState(null)
@@ -111,6 +119,46 @@ export default function AltaRapidaView({ onUnauthorized }) {
     if (fotos.length === 0 && nuevas.length && !titulo) sugerir(nuevas[0].file, sku)
   }
 
+  // Escáner en vivo: abre la cámara y lee el código de barras solo, sin sacar foto.
+  useEffect(() => {
+    if (!escaneando) return undefined
+    let stream = null
+    let timer = null
+    let cancelado = false
+    ;(async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (cancelado) return stream.getTracks().forEach((t) => t.stop())
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+        const detector = new window.BarcodeDetector()
+        timer = setInterval(async () => {
+          try {
+            const codigos = await detector.detect(videoRef.current)
+            if (codigos.length) {
+              if (navigator.vibrate) navigator.vibrate(80)
+              setSku(codigos[0].rawValue)
+              setEscaneando(false)
+            }
+          } catch { /* un cuadro que no se pudo leer: seguimos */ }
+        }, 300)
+      } catch {
+        setEscaneando(false)
+        setError('No pude abrir la cámara. Revisá el permiso del navegador o escribí el código.')
+      }
+    })()
+    return () => {
+      cancelado = true
+      clearInterval(timer)
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+    }
+  }, [escaneando])
+
+  const abrirEscaner = () => {
+    if ('BarcodeDetector' in window && navigator.mediaDevices) setEscaneando(true)
+    else inputBarras.current.click() // sin lector en vivo: foto del código
+  }
+
   const leerBarras = async (e) => {
     const f = e.target.files && e.target.files[0]
     e.target.value = ''
@@ -124,6 +172,9 @@ export default function AltaRapidaView({ onUnauthorized }) {
       setError('No se pudo leer el código. Escribilo a mano.')
     }
   }
+
+  const cambiarCantidad = (d) => setCantidad(String(Math.max(1, (parseInt(cantidad, 10) || 1) + d)))
+  const precioLindo = precio ? Number(precio).toLocaleString('es-AR') : ''
 
   const sacarFoto = (i) => setFotos((prev) => prev.filter((_, idx) => idx !== i))
 
@@ -169,8 +220,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
 
   const otro = () => {
     setFotos([]); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
-    setSugerencia(null); setAtributos([]); setResultado(null); setError(null)
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false)
     window.scrollTo({ top: 0 })
+    // Ya con la cámara lista para el siguiente producto (el toque del botón habilita abrirla)
+    setTimeout(() => inputFoto.current && inputFoto.current.click(), 50)
   }
 
   const guardarDescripcion = async () => {
@@ -202,15 +255,24 @@ export default function AltaRapidaView({ onUnauthorized }) {
         <p>{resultado.mensaje}</p>
         {(resultado.avisos || []).map((a) => <p key={a} style={{ color: 'var(--atencion)' }}>{a}</p>)}
         {resultado.permalink && <p><a href={resultado.permalink} target="_blank" rel="noreferrer">Ver publicación en ML</a></p>}
-        <button style={estiloBoton} onClick={otro}>Cargar otro producto</button>
+        <button style={estiloBoton} onClick={otro}>Siguiente producto</button>
       </div>
     )
   }
 
   return (
     <div style={{ width: '100%', maxWidth: 520, margin: '0 auto', padding: '0 16px 90px', boxSizing: 'border-box' }}>
-      <h2 style={{ marginBottom: 4 }}>Alta rápida</h2>
-      <p style={{ color: 'var(--gray-muted)', marginTop: 0 }}>Foto, código y precio. Se carga en Contabilium y se publica en ML.</p>
+      {escaneando && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', top: '40%', left: '10%', right: '10%', height: 120, border: '3px solid var(--yellow)', borderRadius: 12 }} />
+          <div style={{ padding: 16 }}>
+            <div style={{ color: '#fff', textAlign: 'center', marginBottom: 10 }}>Apuntá al código de barras</div>
+            <button style={estiloBoton} onClick={() => setEscaneando(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      <h2 style={{ margin: '0 0 12px' }}>Alta rápida</h2>
 
       {prueba && (
         <div style={{ background: 'var(--bg-aviso)', color: '#2E2E2E', padding: 10, borderRadius: 10, marginBottom: 12 }}>
@@ -224,57 +286,101 @@ export default function AltaRapidaView({ onUnauthorized }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        {fotos.map((x, i) => (
-          <div key={x.url} style={{ position: 'relative' }}>
-            <img src={x.url} alt="" style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8 }} />
-            <button onClick={() => sacarFoto(i)} aria-label="Quitar foto" style={{ position: 'absolute', top: -6, right: -6, width: 26, height: 26, borderRadius: 13, border: 'none', background: 'var(--alerta)', color: '#fff' }}>×</button>
-          </div>
-        ))}
-      </div>
       <input ref={inputFoto} type="file" accept="image/*" capture="environment" multiple onChange={agregarFoto} style={{ display: 'none' }} />
-      <button style={estiloBoton} onClick={() => inputFoto.current.click()} disabled={fotos.length >= MAX_FOTOS}>
-        {fotos.length ? `Agregar otra foto (${fotos.length}/${MAX_FOTOS})` : 'Sacar foto'}
-      </button>
-
-      <div style={{ height: 18 }} />
-
-      <Campo etiqueta="Código (el de Contabilium)">
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input style={estiloInput} value={sku} onChange={(e) => setSku(e.target.value)} autoCapitalize="characters" autoCorrect="off" placeholder="Ej: BP-1234" />
-          <input ref={inputBarras} type="file" accept="image/*" capture="environment" onChange={leerBarras} style={{ display: 'none' }} />
-          <button style={{ ...estiloSecundario, width: 'auto', padding: '0 14px' }} onClick={() => inputBarras.current.click()} title="Leer código de barras">|||</button>
+      {fotos.length === 0 ? (
+        <button onClick={() => inputFoto.current.click()} style={{ width: '100%', height: 220, borderRadius: 14, border: '2px dashed var(--gray-line)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: 20, cursor: 'pointer' }}>
+          Tocá para sacar la foto
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {fotos.map((x, i) => (
+            <div key={x.url} style={{ position: 'relative', flex: '0 0 auto' }}>
+              <img src={x.url} alt="" style={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 10 }} />
+              <button onClick={() => sacarFoto(i)} aria-label="Quitar foto" style={{ position: 'absolute', top: -6, right: -6, width: 30, height: 30, borderRadius: 15, border: 'none', background: 'var(--alerta)', color: '#fff', fontSize: 18 }}>×</button>
+            </div>
+          ))}
+          {fotos.length < MAX_FOTOS && (
+            <button onClick={() => inputFoto.current.click()} style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 32 }}>+</button>
+          )}
         </div>
-      </Campo>
+      )}
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 2 }}><Campo etiqueta="Precio de venta ($)"><input style={estiloInput} type="number" inputMode="decimal" value={precio} onChange={(e) => setPrecio(e.target.value)} /></Campo></div>
-        <div style={{ flex: 1 }}><Campo etiqueta="Cantidad"><input style={estiloInput} type="number" inputMode="numeric" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} /></Campo></div>
+      {fotos.length > 0 && (
+        <div style={{ margin: '14px 0', padding: 12, borderRadius: 12, background: 'var(--card-bg)', border: '1px solid var(--gray-line)' }}>
+          {pensando ? (
+            <div style={{ color: 'var(--gray-muted)' }}>Mirando la foto…</div>
+          ) : editandoTitulo || !titulo ? (
+            <>
+              <textarea style={{ ...estiloInput, minHeight: 72 }} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título de la publicación" />
+              <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>{titulo.length}/60</div>
+              <button style={{ ...estiloSecundario, minHeight: 44, marginTop: 8 }} onClick={() => (titulo ? setEditandoTitulo(false) : sugerir(fotos[0].file, sku))}>
+                {titulo ? 'Listo' : 'Sugerir con la foto'}
+              </button>
+            </>
+          ) : (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 17 }}>{titulo}</div>
+                {sugerencia && sugerencia.categoria_nombre && <div style={{ fontSize: 13, color: 'var(--gray-muted)', marginTop: 4 }}>{sugerencia.categoria_nombre}</div>}
+              </div>
+              <button onClick={() => setEditandoTitulo(true)} aria-label="Editar título" style={{ minWidth: 44, minHeight: 44, border: '1px solid var(--gray-line)', borderRadius: 10, background: 'none', color: 'var(--charcoal)', fontSize: 18 }}>✎</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 4 }}>Código</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input style={{ ...estiloInput, fontSize: 20 }} value={sku} onChange={(e) => setSku(e.target.value)} autoCapitalize="characters" autoCorrect="off" placeholder="Escanear o escribir" />
+          <button style={{ ...estiloBoton, width: 'auto', padding: '0 18px', fontSize: 16 }} onClick={abrirEscaner}>Escanear</button>
+        </div>
+        <input ref={inputBarras} type="file" accept="image/*" capture="environment" onChange={leerBarras} style={{ display: 'none' }} />
       </div>
 
-      <Campo etiqueta={`Título (${titulo.length}/60)`} nota={sugerencia && sugerencia.categoria_nombre ? `Categoría: ${sugerencia.categoria_nombre}` : null}>
-        <textarea style={{ ...estiloInput, minHeight: 72 }} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={pensando ? 'Mirando la foto…' : 'Se sugiere solo con la primera foto'} />
-      </Campo>
-      <button style={{ ...estiloSecundario, minHeight: 44, fontSize: 15, marginBottom: 16 }} onClick={() => fotos[0] && sugerir(fotos[0].file, sku)} disabled={!fotos.length || pensando}>
-        {pensando ? 'Pensando…' : 'Sugerir título y datos con la foto'}
-      </button>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 4 }}>Precio de venta</div>
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 12, top: 13, fontSize: 22, color: 'var(--gray-muted)' }}>$</span>
+            <input style={{ ...estiloInput, fontSize: 26, fontWeight: 600, paddingLeft: 32, minHeight: 58 }} inputMode="numeric" pattern="[0-9]*" value={precioLindo}
+              onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 4, textAlign: 'center' }}>Cantidad</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => cambiarCantidad(-1)} style={{ ...estiloSecundario, width: 48, minHeight: 58, fontSize: 24 }}>−</button>
+            <div style={{ minWidth: 30, textAlign: 'center', fontSize: 22, fontWeight: 600 }}>{cantidad || 1}</div>
+            <button onClick={() => cambiarCantidad(1)} style={{ ...estiloSecundario, width: 48, minHeight: 58, fontSize: 24 }}>+</button>
+          </div>
+        </div>
+      </div>
 
-      {atributos.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--gray-line)', paddingTop: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Datos que pide ML</div>
-          {atributos.map((a, i) => (
-            <Campo key={a.id} etiqueta={a.nombre}>
-              {a.valores && a.valores.length > 0 ? (
-                <select style={estiloInput} value={a.value_id} onChange={(e) => editarAtributo(i, { value_id: e.target.value })}>
+      {atributos.some((a) => !a.valor && !a.value_id) && (
+        <div style={{ borderTop: '1px solid var(--gray-line)', paddingTop: 12, marginBottom: 8 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>ML pide estos datos</div>
+          {atributos.map((a, i) => (a.valor || a.value_id) ? null : (
+            <div key={a.id} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 6 }}>{a.nombre}</div>
+              {a.valores && a.valores.length > 0 && a.valores.length <= 12 ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {a.valores.map((v) => <button key={v.id} style={estiloChip(false)} onClick={() => editarAtributo(i, { value_id: v.id })}>{v.name}</button>)}
+                </div>
+              ) : a.valores && a.valores.length > 12 ? (
+                <select style={estiloInput} value="" onChange={(e) => editarAtributo(i, { value_id: e.target.value })}>
                   <option value="">Elegir…</option>
                   {a.valores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
               ) : (
                 <input style={estiloInput} value={a.valor} onChange={(e) => editarAtributo(i, { valor: e.target.value })} />
               )}
-            </Campo>
+            </div>
           ))}
         </div>
+      )}
+      {atributos.length > 0 && atributos.every((a) => a.valor || a.value_id) && (
+        <div style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 8 }}>Datos de ML completos: {atributos.map((a) => a.valor || (a.valores.find((v) => v.id === a.value_id) || {}).name).join(' · ')}</div>
       )}
 
       {error && <div style={{ color: 'var(--alerta)', margin: '8px 0' }}>{error}</div>}
