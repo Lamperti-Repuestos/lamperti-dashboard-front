@@ -162,6 +162,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
   useEffect(() => {
     apiFetch('/publicador/status', {}, onUnauthorized).then((r) => (r.ok ? r.json() : null)).then(setStatus).catch(() => {})
     cargarConfig().catch(() => {})
+    // Deja lista la lista de publicaciones propias (para la referencia de precios) sin hacer esperar
+    apiFetch('/publicador/rapido/calentar', { method: 'POST' }, onUnauthorized).catch(() => {})
   }, [])
 
   const buscarReferencia = async (tit, categoria) => {
@@ -660,24 +662,42 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <div style={{ color: 'var(--gray-muted)' }}>Buscando precios de referencia…</div>
           ) : ref.disponible ? (
             <>
-              <div style={{ fontSize: 14, color: 'var(--gray-muted)' }}>Referencia en ML ({ref.n} publicaciones{ref.fuente === 'catalogo' ? ', catálogo' : ''})</div>
+              <div style={{ fontSize: 14, color: 'var(--gray-muted)' }}>
+                {ref.fuente === 'propias'
+                  ? `Tus publicaciones parecidas (${ref.n})`
+                  : ref.fuente === 'catalogo' ? `Catálogo de ML (${ref.n} precios)` : `Referencia en ML (${ref.n} publicaciones)`}
+              </div>
               <div style={{ fontSize: 18, fontWeight: 600, margin: '4px 0 8px' }}>
-                ${Number(ref.min).toLocaleString('es-AR')} – ${Number(ref.max).toLocaleString('es-AR')}
+                {ref.min === ref.max
+                  ? `$${Number(ref.min).toLocaleString('es-AR')}`
+                  : `$${Number(ref.min).toLocaleString('es-AR')} – $${Number(ref.max).toLocaleString('es-AR')}`}
               </div>
               <button style={{ ...estiloChip(false), minHeight: 48, fontWeight: 600 }} onClick={() => setPrecio(String(Math.round(ref.mediana)))}>
-                Usar la mediana: ${Number(ref.mediana).toLocaleString('es-AR')}
+                Usar {ref.n > 1 ? 'la mediana' : 'este precio'}: ${Number(ref.mediana).toLocaleString('es-AR')}
               </button>
               <details style={{ marginTop: 8 }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--gray-muted)', fontSize: 14 }}>Ver algunas</summary>
+                <summary style={{ cursor: 'pointer', color: 'var(--gray-muted)', fontSize: 14 }}>Ver cuáles</summary>
                 {ref.muestras.map((m, i) => (
                   <div key={i} style={{ fontSize: 14, marginTop: 6 }}>
-                    ${Number(m.precio).toLocaleString('es-AR')} · {m.permalink ? <a href={m.permalink} target="_blank" rel="noreferrer">{m.titulo.slice(0, 50)}</a> : m.titulo.slice(0, 50)}
+                    ${Number(m.precio).toLocaleString('es-AR')} · {m.permalink ? <a href={m.permalink} target="_blank" rel="noreferrer">{(m.titulo || '').slice(0, 60)}</a> : (m.titulo || '').slice(0, 60)}
                   </div>
                 ))}
+                {ref.fuente === 'propias' && (
+                  <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 8 }}>
+                    ML no deja ver los precios de otros vendedores, así que esto es lo que cobrás vos por productos parecidos.
+                    {ref.diagnostico && ref.diagnostico.length > 0 && ` (${ref.diagnostico.join('; ')})`}
+                  </div>
+                )}
               </details>
             </>
           ) : (
-            <div style={{ fontSize: 13, color: 'var(--gray-muted)' }}>Sin precios de referencia ({ref.motivo}).</div>
+            <div style={{ fontSize: 13, color: 'var(--gray-muted)' }}>
+              Sin precios de referencia.
+              <details>
+                <summary style={{ cursor: 'pointer' }}>Por qué</summary>
+                {(ref.diagnostico || [ref.motivo]).map((d, i) => <div key={i}>{d}</div>)}
+              </details>
+            </div>
           )}
         </div>
       )}
