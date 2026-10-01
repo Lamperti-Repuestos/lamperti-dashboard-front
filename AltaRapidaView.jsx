@@ -98,7 +98,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
       const data = await res.json()
       setTitulo(data.titulo || '')
       setSugerencia({ categoria: data.categoria, categoria_nombre: data.categoria_nombre })
-      setAtributos(data.atributos || [])
+      // 'pedido' = vino vacío: se queda visible aunque la persona ya esté escribiendo
+      setAtributos((data.atributos || []).map((a) => ({ ...a, pedido: !a.valor && !a.value_id })))
       if (data.codigo_visible && !codigo) setSku(data.codigo_visible)
     } catch (e) {
       setError(`No pude sugerir el título: ${e.message}. Lo podés escribir a mano.`)
@@ -468,18 +469,20 @@ export default function AltaRapidaView({ onUnauthorized }) {
         </div>
       </div>
 
-      {atributos.some((a) => !a.valor && !a.value_id) && (
+      {atributos.some((a) => a.pedido) && (
         <div style={{ borderTop: '1px solid var(--gray-line)', paddingTop: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>ML pide estos datos</div>
-          {atributos.map((a, i) => (a.valor || a.value_id) ? null : (
+          {atributos.map((a, i) => !a.pedido ? null : (
             <div key={a.id} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 6 }}>{a.nombre}</div>
               {a.valores && a.valores.length > 0 && a.valores.length <= 12 ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {a.valores.map((v) => <button key={v.id} style={estiloChip(false)} onClick={() => editarAtributo(i, { value_id: v.id })}>{v.name}</button>)}
+                  {a.valores.map((v) => (
+                    <button key={v.id} style={estiloChip(a.value_id === v.id)} onClick={() => editarAtributo(i, { value_id: a.value_id === v.id ? '' : v.id })}>{v.name}</button>
+                  ))}
                 </div>
               ) : a.valores && a.valores.length > 12 ? (
-                <select style={estiloInput} value="" onChange={(e) => editarAtributo(i, { value_id: e.target.value })}>
+                <select style={estiloInput} value={a.value_id} onChange={(e) => editarAtributo(i, { value_id: e.target.value })}>
                   <option value="">Elegir…</option>
                   {a.valores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
@@ -490,8 +493,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
           ))}
         </div>
       )}
-      {atributos.length > 0 && atributos.every((a) => a.valor || a.value_id) && (
-        <div style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 8 }}>Datos de ML completos: {atributos.map((a) => a.valor || (a.valores.find((v) => v.id === a.value_id) || {}).name).join(' · ')}</div>
+      {atributos.some((a) => !a.pedido) && (
+        <div style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 8 }}>
+          Completado desde la foto: {atributos.filter((a) => !a.pedido).map((a) => a.valor || (a.valores.find((v) => v.id === a.value_id) || {}).name).join(' · ')}
+        </div>
       )}
 
       {error && <div style={{ color: 'var(--alerta)', margin: '8px 0' }}>{error}</div>}
