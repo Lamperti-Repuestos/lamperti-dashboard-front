@@ -65,6 +65,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const [msgConfig, setMsgConfig] = useState(null)
   const inputFoto = useRef(null)
   const inputGaleria = useRef(null)
+  const [ref, setRef] = useState(null) // precios de referencia de ML: null = sin pedir, 'cargando', o la respuesta
   const [cola, setCola] = useState([]) // fotos de galería que esperan su turno, una por producto
   const [decision, setDecision] = useState(null) // fotos elegidas esperando 'mismo producto / cada una un producto'
   const inputBarras = useRef(null)
@@ -86,6 +87,18 @@ export default function AltaRapidaView({ onUnauthorized }) {
     cargarConfig().catch(() => {})
   }, [])
 
+  const buscarReferencia = async (tit, categoria) => {
+    if (!tit || tit.trim().length < 4) return setRef(null)
+    setRef('cargando')
+    try {
+      const q = new URLSearchParams({ titulo: tit.trim(), categoria: categoria || '' })
+      const res = await apiFetch(`/publicador/rapido/precios?${q}`, {}, onUnauthorized)
+      setRef(res.ok ? await res.json() : { disponible: false, motivo: `Error ${res.status}` })
+    } catch {
+      setRef({ disponible: false, motivo: 'sin conexión' })
+    }
+  }
+
   const sugerir = async (fotoFile, codigo) => {
     setPensando(true)
     setError(null)
@@ -98,6 +111,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
       const data = await res.json()
       setTitulo(data.titulo || '')
       setSugerencia({ categoria: data.categoria, categoria_nombre: data.categoria_nombre })
+      buscarReferencia(data.titulo, data.categoria)
       // 'pedido' = vino vacío: se queda visible aunque la persona ya esté escribiendo
       setAtributos((data.atributos || []).map((a) => ({ ...a, pedido: !a.valor && !a.value_id })))
       if (data.codigo_visible && !codigo) setSku(data.codigo_visible)
@@ -121,7 +135,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const cargarProducto = (foto) => {
     setFotos([foto])
     setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
-    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false)
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
     window.scrollTo({ top: 0 })
     leerCodigoDeFoto(foto.file)
     sugerir(foto.file, '')
@@ -289,7 +303,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
       return cargarProducto(siguiente)
     }
     setFotos([]); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
-    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false)
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
     window.scrollTo({ top: 0 })
     // Ya con la cámara lista para el siguiente producto (el toque del botón habilita abrirla)
     setTimeout(() => inputFoto.current && inputFoto.current.click(), 50)
@@ -425,7 +439,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
             <>
               <textarea style={{ ...estiloInput, minHeight: 72 }} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título de la publicación" />
               <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>{titulo.length}/60</div>
-              <button style={{ ...estiloSecundario, minHeight: 44, marginTop: 8 }} onClick={() => (titulo ? setEditandoTitulo(false) : sugerir(fotos[0].file, sku))}>
+              <button style={{ ...estiloSecundario, minHeight: 44, marginTop: 8 }} onClick={() => { if (titulo) { setEditandoTitulo(false); buscarReferencia(titulo, sugerencia && sugerencia.categoria) } else sugerir(fotos[0].file, sku) }}>
                 {titulo ? 'Listo' : 'Sugerir con la foto'}
               </button>
             </>
@@ -449,6 +463,34 @@ export default function AltaRapidaView({ onUnauthorized }) {
         </div>
         <input ref={inputBarras} type="file" accept="image/*" capture="environment" onChange={leerBarras} style={{ display: 'none' }} />
       </div>
+
+      {ref && (
+        <div style={{ marginBottom: 12, padding: 12, borderRadius: 12, background: 'var(--card-bg)', border: '1px solid var(--gray-line)' }}>
+          {ref === 'cargando' ? (
+            <div style={{ color: 'var(--gray-muted)' }}>Buscando precios de referencia…</div>
+          ) : ref.disponible ? (
+            <>
+              <div style={{ fontSize: 14, color: 'var(--gray-muted)' }}>Referencia en ML ({ref.n} publicaciones{ref.fuente === 'catalogo' ? ', catálogo' : ''})</div>
+              <div style={{ fontSize: 18, fontWeight: 600, margin: '4px 0 8px' }}>
+                ${Number(ref.min).toLocaleString('es-AR')} – ${Number(ref.max).toLocaleString('es-AR')}
+              </div>
+              <button style={{ ...estiloChip(false), minHeight: 48, fontWeight: 600 }} onClick={() => setPrecio(String(Math.round(ref.mediana)))}>
+                Usar la mediana: ${Number(ref.mediana).toLocaleString('es-AR')}
+              </button>
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--gray-muted)', fontSize: 14 }}>Ver algunas</summary>
+                {ref.muestras.map((m, i) => (
+                  <div key={i} style={{ fontSize: 14, marginTop: 6 }}>
+                    ${Number(m.precio).toLocaleString('es-AR')} · {m.permalink ? <a href={m.permalink} target="_blank" rel="noreferrer">{m.titulo.slice(0, 50)}</a> : m.titulo.slice(0, 50)}
+                  </div>
+                ))}
+              </details>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: 'var(--gray-muted)' }}>Sin precios de referencia ({ref.motivo}).</div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>
         <div style={{ flex: 1 }}>
