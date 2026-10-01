@@ -140,6 +140,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const [msgConfig, setMsgConfig] = useState(null)
   const inputFoto = useRef(null)
   const inputGaleria = useRef(null)
+  // Cámara dentro de la página: evita salir a la app de cámara, que en celulares con poca RAM
+  // hace que Android cierre la pestaña del navegador ("memoria insuficiente") y se pierda la foto.
+  const [camara, setCamara] = useState(false)
+  const [tomadas, setTomadas] = useState([]) // fotos sacadas en esta sesión de cámara, todavía no incorporadas
+  const [flash, setFlash] = useState(false)
+  const [soportaFlash, setSoportaFlash] = useState(false)
+  const videoCamRef = useRef(null)
+  const streamCamRef = useRef(null)
   const [escuchando, setEscuchando] = useState(null) // id de lo que se está dictando ('titulo', 'attr-ID') o null
   const reconocedor = useRef(null)
   // Fondo blanco automático (es el estándar de las publicaciones de Lamperti): se recuerda por celular
@@ -299,14 +307,85 @@ export default function AltaRapidaView({ onUnauthorized }) {
     } finally {
       setPensando(false)
     }
-    if (!nuevas.length) return
-    setFotos([...fotos, ...nuevas])
+    if (nuevas.length) incorporar(nuevas)
+  }
+
+  // Suma fotos ya achicadas al producto actual (vengan de la cámara, la galería o el celular)
+  const incorporar = (nuevas) => {
+    setFotos((prev) => [...prev, ...nuevas])
     fondoAutomatico(nuevas)
     // La primera foto dispara la sugerencia sola (si todavía no hay título)
     if (fotos.length === 0 && !titulo) {
       leerCodigoDeFoto(nuevas[0].file)
       sugerir(nuevas[0].file, sku)
     }
+  }
+
+  useEffect(() => {
+    if (!camara) return undefined
+    let stream = null
+    let cancelado = false
+    ;(async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
+          audio: false,
+        })
+        if (cancelado) return stream.getTracks().forEach((t) => t.stop())
+        streamCamRef.current = stream
+        videoCamRef.current.srcObject = stream
+        await videoCamRef.current.play()
+        const pista = stream.getVideoTracks()[0]
+        setSoportaFlash(!!(pista.getCapabilities && pista.getCapabilities().torch))
+      } catch {
+        setCamara(false)
+        setError('No pude abrir la cámara dentro de la página. Probá con "Cámara del celular".')
+      }
+    })()
+    return () => {
+      cancelado = true
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+      streamCamRef.current = null
+      setFlash(false)
+    }
+  }, [camara])
+
+  const disparar = async () => {
+    const v = videoCamRef.current
+    if (!v || !v.videoWidth) return
+    const escala = Math.min(1, LADO_MAX / Math.max(v.videoWidth, v.videoHeight))
+    const lienzo = document.createElement('canvas')
+    lienzo.width = Math.round(v.videoWidth * escala)
+    lienzo.height = Math.round(v.videoHeight * escala)
+    lienzo.getContext('2d').drawImage(v, 0, 0, lienzo.width, lienzo.height)
+    const blob = await new Promise((ok) => lienzo.toBlob(ok, 'image/jpeg', 0.88))
+    lienzo.width = lienzo.height = 0
+    if (!blob) return setError(MSG_MEMORIA)
+    const file = new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    setTomadas((prev) => [...prev, { file, url: URL.createObjectURL(file) }])
+    if (navigator.vibrate) navigator.vibrate(30)
+  }
+
+  const cerrarCamara = (conservar) => {
+    const lista = tomadas
+    setCamara(false)
+    setTomadas([])
+    if (conservar && lista.length) incorporar(lista)
+    else soltar(lista)
+  }
+
+  const alternarFlash = async () => {
+    const pista = streamCamRef.current && streamCamRef.current.getVideoTracks()[0]
+    if (!pista) return
+    try {
+      await pista.applyConstraints({ advanced: [{ torch: !flash }] })
+      setFlash(!flash)
+    } catch { /* el celular no deja controlar la luz desde el navegador */ }
+  }
+
+  const abrirCamara = () => {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) setCamara(true)
+    else inputFoto.current.click() // navegador sin acceso directo a la cámara
   }
 
   const agregarFoto = (e) => {
@@ -494,7 +573,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
     setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
     window.scrollTo({ top: 0 })
     // Ya con la cámara lista para el siguiente producto (el toque del botón habilita abrirla)
-    setTimeout(() => inputFoto.current && inputFoto.current.click(), 50)
+    setTimeout(abrirCamara, 50)
   }
 
   const guardarDescripcion = async () => {
@@ -554,6 +633,29 @@ export default function AltaRapidaView({ onUnauthorized }) {
 
   return (
     <div style={{ width: '100%', maxWidth: 520, margin: '0 auto', padding: '0 16px 90px', boxSizing: 'border-box' }}>
+      {camara && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <video ref={videoCamRef} playsInline muted style={{ flex: 1, minHeight: 0, width: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: 12 }}>
+            <button onClick={() => cerrarCamara(false)} style={{ ...estiloSecundario, width: 'auto', minHeight: 44, padding: '0 16px', fontSize: 16 }}>Cancelar</button>
+            {soportaFlash && <button onClick={alternarFlash} style={{ ...estiloChip(flash), minHeight: 44 }}>Luz {flash ? 'sí' : 'no'}</button>}
+          </div>
+          <div style={{ padding: '10px 16px 20px', background: 'rgba(0,0,0,0.6)' }}>
+            {tomadas.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10 }}>
+                {tomadas.map((t) => <img key={t.url} src={t.url} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6 }} />)}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ width: 96, color: '#fff' }}>{tomadas.length}/{MAX_FOTOS - fotos.length}</div>
+              <button onClick={disparar} disabled={fotos.length + tomadas.length >= MAX_FOTOS} aria-label="Sacar foto"
+                style={{ width: 76, height: 76, borderRadius: 38, border: '5px solid #fff', background: 'var(--yellow)', cursor: 'pointer' }} />
+              <button onClick={() => cerrarCamara(true)} disabled={!tomadas.length}
+                style={{ ...estiloBoton, width: 96, minHeight: 48, fontSize: 16, opacity: tomadas.length ? 1 : 0.4 }}>Listo</button>
+            </div>
+          </div>
+        </div>
+      )}
       {escaneando && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
           <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'cover' }} />
@@ -595,11 +697,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
       )}
       {fotos.length === 0 && !decision ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => inputFoto.current.click()} style={{ width: '100%', height: 150, borderRadius: 14, border: '2px dashed var(--gray-line)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: 20, cursor: 'pointer' }}>
+          <button onClick={abrirCamara} style={{ width: '100%', height: 150, borderRadius: 14, border: '2px dashed var(--gray-line)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: 20, cursor: 'pointer' }}>
             Sacar foto
           </button>
           <button onClick={() => inputGaleria.current.click()} disabled={pensando} style={{ ...estiloSecundario, minHeight: 64, fontSize: 19 }}>
             {pensando ? 'Preparando fotos…' : 'Elegir de la galería'}
+          </button>
+          <button onClick={() => inputFoto.current.click()} style={{ ...estiloSecundario, minHeight: 44, fontSize: 14 }}>
+            Cámara del celular (más calidad)
           </button>
         </div>
       ) : decision ? null : (
@@ -617,7 +722,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
           ))}
           {fotos.length < MAX_FOTOS && (
             <>
-              <button onClick={() => inputFoto.current.click()} aria-label="Sacar otra foto" style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 16 }}>+ Cámara</button>
+              <button onClick={abrirCamara} aria-label="Sacar otra foto" style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 16 }}>+ Cámara</button>
               <button onClick={() => inputGaleria.current.click()} aria-label="Agregar de la galería" style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 16 }}>+ Galería</button>
             </>
           )}
