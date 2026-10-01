@@ -4,18 +4,79 @@ import { apiFetch } from './api.js'
 const MAX_FOTOS = 6
 const LADO_MAX = 1600
 
-// Las fotos del celular pesan varios MB: se achican acá para que subir por
-// datos móviles sea rápido (ML pide mínimo 500px, 1600 sobra).
-async function achicar(file) {
-  const bmp = await createImageBitmap(file)
-  const escala = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height))
+// Ancho y alto de un JPEG/PNG leyendo solo el encabezado (sin decodificar la foto).
+async function dimensiones(file) {
+  const buf = new Uint8Array(await file.slice(0, 131072).arrayBuffer())
+  if (buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) { i++; continue }
+      const m = buf[i + 1]
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        return { h: (buf[i + 5] << 8) | buf[i + 6], w: (buf[i + 7] << 8) | buf[i + 8] }
+      }
+      i += 2 + ((buf[i + 2] << 8) | buf[i + 3])
+    }
+  } else if (buf[0] === 0x89 && buf[1] === 0x50) {
+    const v = new DataView(buf.buffer)
+    return { w: v.getUint32(16), h: v.getUint32(20) }
+  }
+  return null
+}
+
+// Una foto de cámara de 50-100 MP decodificada completa son cientos de MB de RAM y el
+// navegador se queda sin memoria. Se pide ya reducida, así nunca existe entera en memoria.
+async function abrirChica(file) {
+  const dim = await dimensiones(file).catch(() => null)
+  if (dim && Math.max(dim.w, dim.h) <= LADO_MAX) return createImageBitmap(file)
+  try {
+    const mini = await createImageBitmap(file, { resizeWidth: 64, resizeQuality: 'low' })
+    const ratio = mini.width / mini.height
+    mini.close()
+    const w = ratio >= 1 ? LADO_MAX : Math.round(LADO_MAX * ratio)
+    const h = ratio >= 1 ? Math.round(LADO_MAX / ratio) : LADO_MAX
+    return await createImageBitmap(file, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' })
+  } catch {
+    return createImageBitmap(file) // navegador sin opciones de resize
+  }
+}
+
+// Por encima de esto el celular no abre la foto: la decodificada ocupa más de ~65 MB y en
+// celulares con poca RAM el navegador se queda sin memoria. Esas se reducen en el servidor.
+const MAX_MP_EN_CELULAR = 16e6
+const MAX_BYTES_SIN_DIMENSIONES = 6 * 1024 * 1024
+
+async function achicarEnServidor(file, onUnauthorized) {
+  const fd = new FormData()
+  fd.append('foto', file) // el original, sin abrirlo
+  const res = await apiFetch('/publicador/rapido/foto-chica', { method: 'POST', body: fd }, onUnauthorized)
+  if (!res.ok) throw new Error('el servidor no pudo reducir la foto')
+  return new File([await res.blob()], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
+}
+
+// Las fotos del celular pesan varios MB: se achican para que subir por datos móviles sea
+// rápido (ML pide mínimo 500px, 1600 sobra).
+async function achicar(file, onUnauthorized) {
+  const dim = await dimensiones(file).catch(() => null)
+  const enorme = dim ? dim.w * dim.h > MAX_MP_EN_CELULAR : file.size > MAX_BYTES_SIN_DIMENSIONES
+  if (enorme) return achicarEnServidor(file, onUnauthorized)
+  const bmp = await abrirChica(file)
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bmp.width * escala)
-  canvas.height = Math.round(bmp.height * escala)
-  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height)
+  canvas.width = bmp.width
+  canvas.height = bmp.height
+  canvas.getContext('2d').drawImage(bmp, 0, 0)
+  bmp.close() // libera ya la imagen decodificada
   const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', 0.85))
+  canvas.width = canvas.height = 0 // y el lienzo
+  if (!blob) throw new Error('sin memoria')
   return new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
 }
+
+const soltar = (lista) => lista.forEach((f) => {
+  URL.revokeObjectURL(f.url)
+  if (f.original) URL.revokeObjectURL(f.original.url)
+})
+const MSG_MEMORIA = 'No pude abrir la foto. Si el celular se queda sin memoria, cerrá otras apps o pestañas y probá de nuevo.'
 
 const estiloInput = {
   width: '100%', boxSizing: 'border-box', fontSize: 16, padding: '12px 10px', minHeight: 48,
@@ -178,14 +239,16 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const leerCodigoDeFoto = async (file) => {
     if (!('BarcodeDetector' in window)) return
     try {
-      const codigos = await new window.BarcodeDetector().detect(await createImageBitmap(file))
+      const bmp = await createImageBitmap(file)
+      const codigos = await new window.BarcodeDetector().detect(bmp)
+      bmp.close()
       if (codigos.length) setSku((prev) => prev || codigos[0].rawValue)
     } catch { /* sin código legible: se escribe o escanea */ }
   }
 
   // Arranca un producto nuevo con esta foto: sugerencia de título + lectura de código
   const cargarProducto = (foto) => {
-    setFotos([foto])
+    setFotos((prev) => { soltar(prev); return [foto] })
     fondoAutomatico([foto])
     setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
     setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
@@ -194,25 +257,38 @@ export default function AltaRapidaView({ onUnauthorized }) {
     sugerir(foto.file, '')
   }
 
+  // Achica una foto y arma el producto con ella (las de la cola se achican recién cuando les toca)
+  const cargarDesdeArchivo = async (archivo) => {
+    setPensando(true)
+    try {
+      const chica = await achicar(archivo, onUnauthorized)
+      cargarProducto({ file: chica, url: URL.createObjectURL(chica) })
+    } catch {
+      setError(MSG_MEMORIA)
+    } finally {
+      setPensando(false)
+    }
+  }
+
   const procesarArchivos = async (archivos, desdeGaleria) => {
     if (!archivos.length) return
+    if (desdeGaleria && archivos.length > 1 && fotos.length === 0) {
+      setDecision(archivos) // archivos tal cual: no se achica ninguno hasta saber qué hacer
+      return
+    }
     setPensando(true)
     const nuevas = []
     try {
-      // Desde la galería puede haber decenas: se achican todas (la cola se usa de a una)
-      const limite = desdeGaleria && fotos.length === 0 ? archivos.length : MAX_FOTOS - fotos.length
-      for (const f of archivos.slice(0, limite)) {
-        const chica = await achicar(f)
+      for (const f of archivos.slice(0, MAX_FOTOS - fotos.length)) {
+        const chica = await achicar(f, onUnauthorized)
         nuevas.push({ file: chica, url: URL.createObjectURL(chica) })
       }
+    } catch {
+      setError(MSG_MEMORIA)
     } finally {
       setPensando(false)
     }
     if (!nuevas.length) return
-    if (desdeGaleria && nuevas.length > 1 && fotos.length === 0) {
-      setDecision(nuevas) // ¿mismo producto o uno por foto? lo decide la persona
-      return
-    }
     setFotos([...fotos, ...nuevas])
     fondoAutomatico(nuevas)
     // La primera foto dispara la sugerencia sola (si todavía no hay título)
@@ -229,9 +305,22 @@ export default function AltaRapidaView({ onUnauthorized }) {
     procesarArchivos(archivos, galeria)
   }
 
-  const elegirMismoProducto = () => {
-    const nuevas = decision.slice(0, MAX_FOTOS)
+  const elegirMismoProducto = async () => {
+    const crudas = decision.slice(0, MAX_FOTOS)
     setDecision(null)
+    setPensando(true)
+    const nuevas = []
+    try {
+      for (const f of crudas) { // de a una, así nunca hay dos fotos grandes abiertas a la vez
+        const chica = await achicar(f, onUnauthorized)
+        nuevas.push({ file: chica, url: URL.createObjectURL(chica) })
+      }
+    } catch {
+      setError(MSG_MEMORIA)
+    } finally {
+      setPensando(false)
+    }
+    if (!nuevas.length) return
     setFotos(nuevas)
     fondoAutomatico(nuevas)
     leerCodigoDeFoto(nuevas[0].file)
@@ -242,14 +331,14 @@ export default function AltaRapidaView({ onUnauthorized }) {
     const [primera, ...resto] = decision
     setDecision(null)
     setCola(resto)
-    cargarProducto(primera)
+    cargarDesdeArchivo(primera)
   }
 
   const saltarProducto = () => {
     if (!cola.length) return otro()
     const [siguiente, ...resto] = cola
     setCola(resto)
-    cargarProducto(siguiente)
+    cargarDesdeArchivo(siguiente)
   }
 
   // Escáner en vivo: abre la cámara y lee el código de barras solo, sin sacar foto.
@@ -298,7 +387,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
     if (!f) return
     if (!('BarcodeDetector' in window)) return setError('Este celular no lee códigos de barras desde el navegador. Escribilo a mano.')
     try {
-      const codigos = await new window.BarcodeDetector().detect(await createImageBitmap(f))
+      const chica = await achicar(f, onUnauthorized)
+      const bmp = await createImageBitmap(chica)
+      const codigos = await new window.BarcodeDetector().detect(bmp)
+      bmp.close()
       if (codigos.length) setSku(codigos[0].rawValue)
       else setError('No se leyó ningún código de barras. Probá con más luz o escribilo.')
     } catch {
@@ -339,7 +431,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const volverOriginal = (url) =>
     setFotos((prev) => prev.map((f) => (f.url === url && f.original ? { file: f.original.file, url: f.original.url } : f)))
 
-  const sacarFoto = (i) => setFotos((prev) => prev.filter((_, idx) => idx !== i))
+  const sacarFoto = (i) => setFotos((prev) => { soltar([prev[i]]); return prev.filter((_, idx) => idx !== i) })
 
   const editarAtributo = (i, cambios) =>
     setAtributos((prev) => prev.map((a, idx) => (idx === i ? { ...a, ...cambios } : a)))
@@ -385,9 +477,9 @@ export default function AltaRapidaView({ onUnauthorized }) {
     if (cola.length) {
       const [siguiente, ...resto] = cola
       setCola(resto)
-      return cargarProducto(siguiente)
+      return cargarDesdeArchivo(siguiente)
     }
-    setFotos([]); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
+    setFotos((prev) => { soltar(prev); return [] }); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
     setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false); setRef(null)
     window.scrollTo({ top: 0 })
     // Ya con la cámara lista para el siguiente producto (el toque del botón habilita abrirla)
@@ -428,7 +520,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
     e.target.value = ''
     if (!f) return
     const fd = new FormData()
-    fd.append('archivo', await achicar(f))
+    try { fd.append('archivo', await achicar(f, onUnauthorized)) } catch { return setMsgConfig(MSG_MEMORIA) }
     const res = await apiFetch('/publicador/config/placa', { method: 'PUT', body: fd }, onUnauthorized)
     setMsgConfig(res.ok ? 'Placa guardada.' : 'No se pudo guardar la placa.')
     cargarConfig()
