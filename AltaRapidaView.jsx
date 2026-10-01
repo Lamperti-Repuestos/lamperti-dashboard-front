@@ -4,6 +4,34 @@ import { apiFetch } from './api.js'
 const MAX_FOTOS = 6
 const LADO_MAX = 1600
 
+// Borrador: lo que se está cargando se guarda en el celular (IndexedDB, que sí admite fotos) para
+// recuperarlo si Android cierra la página mientras se mira la competencia en la app de ML u otra app.
+const BD_NOMBRE = 'lamperti_alta_rapida'
+const BORRADOR_VIGENCIA_MS = 24 * 60 * 60 * 1000
+const abrirBD = () => new Promise((ok, mal) => {
+  const r = indexedDB.open(BD_NOMBRE, 1)
+  r.onupgradeneeded = () => r.result.createObjectStore('borrador')
+  r.onsuccess = () => ok(r.result)
+  r.onerror = () => mal(r.error)
+})
+async function conBD(modo, fn) {
+  const bd = await abrirBD()
+  try {
+    return await new Promise((ok, mal) => {
+      const t = bd.transaction('borrador', modo)
+      const pedido = fn(t.objectStore('borrador'))
+      t.oncomplete = () => ok(pedido && pedido.result)
+      t.onerror = () => mal(t.error)
+      t.onabort = () => mal(t.error)
+    })
+  } finally {
+    bd.close()
+  }
+}
+const guardarBorrador = (dato) => conBD('readwrite', (a) => a.put(dato, 'actual'))
+const borrarBorrador = () => conBD('readwrite', (a) => a.delete('actual'))
+const leerBorrador = () => conBD('readonly', (a) => a.get('actual'))
+
 // Ancho y alto de un JPEG/PNG leyendo solo el encabezado (sin decodificar la foto).
 async function dimensiones(file) {
   const buf = new Uint8Array(await file.slice(0, 131072).arrayBuffer())
@@ -142,6 +170,8 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const inputGaleria = useRef(null)
   // Cámara dentro de la página: evita salir a la app de cámara, que en celulares con poca RAM
   // hace que Android cierre la pestaña del navegador ("memoria insuficiente") y se pierda la foto.
+  const [restaurado, setRestaurado] = useState(false) // ya se intentó recuperar el borrador
+  const [avisoBorrador, setAvisoBorrador] = useState(false)
   const [camara, setCamara] = useState(false)
   const [tomadas, setTomadas] = useState([]) // fotos sacadas en esta sesión de cámara, todavía no incorporadas
   const [flash, setFlash] = useState(false)
@@ -252,6 +282,52 @@ export default function AltaRapidaView({ onUnauthorized }) {
     } finally {
       setPensando(false)
     }
+  }
+
+  // Recupera lo que se estaba cargando (si la página se cerró por memoria o por cambiar de app)
+  useEffect(() => {
+    leerBorrador()
+      .then((d) => {
+        if (!d || Date.now() - d.t > BORRADOR_VIGENCIA_MS) return
+        setSku(d.sku || ''); setPrecio(d.precio || ''); setCantidad(d.cantidad || '1'); setTitulo(d.titulo || '')
+        setSugerencia(d.sugerencia || null); setAtributos(d.atributos || []); setRef(d.ref || null)
+        setFotos((d.fotos || []).map((f) => ({
+          file: f.file, url: URL.createObjectURL(f.file), blanco: !!f.blanco,
+          original: f.original ? { file: f.original, url: URL.createObjectURL(f.original) } : undefined,
+        })))
+        setCola(d.cola || [])
+        setAvisoBorrador(true)
+      })
+      .catch(() => { /* sin IndexedDB: simplemente no hay borrador */ })
+      .finally(() => setRestaurado(true))
+  }, [])
+
+  // Guarda el borrador (con pausa, para no escribir en cada letra); si no hay nada o ya se publicó, lo borra
+  useEffect(() => {
+    if (!restaurado) return undefined
+    const terminado = resultado && resultado.estado !== 'error'
+    const vacio = !fotos.length && !cola.length && !sku && !precio && !titulo
+    if (terminado || vacio) {
+      borrarBorrador().catch(() => {})
+      return undefined
+    }
+    const t = setTimeout(() => {
+      guardarBorrador({
+        t: Date.now(), sku, precio, cantidad, titulo, sugerencia, atributos,
+        ref: ref === 'cargando' ? null : ref,
+        fotos: fotos.map((f) => ({ file: f.file, blanco: !!f.blanco, original: f.original ? f.original.file : null })),
+        cola,
+      }).catch(() => { /* sin lugar o sin permiso: se sigue sin borrador */ })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [restaurado, sku, precio, cantidad, titulo, sugerencia, atributos, ref, fotos, cola, resultado])
+
+  const descartarBorrador = () => {
+    setFotos((prev) => { soltar(prev); return [] })
+    setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
+    setSugerencia(null); setAtributos([]); setRef(null); setCola([]); setResultado(null); setError(null)
+    setAvisoBorrador(false)
+    borrarBorrador().catch(() => {})
   }
 
   // Si la foto trae un código de barras legible, se carga solo (ahorra tipear con fotos viejas)
@@ -668,6 +744,12 @@ export default function AltaRapidaView({ onUnauthorized }) {
       )}
       <h2 style={{ margin: '0 0 12px' }}>Alta rápida</h2>
 
+      {avisoBorrador && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', border: '1px solid var(--gray-line)', padding: 10, borderRadius: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1, fontSize: 14 }}>Retomé lo que estabas cargando.</div>
+          <button style={{ ...estiloSecundario, width: 'auto', minHeight: 40, padding: '0 14px', fontSize: 14 }} onClick={descartarBorrador}>Empezar de cero</button>
+        </div>
+      )}
       {prueba && (
         <div style={{ background: 'var(--bg-aviso)', color: '#2E2E2E', padding: 10, borderRadius: 10, marginBottom: 12 }}>
           Modo prueba: valida con ML pero no publica ni carga nada.
