@@ -7,6 +7,13 @@ const LADO_MAX = 1600
 // Medidas del paquete: ML las exige para el envío. Se recuerdan por categoría (y las últimas usadas)
 // para no volver a escribirlas en cada producto parecido.
 const PAQUETE_VACIO = { alto: '', ancho: '', largo: '', peso: '' }
+// Tamaños de siempre, para elegir con un toque (alto = la profundidad del paquete)
+const PAQUETES_TIPO = [
+  { nombre: 'Chico', medidas: { ancho: '20', largo: '30', alto: '10', peso: '500' } },
+  { nombre: 'Mediano', medidas: { ancho: '40', largo: '60', alto: '10', peso: '1000' } },
+  { nombre: 'Grande', medidas: { ancho: '100', largo: '100', alto: '30', peso: '2000' } },
+]
+const esPaqueteTipo = (p, tipo) => Object.keys(tipo).every((k) => parseFloat(p[k]) === parseFloat(tipo[k]))
 const leerPaquetes = () => {
   try { return JSON.parse(localStorage.getItem('alta_paquete')) || { por: {}, ultimo: null } } catch { return { por: {}, ultimo: null } }
 }
@@ -1001,7 +1008,17 @@ export default function AltaRapidaView({ onUnauthorized }) {
 
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 14, color: 'var(--gray-muted)', marginBottom: 4 }}>
-          Paquete para el envío{paqueteDeAntes ? ' (las medidas de la última vez: revisalas)' : ''}
+          Paquete para el envío{paqueteDeAntes ? ' (las medidas de la última vez: revisalas)' : ''} · alto = profundidad
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {PAQUETES_TIPO.map((t) => (
+            <button key={t.nombre} onClick={() => { setPaquete(t.medidas); setPaqueteDeAntes(false) }}
+              style={{ ...estiloChip(esPaqueteTipo(paquete, t.medidas)), flex: 1, minHeight: 64, padding: '4px 6px', borderRadius: 12, lineHeight: 1.25 }}>
+              <div style={{ fontWeight: 600 }}>{t.nombre}</div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>{t.medidas.ancho}×{t.medidas.largo}×{t.medidas.alto} cm</div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>{Number(t.medidas.peso) >= 1000 ? `${Number(t.medidas.peso) / 1000} kg` : `${t.medidas.peso} g`}</div>
+            </button>
+          ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[['alto', 'Alto cm'], ['ancho', 'Ancho cm'], ['largo', 'Largo cm'], ['peso', 'Peso g']].map(([k, et]) => (
