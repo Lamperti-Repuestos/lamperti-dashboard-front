@@ -64,6 +64,9 @@ export default function AltaRapidaView({ onUnauthorized }) {
   const [placaUrl, setPlacaUrl] = useState(null)
   const [msgConfig, setMsgConfig] = useState(null)
   const inputFoto = useRef(null)
+  const inputGaleria = useRef(null)
+  const [cola, setCola] = useState([]) // fotos de galería que esperan su turno, una por producto
+  const [decision, setDecision] = useState(null) // fotos elegidas esperando 'mismo producto / cada una un producto'
   const inputBarras = useRef(null)
 
   const cargarConfig = async () => {
@@ -104,19 +107,79 @@ export default function AltaRapidaView({ onUnauthorized }) {
     }
   }
 
-  const agregarFoto = async (e) => {
-    const archivos = Array.from(e.target.files || [])
-    e.target.value = ''
+  // Si la foto trae un código de barras legible, se carga solo (ahorra tipear con fotos viejas)
+  const leerCodigoDeFoto = async (file) => {
+    if (!('BarcodeDetector' in window)) return
+    try {
+      const codigos = await new window.BarcodeDetector().detect(await createImageBitmap(file))
+      if (codigos.length) setSku((prev) => prev || codigos[0].rawValue)
+    } catch { /* sin código legible: se escribe o escanea */ }
+  }
+
+  // Arranca un producto nuevo con esta foto: sugerencia de título + lectura de código
+  const cargarProducto = (foto) => {
+    setFotos([foto])
+    setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
+    setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false)
+    window.scrollTo({ top: 0 })
+    leerCodigoDeFoto(foto.file)
+    sugerir(foto.file, '')
+  }
+
+  const procesarArchivos = async (archivos, desdeGaleria) => {
     if (!archivos.length) return
+    setPensando(true)
     const nuevas = []
-    for (const f of archivos.slice(0, MAX_FOTOS - fotos.length)) {
-      const chica = await achicar(f)
-      nuevas.push({ file: chica, url: URL.createObjectURL(chica) })
+    try {
+      // Desde la galería puede haber decenas: se achican todas (la cola se usa de a una)
+      const limite = desdeGaleria && fotos.length === 0 ? archivos.length : MAX_FOTOS - fotos.length
+      for (const f of archivos.slice(0, limite)) {
+        const chica = await achicar(f)
+        nuevas.push({ file: chica, url: URL.createObjectURL(chica) })
+      }
+    } finally {
+      setPensando(false)
     }
-    const todas = [...fotos, ...nuevas]
-    setFotos(todas)
+    if (!nuevas.length) return
+    if (desdeGaleria && nuevas.length > 1 && fotos.length === 0) {
+      setDecision(nuevas) // ¿mismo producto o uno por foto? lo decide la persona
+      return
+    }
+    setFotos([...fotos, ...nuevas])
     // La primera foto dispara la sugerencia sola (si todavía no hay título)
-    if (fotos.length === 0 && nuevas.length && !titulo) sugerir(nuevas[0].file, sku)
+    if (fotos.length === 0 && !titulo) {
+      leerCodigoDeFoto(nuevas[0].file)
+      sugerir(nuevas[0].file, sku)
+    }
+  }
+
+  const agregarFoto = (e) => {
+    const archivos = Array.from(e.target.files || [])
+    const galeria = e.target === inputGaleria.current
+    e.target.value = ''
+    procesarArchivos(archivos, galeria)
+  }
+
+  const elegirMismoProducto = () => {
+    const nuevas = decision.slice(0, MAX_FOTOS)
+    setDecision(null)
+    setFotos(nuevas)
+    leerCodigoDeFoto(nuevas[0].file)
+    sugerir(nuevas[0].file, sku)
+  }
+
+  const elegirUnoPorFoto = () => {
+    const [primera, ...resto] = decision
+    setDecision(null)
+    setCola(resto)
+    cargarProducto(primera)
+  }
+
+  const saltarProducto = () => {
+    if (!cola.length) return otro()
+    const [siguiente, ...resto] = cola
+    setCola(resto)
+    cargarProducto(siguiente)
   }
 
   // Escáner en vivo: abre la cámara y lee el código de barras solo, sin sacar foto.
@@ -219,6 +282,11 @@ export default function AltaRapidaView({ onUnauthorized }) {
   }
 
   const otro = () => {
+    if (cola.length) {
+      const [siguiente, ...resto] = cola
+      setCola(resto)
+      return cargarProducto(siguiente)
+    }
     setFotos([]); setSku(''); setPrecio(''); setCantidad('1'); setTitulo('')
     setSugerencia(null); setAtributos([]); setResultado(null); setError(null); setEditandoTitulo(false)
     window.scrollTo({ top: 0 })
@@ -276,7 +344,7 @@ export default function AltaRapidaView({ onUnauthorized }) {
         <p>{resultado.mensaje}</p>
         {(resultado.avisos || []).map((a) => <p key={a} style={{ color: 'var(--atencion)' }}>{a}</p>)}
         {resultado.permalink && <p><a href={resultado.permalink} target="_blank" rel="noreferrer">Ver publicación en ML</a></p>}
-        <button style={estiloBoton} onClick={otro}>Siguiente producto</button>
+        <button style={estiloBoton} onClick={otro}>{cola.length ? `Siguiente producto (quedan ${cola.length})` : 'Siguiente producto'}</button>
       </div>
     )
   }
@@ -308,11 +376,30 @@ export default function AltaRapidaView({ onUnauthorized }) {
       )}
 
       <input ref={inputFoto} type="file" accept="image/*" capture="environment" multiple onChange={agregarFoto} style={{ display: 'none' }} />
-      {fotos.length === 0 ? (
-        <button onClick={() => inputFoto.current.click()} style={{ width: '100%', height: 220, borderRadius: 14, border: '2px dashed var(--gray-line)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: 20, cursor: 'pointer' }}>
-          Tocá para sacar la foto
-        </button>
-      ) : (
+      <input ref={inputGaleria} type="file" accept="image/*" multiple onChange={agregarFoto} style={{ display: 'none' }} />
+      {decision && (
+        <div style={{ padding: 14, borderRadius: 12, border: '2px solid var(--navy)', background: 'var(--card-bg)', marginBottom: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 10 }}>Elegiste {decision.length} fotos</div>
+          <button style={{ ...estiloBoton, marginBottom: 8 }} onClick={elegirUnoPorFoto}>Cada foto es un producto distinto</button>
+          <button style={estiloSecundario} onClick={elegirMismoProducto}>Son del mismo producto</button>
+        </div>
+      )}
+      {cola.length > 0 && fotos.length > 0 && !decision && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, color: 'var(--gray-muted)' }}>
+          <div style={{ flex: 1 }}>Quedan {cola.length} fotos en la cola</div>
+          <button style={{ ...estiloSecundario, width: 'auto', minHeight: 40, padding: '0 14px', fontSize: 15 }} onClick={saltarProducto}>Saltar este</button>
+        </div>
+      )}
+      {fotos.length === 0 && !decision ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => inputFoto.current.click()} style={{ width: '100%', height: 150, borderRadius: 14, border: '2px dashed var(--gray-line)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: 20, cursor: 'pointer' }}>
+            Sacar foto
+          </button>
+          <button onClick={() => inputGaleria.current.click()} disabled={pensando} style={{ ...estiloSecundario, minHeight: 64, fontSize: 19 }}>
+            {pensando ? 'Preparando fotos…' : 'Elegir de la galería'}
+          </button>
+        </div>
+      ) : decision ? null : (
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {fotos.map((x, i) => (
             <div key={x.url} style={{ position: 'relative', flex: '0 0 auto' }}>
@@ -321,7 +408,10 @@ export default function AltaRapidaView({ onUnauthorized }) {
             </div>
           ))}
           {fotos.length < MAX_FOTOS && (
-            <button onClick={() => inputFoto.current.click()} style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 32 }}>+</button>
+            <>
+              <button onClick={() => inputFoto.current.click()} aria-label="Sacar otra foto" style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 16 }}>+ Cámara</button>
+              <button onClick={() => inputGaleria.current.click()} aria-label="Agregar de la galería" style={{ flex: '0 0 auto', width: 110, height: 110, borderRadius: 10, border: '2px dashed var(--gray-line)', background: 'none', color: 'var(--charcoal)', fontSize: 16 }}>+ Galería</button>
+            </>
           )}
         </div>
       )}
