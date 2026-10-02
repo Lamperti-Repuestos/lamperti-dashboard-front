@@ -41,7 +41,20 @@ function etiquetaDia(iso) {
 
 const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 
-function Tarjeta({ a, color, etiqueta, mostrarQueHacer }) {
+// Qué le pasó a la factura y cuándo, en orden: mandada → llegó a Contabilium → sigue pendiente hace X
+function pasosDeTiempo(a, ahoraMs) {
+  const pasos = []
+  if (a.enviada_en) pasos.push(`✉ Mandada a las ${hora(a.enviada_en)}`)
+  if (a.llego_en) pasos.push(`📥 Llegó a Contabilium a las ${hora(a.llego_en)}`)
+  const desde = a.llego_en || a.enviada_en
+  if (desde && a.estado === 'pendiente') {
+    pasos.push(`⏳ Sigue pendiente hace ${hace(Math.max(0, (ahoraMs - new Date(desde).getTime()) / 1000))}`)
+  }
+  return pasos
+}
+
+function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs }) {
+  const pasos = pasosDeTiempo(a, ahoraMs)
   return (
     <div className={`vf-card vf-borde-${color}`}>
       <div className="vf-card-cab">
@@ -50,6 +63,7 @@ function Tarjeta({ a, color, etiqueta, mostrarQueHacer }) {
         {a.proveedor && <span className="vf-prov">{a.proveedor}</span>}
       </div>
       {a.titulo && <div className="vf-archivo">{a.archivo}</div>}
+      {pasos.length > 0 && <div className="fe-linea">{pasos.map((p) => <span key={p}>{p}</span>)}</div>}
       <p className="vf-aviso">{a.motivo}</p>
       {mostrarQueHacer && <p className="fe-que-hacer"><strong>Qué hacer:</strong> {queHacer(a)}</p>}
     </div>
@@ -122,7 +136,8 @@ export default function FacturasEstadoView({ onUnauthorized }) {
   }
 
   const simulacion = data.modo === 'simulacion'
-  const segundos = data.segundos == null ? null : data.segundos + (Date.now() - recibidoEn) / 1000
+  const ahoraMs = Date.now()
+  const segundos = data.segundos == null ? null : data.segundos + (ahoraMs - recibidoEn) / 1000
   const atencion = data.archivos.filter((a) => a.accion === 'dejar' || a.accion === 'error')
   const enProceso = data.archivos.filter((a) => a.accion === 'esperar' || (!simulacion && a.accion === 'enviar'))
   const sePasarian = simulacion ? data.archivos.filter((a) => a.accion === 'enviar' || a.accion === 'mover') : []
@@ -166,7 +181,7 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         <>
           <h3 className="section-title">⚠️ Necesitan atención ({atencion.length})</h3>
           {atencion.map((a) => (
-            <Tarjeta key={a.archivo} a={a} color={a.accion === 'error' ? 'info' : 'alerta'} etiqueta={a.accion === 'error' ? 'Reintentando' : 'Revisar'} mostrarQueHacer />
+            <Tarjeta key={a.archivo} a={a} color={a.accion === 'error' ? 'info' : 'alerta'} etiqueta={a.accion === 'error' ? 'Reintentando' : 'Revisar'} mostrarQueHacer ahoraMs={ahoraMs} />
           ))}
         </>
       )}
@@ -175,7 +190,7 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         <>
           <h3 className="section-title">⏳ En proceso ({enProceso.length})</h3>
           {enProceso.map((a) => (
-            <Tarjeta key={a.archivo} a={a} color="info" etiqueta={a.accion === 'enviar' ? 'Mandada' : 'Esperando'} />
+            <Tarjeta key={a.archivo} a={a} color="info" etiqueta={a.accion === 'enviar' ? 'Mandada' : 'Esperando'} ahoraMs={ahoraMs} />
           ))}
         </>
       )}
@@ -184,7 +199,7 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         <>
           <h3 className="section-title">🧪 Esto haría el programa ({sePasarian.length})</h3>
           {sePasarian.map((a) => (
-            <Tarjeta key={a.archivo} a={a} color="ok" etiqueta={a.accion === 'enviar' ? 'La mandaría' : 'La archivaría'} />
+            <Tarjeta key={a.archivo} a={a} color="ok" etiqueta={a.accion === 'enviar' ? 'La mandaría' : 'La archivaría'} ahoraMs={ahoraMs} />
           ))}
         </>
       )}
@@ -204,6 +219,8 @@ export default function FacturasEstadoView({ onUnauthorized }) {
                 </span>
                 <strong>{e.titulo || e.archivo}</strong>
                 {e.proveedor && <span className="vf-prov">{e.proveedor}</span>}
+                {ahoraMs - new Date(e.fecha).getTime() < 30 * 60 * 1000 && <span className="fe-nuevo">NUEVO</span>}
+                {e.detalle && <span className="fe-detalle">{e.detalle}</span>}
               </div>
             ))}
           </div>
