@@ -7,7 +7,7 @@ const REFRESCO_MS = 60 * 1000
 const QUE_HACER = {
   diferencia: 'Corregir la compra en Contabilium. El programa archiva la factura solo cuando los importes coincidan.',
   diferencia_menor: 'Corregir la compra en Contabilium (la diferencia es chica). El programa la archiva solo cuando coincida.',
-  pendiente: 'Entrar a Consulta de comprobantes en Contabilium e importarla. Si el proveedor es nuevo, primero darlo de alta.',
+  pendiente: 'Entrar a Consulta de comprobantes en Contabilium e importarla (Estado: Pendiente; elegí Período "Últimos 7 días" o más: filtra por la fecha de la factura, no por cuándo llegó). Si el proveedor es nuevo, primero darlo de alta.',
   rechazada: 'La casilla de Contabilium la rechazó. Revisar la factura y cargarla a mano.',
   revisar: 'El programa no pudo leer este PDF con seguridad. Mirarlo y pasarlo a mano.',
   no_cargada: 'Se mandó a Contabilium pero no aparece. Revisar la casilla de compras.',
@@ -42,14 +42,22 @@ function etiquetaDia(iso) {
 
 const hora = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 
-// Qué le pasó a la factura y cuándo, en orden: mandada → llegó a Contabilium → sigue pendiente hace X
+// "a las 18:24" si es de hoy, "el 30/09 a las 18:24" si es de otro día
+function cuando(iso) {
+  const d = new Date(iso)
+  if (d.toDateString() === new Date().toDateString()) return `a las ${hora(iso)}`
+  return `el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} a las ${hora(iso)}`
+}
+
+// Qué le pasó a la factura y cuándo, en orden: mandada → llegó a Contabilium → sigue pendiente hace X.
+// "Sigue pendiente" solo se dice cuando se sabe desde cuándo (la mandó el agente): si la factura llegó
+// por otro camino o se la devolvió a pendiente al borrar su compra, la hora de llegada no sirve para eso.
 function pasosDeTiempo(a, ahoraMs) {
   const pasos = []
-  if (a.enviada_en) pasos.push(`✉ Mandada a las ${hora(a.enviada_en)}`)
-  if (a.llego_en) pasos.push(`📥 Llegó a Contabilium a las ${hora(a.llego_en)}`)
-  const desde = a.llego_en || a.enviada_en
-  if (desde && a.estado === 'pendiente') {
-    pasos.push(`⏳ Sigue pendiente hace ${hace(Math.max(0, (ahoraMs - new Date(desde).getTime()) / 1000))}`)
+  if (a.enviada_en) pasos.push(`✉ Mandada ${cuando(a.enviada_en)}`)
+  if (a.llego_en) pasos.push(`📥 Llegó a Contabilium ${cuando(a.llego_en)}`)
+  if (a.enviada_en && a.estado === 'pendiente') {
+    pasos.push(`⏳ Sigue pendiente hace ${hace(Math.max(0, (ahoraMs - new Date(a.enviada_en).getTime()) / 1000))}`)
   }
   return pasos
 }
