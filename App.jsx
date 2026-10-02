@@ -19,11 +19,12 @@ import NotasView from './NotasView.jsx'
 import DevolucionesProveedoresView from './DevolucionesProveedoresView.jsx'
 import SubagenteView from './SubagenteView.jsx'
 import PedidorView from './PedidorView.jsx'
+import VerificadorFacturasView from './VerificadorFacturasView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'subagente', 'pedidor']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'subagente', 'pedidor', 'facturas']
 
 const GRUPOS = [
   {
@@ -43,6 +44,7 @@ const GRUPOS = [
       { id: 'notas', label: 'Notas' },
       { id: 'devoluciones', label: 'Devoluciones a proveedores' },
       { id: 'pedidor', label: 'Pedidor (beta)' },
+      { id: 'facturas', label: 'Verificar facturas' },
     ],
   },
   {
@@ -261,6 +263,7 @@ export default function App() {
         {view === 'notas' && <NotasView onUnauthorized={handleUnauthorized} />}
         {view === 'devoluciones' && <DevolucionesProveedoresView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidor' && <PedidorView onUnauthorized={handleUnauthorized} />}
+        {view === 'facturas' && <VerificadorFacturasView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
