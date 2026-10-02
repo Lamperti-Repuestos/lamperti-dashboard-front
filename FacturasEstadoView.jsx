@@ -16,6 +16,7 @@ const QUE_HACER = {
 
 function queHacer(a) {
   if (a.accion === 'error') return 'Se reintenta solo en la próxima corrida. Si se repite varias veces, avisar.'
+  if ((a.motivo || '').includes('se carga a mano')) return 'Pasarla a mano en Contabilium, como siempre. Cuando quede cargada, el programa la archiva solo.'
   if ((a.motivo || '').includes('dirigida a Lamperti')) return 'Revisar si es una factura de Lamperti. Si lo es, pasarla a mano.'
   return QUE_HACER[a.estado] || 'Revisar a mano.'
 }
