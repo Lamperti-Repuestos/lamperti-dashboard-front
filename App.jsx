@@ -45,6 +45,12 @@ const GRUPOS = [
       { id: 'notas', label: 'Notas' },
       { id: 'devoluciones', label: 'Devoluciones a proveedores' },
       { id: 'pedidor', label: 'Pedidor (beta)' },
+    ],
+  },
+  {
+    id: 'facturacion',
+    nombre: 'Facturación',
+    vistas: [
       { id: 'facturasestado', label: 'Estado de facturas' },
       { id: 'facturas', label: 'Verificar facturas' },
     ],
@@ -74,7 +80,14 @@ export default function App() {
     const guardada = localStorage.getItem('dashboard_view')
     return VIEWS.includes(guardada) ? guardada : 'resumen'
   })
-  const [grupoAbierto, setGrupoAbierto] = useState(() => localStorage.getItem('dashboard_grupo') || null)
+  const [grupoAbierto, setGrupoAbierto] = useState(() => {
+    // Lo guardado puede haber quedado desactualizado si una pantalla cambió de grupo del menú:
+    // manda el grupo de la pantalla en la que se estaba, y un grupo que ya no existe se ignora.
+    const guardado = localStorage.getItem('dashboard_grupo')
+    const delaPantalla = GRUPO_POR_VISTA[view]
+    if (delaPantalla) return delaPantalla
+    return GRUPOS.some((g) => g.id === guardado) ? guardado : null
+  })
   const [mostrarTutorial, setMostrarTutorial] = useState(
     () => localStorage.getItem('dashboard_tutorial_visto') !== 'si'
   )
