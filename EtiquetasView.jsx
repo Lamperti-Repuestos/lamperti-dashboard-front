@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 
-function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImprimir, imprimiendo }) {
+function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImprimir, onImprimirLocal, imprimiendo }) {
   const todosMarcados = items.length > 0 && items.every((it) => seleccionados.has(it.shipment_id))
 
   return (
@@ -14,10 +14,18 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
           </button>
           <button
             className="scan-btn"
-            onClick={() => onImprimir(items.filter((it) => seleccionados.has(it.shipment_id)))}
+            onClick={() => onImprimirLocal(items.filter((it) => seleccionados.has(it.shipment_id)))}
             disabled={imprimiendo || items.every((it) => !seleccionados.has(it.shipment_id))}
           >
-            🖨 Imprimir seleccionadas
+            🖨 Imprimir en el local
+          </button>
+          <button
+            className="sort-btn"
+            onClick={() => onImprimir(items.filter((it) => seleccionados.has(it.shipment_id)))}
+            disabled={imprimiendo || items.every((it) => !seleccionados.has(it.shipment_id))}
+            title="Abre el PDF para imprimir desde esta compu"
+          >
+            PDF
           </button>
         </div>
       </div>
@@ -71,6 +79,53 @@ function SeccionDespacho({ titulo, items, onImportar, importando }) {
   )
 }
 
+const ESTADO_TRABAJO = {
+  pendiente: { texto: '⏳ En cola', clase: 'badge-multi' },
+  imprimiendo: { texto: '🖨 Imprimiendo', clase: 'badge-multi' },
+  impresa: { texto: '✅ Impresa', clase: 'badge-explicada' },
+  error: { texto: '⚠ Error', clase: 'badge-sin-explicar' },
+}
+
+function hora(iso) {
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function PanelImpresora({ estado, onReintentar }) {
+  if (!estado) return null
+  const { agente, trabajos } = estado
+  return (
+    <div className="paste-box">
+      <h2 className="section-title" style={{ margin: '0 0 8px' }}>
+        {agente.vivo && !agente.problema ? '🟢' : '🔴'} Impresora del local
+      </h2>
+      <div className="id-cell" style={{ marginBottom: 10 }}>
+        {agente.problema
+          ? `Problema: ${agente.problema}`
+          : agente.vivo
+            ? `Conectada${agente.impresora ? ` · ${agente.impresora}` : ''}`
+            : agente.ultimo_latido
+              ? `Sin conexión desde las ${hora(agente.ultimo_latido)}. Revisá que la PC del local esté prendida. Lo que mandes sale cuando vuelva.`
+              : 'Todavía no se conectó el programa de la PC del local.'}
+      </div>
+      {trabajos.slice(0, 5).map((t) => {
+        const e = ESTADO_TRABAJO[t.estado] || ESTADO_TRABAJO.pendiente
+        return (
+          <div key={t.id} className="row">
+            <div className="title-cell">
+              {t.cantidad} etiqueta(s) · {hora(t.creado)}
+              {t.error && <span className="id-cell mono">{t.error}</span>}
+            </div>
+            <span className={`badge ${e.clase}`}>{e.texto}</span>
+            {(t.estado === 'error' || t.estado === 'impresa') && (
+              <button className="sort-btn" onClick={() => onReintentar(t.id)}>Reimprimir</button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function EtiquetasView({ onUnauthorized, onImportado }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -79,6 +134,7 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
   const [imprimiendo, setImprimiendo] = useState(false)
   const [msg, setMsg] = useState(null)
   const [importando, setImportando] = useState(false)
+  const [estadoImp, setEstadoImp] = useState(null)
 
   const fetchDatos = () => {
     setLoading(true)
@@ -95,6 +151,53 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
   }
 
   useEffect(fetchDatos, [])
+
+  const fetchEstadoImpresora = () =>
+    apiFetch('/impresion/estado', {}, onUnauthorized)
+      .then((res) => res.json())
+      .then(setEstadoImp)
+      .catch(() => {}) // si falla un chequeo, el próximo lo corrige
+
+  useEffect(() => {
+    fetchEstadoImpresora()
+    const id = setInterval(fetchEstadoImpresora, 5000)
+    return () => clearInterval(id)
+  }, [])
+
+  const imprimirEnElLocal = (items) => {
+    if (items.length === 0) return
+    setImprimiendo(true)
+    setMsg(null)
+    const ids = items.map((it) => it.shipment_id).join(',')
+    apiFetch(`/impresion/encolar?shipment_ids=${ids}`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setMsg(
+          d.agente_vivo
+            ? `✅ ${d.cantidad} etiqueta(s) mandadas a la impresora del local.`
+            : `⚠ ${d.cantidad} etiqueta(s) en cola, pero la PC del local no está conectada. Salen apenas vuelva.`
+        )
+        setSeleccionados(new Set())
+        fetchEstadoImpresora()
+        fetchDatos()
+      })
+      .catch((err) => setMsg(`Error: ${err.message}`))
+      .finally(() => setImprimiendo(false))
+  }
+
+  const reintentarTrabajo = (id) => {
+    apiFetch(`/impresion/trabajos/${id}/reintentar`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json()).detail || 'Error')
+        setMsg('✅ Mandada de nuevo a la impresora.')
+        fetchEstadoImpresora()
+      })
+      .catch((err) => setMsg(`Error: ${err.message}`))
+  }
 
   const toggleUno = (id) => {
     setSeleccionados((prev) => {
@@ -176,6 +279,8 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
     <>
       {msg && <div className="scan-result" style={{ margin: 'var(--pad)' }}>{msg}</div>}
 
+      <PanelImpresora estado={estadoImp} onReintentar={reintentarTrabajo} />
+
       <Seccion
         titulo="📦 Colecta"
         items={data.colecta}
@@ -183,6 +288,7 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
         toggleUno={toggleUno}
         toggleTodos={toggleTodos}
         onImprimir={imprimir}
+        onImprimirLocal={imprimirEnElLocal}
         imprimiendo={imprimiendo}
       />
       <Seccion
@@ -192,6 +298,7 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
         toggleUno={toggleUno}
         toggleTodos={toggleTodos}
         onImprimir={imprimir}
+        onImprimirLocal={imprimirEnElLocal}
         imprimiendo={imprimiendo}
       />
 
