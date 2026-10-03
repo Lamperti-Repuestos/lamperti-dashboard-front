@@ -12,7 +12,7 @@ const COLORES_BARRA = ['#1A2B6B', '#2E4A9E', '#4A67B8', '#6B84C9', '#8CA1D8', '#
 
 const MEDALLA = ['🥇', '🥈', '🥉']
 
-const VISTAS_CUSTOM = ['sobreventa', 'devoluciones', 'clientes', 'stock_bajo_full']
+const VISTAS_CUSTOM = ['sobreventa', 'devoluciones', 'clientes', 'stock_bajo_full', 'ventas_full']
 
 export default function MetricasView({ onUnauthorized }) {
   const [dias, setDias] = useState(30)
@@ -34,6 +34,10 @@ export default function MetricasView({ onUnauthorized }) {
   const [cargandoClientes, setCargandoClientes] = useState(false)
   const [stockBajoFullData, setStockBajoFullData] = useState(null)
   const [cargandoStockBajoFull, setCargandoStockBajoFull] = useState(false)
+  const [ventasFullData, setVentasFullData] = useState(null)
+  const [cargandoVentasFull, setCargandoVentasFull] = useState(false)
+  const [errorVentasFull, setErrorVentasFull] = useState(null)
+  const [diasVentasFull, setDiasVentasFull] = useState(7)
 
   const fetchDatos = () => {
     setLoading(true)
@@ -128,6 +132,23 @@ export default function MetricasView({ onUnauthorized }) {
   }, [vista])
 
   useEffect(() => {
+    if (vista !== 'ventas_full') return
+    setCargandoVentasFull(true)
+    setErrorVentasFull(null)
+    apiFetch(`/metricas/ventas-full?dias=${diasVentasFull}`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setVentasFullData(d)
+        setCargandoVentasFull(false)
+      })
+      .catch((err) => {
+        setErrorVentasFull(err.message)
+        setCargandoVentasFull(false)
+      })
+  }, [vista, diasVentasFull])
+
+  useEffect(() => {
     apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => res.json())
       .then((d) => {
@@ -200,8 +221,23 @@ export default function MetricasView({ onUnauthorized }) {
             <option value="devoluciones">↩ Devoluciones acumuladas</option>
             <option value="clientes">🔁 Clientes recurrentes</option>
             <option value="stock_bajo_full">🟡 Stock bajo en Full</option>
+            <option value="ventas_full">📦 Ventas Full</option>
           </select>
         </label>
+        {vista === 'ventas_full' && (
+          <label className="corte-label">
+            Período (días)
+            <input
+              type="number"
+              className="corte-input"
+              value={diasVentasFull}
+              onChange={(e) => setDiasVentasFull(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+              min={1}
+              max={60}
+              style={{ width: 70 }}
+            />
+          </label>
+        )}
         {!VISTAS_CUSTOM.includes(vista) && (
           <label className="corte-label">
             Período (días)
@@ -314,6 +350,67 @@ export default function MetricasView({ onUnauthorized }) {
             </div>
           ))}
         </div>
+      )}
+
+      {vista === 'ventas_full' && (
+        <>
+          {cargandoVentasFull && <div className="loading-state">Cargando ventas Full...</div>}
+          {errorVentasFull && <div className="error-state">Error: {errorVentasFull}</div>}
+          {!cargandoVentasFull && ventasFullData && (
+            <>
+              <div className="summary">
+                <div className="summary-item">
+                  <div className="value mono">{ventasFullData.total_ventas}</div>
+                  <div className="label">Ventas Full</div>
+                </div>
+                <div className="summary-item">
+                  <div className="value mono">{ventasFullData.total_unidades}</div>
+                  <div className="label">Unidades</div>
+                </div>
+                <div className="summary-item">
+                  <div className="value mono">{formatoPesos.format(ventasFullData.total_monto)}</div>
+                  <div className="label">Facturado bruto</div>
+                </div>
+              </div>
+
+              <h3 style={{ margin: '16px 0 8px' }}>🏆 Ranking de lo que más se vende en Full</h3>
+              <div className="list">
+                {ventasFullData.ranking.length === 0 && (
+                  <div className="empty-state">Sin ventas Full en este período.</div>
+                )}
+                {ventasFullData.ranking.map((p, i) => (
+                  <div key={p.sku} className="row">
+                    {MEDALLA[i] && <span style={{ fontSize: 22 }}>{MEDALLA[i]}</span>}
+                    {fotos[p.sku] && <img src={fotos[p.sku]} alt="" className="pick-thumb" />}
+                    <div className="title-cell">
+                      {p.titulo || p.sku}
+                      <span className="id-cell mono">SKU: {p.sku} · #{i + 1}</span>
+                    </div>
+                    <span className="badge badge-colecta">×{p.unidades} u.</span>
+                    <span className="badge badge-flex">{formatoPesos.format(p.monto)}</span>
+                    <span className="id-cell mono">{p.ventas} venta(s)</span>
+                  </div>
+                ))}
+              </div>
+
+              <h3 style={{ margin: '16px 0 8px' }}>🧾 Detalle de cada venta Full</h3>
+              <div className="list">
+                {ventasFullData.ventas.map((v) => (
+                  <div key={v.order_id} className="row">
+                    <div className="title-cell">
+                      {v.items.map((it) => `${it.cantidad}× ${it.titulo || it.sku}`).join(' · ')}
+                      <span className="id-cell mono">
+                        {v.fecha ? new Date(v.fecha).toLocaleString('es-AR') : '—'}
+                        {' · '}#{v.order_id}{v.comprador ? ` · ${v.comprador}` : ''}
+                      </span>
+                    </div>
+                    <span className="badge badge-acordar">{formatoPesos.format(v.total || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {vista === 'stock_bajo_full' && (
