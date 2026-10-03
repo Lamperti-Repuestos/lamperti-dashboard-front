@@ -112,7 +112,10 @@ function PanelImpresora({ estado, onReintentar }) {
         return (
           <div key={t.id} className="row">
             <div className="title-cell">
-              {t.cantidad} etiqueta(s) · {hora(t.creado)}
+              {t.cantidad} envío(s) · {hora(t.creado)}
+              {t.etiquetas !== t.cantidad && (
+                <span className="id-cell mono">⚠ ML devolvió {t.etiquetas} etiqueta(s) para {t.cantidad} envío(s)</span>
+              )}
               {t.error && <span className="id-cell mono">{t.error}</span>}
             </div>
             <span className={`badge ${e.clase}`}>{e.texto}</span>
@@ -176,10 +179,14 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
         return d
       })
       .then((d) => {
+        const faltan =
+          d.etiquetas !== d.cantidad
+            ? ` ⚠ Ojo: pediste ${d.cantidad} pero ML devolvió ${d.etiquetas} etiqueta(s).`
+            : ''
         setMsg(
-          d.agente_vivo
+          (d.agente_vivo
             ? `✅ ${d.cantidad} etiqueta(s) mandadas a la impresora del local.`
-            : `⚠ ${d.cantidad} etiqueta(s) en cola, pero la PC del local no está conectada. Salen apenas vuelva.`
+            : `⚠ ${d.cantidad} etiqueta(s) en cola, pero la PC del local no está conectada. Salen apenas vuelva.`) + faltan
         )
         setSeleccionados(new Set())
         fetchEstadoImpresora()
