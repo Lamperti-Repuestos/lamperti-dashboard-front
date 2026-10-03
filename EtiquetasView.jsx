@@ -52,6 +52,29 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
   )
 }
 
+function SeccionProgramadas({ items }) {
+  if (items.length === 0) return null
+  const cuando = (iso) =>
+    new Date(iso).toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="paste-box">
+      <h2 className="section-title" style={{ margin: '0 0 4px' }}>⏳ Programadas ({items.length})</h2>
+      <div className="id-cell" style={{ marginBottom: 10 }}>
+        Mercado Libre todavía las tiene en procesamiento: la etiqueta se habilita más adelante.
+      </div>
+      {items.map((it) => (
+        <div key={it.shipment_id} className="row">
+          <div className="title-cell">
+            {it.titulo}
+            <span className="id-cell mono">{it.comprador} · Envío #{it.shipment_id} · {it.tipo}</span>
+          </div>
+          <span className="badge badge-multi">Se habilita {cuando(it.habilita)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function SeccionDespacho({ titulo, items, onImportar, importando }) {
   return (
     <div className="paste-box">
@@ -308,6 +331,8 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
         onImprimirLocal={imprimirEnElLocal}
         imprimiendo={imprimiendo}
       />
+
+      <SeccionProgramadas items={data.programadas || []} />
 
       <div style={{ margin: 'var(--pad) var(--pad) 4px', fontSize: 12, color: 'var(--gray-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
         Ya impresas - listas para despachar
