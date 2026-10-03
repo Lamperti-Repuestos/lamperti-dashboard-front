@@ -49,6 +49,14 @@ function cuando(iso) {
   return `el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} a las ${hora(iso)}`
 }
 
+// Hora exacta con segundos: "hoy a las 18:24:05" / "el 30/09 a las 18:24:05"
+function horaExacta(iso) {
+  const d = new Date(iso)
+  const h = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  if (d.toDateString() === new Date().toDateString()) return `hoy a las ${h}`
+  return `el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} a las ${h}`
+}
+
 // Qué le pasó a la factura y cuándo, en orden: mandada → llegó a Contabilium → sigue pendiente hace X.
 // "Sigue pendiente" solo se dice cuando se sabe desde cuándo (la mandó el agente): si la factura llegó
 // por otro camino o se la devolvió a pendiente al borrar su compra, la hora de llegada no sirve para eso.
@@ -123,7 +131,7 @@ function resumenGeneral(data, diferencias, atencion, enProceso, segundos) {
     return { tono: 'info', icono: '⏳', titulo: 'Todavía no hay reportes del programa', detalle: 'Cuando el programa de la oficina corra por primera vez, el estado aparece acá.' }
   }
   if (!data.funcionando) {
-    return { tono: 'alerta', icono: '🔴', titulo: 'El programa no está reportando', detalle: `Último aviso hace ${hace(segundos)}. ¿La PC de la oficina está prendida?` }
+    return { tono: 'alerta', icono: '🔴', titulo: 'El programa no está reportando', detalle: `Último aviso ${horaExacta(data.actualizado)}. ¿La PC de la oficina está prendida?` }
   }
   if (data.error) {
     return { tono: 'alerta', icono: '⚠️', titulo: 'El programa tiene un problema', detalle: data.error }
@@ -222,7 +230,7 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         <div className="fe-banner-detalle">{banner.detalle}</div>
         {data.actualizado && (
           <div className="fe-banner-pie">
-            Último aviso del programa: hace {hace(segundos)}
+            Último aviso del programa: {horaExacta(data.actualizado)}
             {simulacion && <span className="fe-modo">MODO PRUEBA</span>}
           </div>
         )}
