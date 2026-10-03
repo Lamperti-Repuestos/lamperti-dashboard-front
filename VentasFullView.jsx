@@ -63,6 +63,10 @@ export default function VentasFullView({ onUnauthorized }) {
       {error && <div className="error-state">Error: {error}</div>}
       {!cargando && data && (
         <>
+          <div className="id-cell mono" style={{ margin: '8px 0' }}>
+            Del {new Date(data.desde).toLocaleDateString('es-AR')} al {new Date(data.hasta).toLocaleDateString('es-AR')}
+            {' · '}{data.ordenes_revisadas} órdenes revisadas en total
+          </div>
           <div className="summary">
             <div className="summary-item">
               <div className="value mono">{data.total_ventas}</div>
