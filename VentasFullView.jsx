@@ -14,22 +14,35 @@ export default function VentasFullView({ onUnauthorized }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [dias, setDias] = useState(7)
+  const [diasTexto, setDiasTexto] = useState('7')
   const [fotos, setFotos] = useState({})
 
+  // Espera a que termine de tipear antes de consultar (si no, "16" consulta primero "1").
   useEffect(() => {
+    const n = parseInt(diasTexto, 10)
+    if (!n) return
+    const t = setTimeout(() => setDias(Math.max(1, Math.min(60, n))), 700)
+    return () => clearTimeout(t)
+  }, [diasTexto])
+
+  useEffect(() => {
+    let vigente = true
     setCargando(true)
     setError(null)
     apiFetch(`/metricas/ventas-full?dias=${dias}`, {}, onUnauthorized)
       .then(async (res) => {
         const d = await res.json()
         if (!res.ok) throw new Error(d.detail || 'Error')
+        if (!vigente) return
         setData(d)
         setCargando(false)
       })
       .catch((err) => {
+        if (!vigente) return
         setError(err.message)
         setCargando(false)
       })
+    return () => { vigente = false }
   }, [dias])
 
   useEffect(() => {
@@ -50,8 +63,8 @@ export default function VentasFullView({ onUnauthorized }) {
           <input
             type="number"
             className="corte-input"
-            value={dias}
-            onChange={(e) => setDias(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+            value={diasTexto}
+            onChange={(e) => setDiasTexto(e.target.value)}
             min={1}
             max={60}
             style={{ width: 70 }}
