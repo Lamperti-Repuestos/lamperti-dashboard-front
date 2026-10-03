@@ -11,6 +11,7 @@ import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
 import PublicidadView from './PublicidadView.jsx'
+import VentasFullView from './VentasFullView.jsx'
 import CostosView from './CostosView.jsx'
 import ResumenView from './ResumenView.jsx'
 import TutorialView from './TutorialView.jsx'
@@ -25,7 +26,7 @@ import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'subagente', 'pedidor', 'facturas', 'facturasestado']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturas', 'facturasestado']
 
 const GRUPOS = [
   {
@@ -67,6 +68,7 @@ const GRUPOS = [
       { id: 'metricas', label: 'Métricas' },
       { id: 'publicidad', label: 'Publicidad' },
       { id: 'costos', label: 'Costos' },
+      { id: 'ventasfull', label: 'Ventas Full' },
     ],
   },
 ]
@@ -284,6 +286,7 @@ export default function App() {
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
         {view === 'costos' && <CostosView onUnauthorized={handleUnauthorized} />}
+        {view === 'ventasfull' && <VentasFullView onUnauthorized={handleUnauthorized} />}
       </div>
 
       {mostrarTutorial && <TutorialView onCerrar={cerrarTutorial} />}
