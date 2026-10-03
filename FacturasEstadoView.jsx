@@ -5,12 +5,12 @@ const REFRESCO_MS = 60 * 1000
 
 // Qué hacer, en palabras simples, según lo que el programa encontró
 const QUE_HACER = {
-  diferencia: 'Corregir la compra en Contabilium. El programa archiva la factura solo cuando los importes coincidan.',
-  diferencia_menor: 'Corregir la compra en Contabilium (la diferencia es chica). El programa la archiva solo cuando coincida.',
+  diferencia: 'Corregir la compra en Contabilium: entrar a Compras realizadas, abrirla y poner los importes de la factura. El programa archiva el PDF solo cuando coincidan. No hace falta mandarla de nuevo.',
+  diferencia_menor: 'Corregir la compra en Contabilium (la diferencia es chica o es solo la fecha o el tipo). El programa archiva el PDF solo cuando coincida. No hace falta mandarla de nuevo.',
   pendiente: 'Entrar a Consulta de comprobantes en Contabilium e importarla (Estado: Pendiente; elegí Período "Últimos 7 días" o más: filtra por la fecha de la factura, no por cuándo llegó). Si el proveedor es nuevo, primero darlo de alta.',
   rechazada: 'La casilla de Contabilium la rechazó. Revisar la factura y cargarla a mano.',
   revisar: 'El programa no pudo leer este PDF con seguridad. Mirarlo y pasarlo a mano.',
-  no_cargada: 'Se mandó a Contabilium pero no aparece. Revisar la casilla de compras.',
+  no_cargada: 'Se mandó a Contabilium pero no aparece con los datos esperados. Revisar la casilla de compras (Consulta de comprobantes): puede que la IA haya leído mal el número o el CUIT de la factura.',
   duplicada: 'Es el mismo comprobante que otro PDF de la carpeta. Dejar solo uno.',
 }
 
@@ -62,7 +62,44 @@ function pasosDeTiempo(a, ahoraMs) {
   return pasos
 }
 
-function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs }) {
+const esDiferencia = (a) => a.accion === 'dejar' && (a.estado === 'diferencia' || a.estado === 'diferencia_menor')
+
+// El agente manda los importes de la factura en positivo; en una nota de crédito Contabilium los guarda en negativo.
+const conSigno = (a, v) => (v && (a.titulo || '').startsWith('NC') && !v.startsWith('-') && v !== '0,00' ? `-${v}` : v)
+
+function Cuadro({ a }) {
+  const c = a.comparacion
+  if (!c) return null
+  const filas = [['Neto', 'neto'], ['IVA', 'iva'], ['Percepciones / otros', 'otros'], ['Total', 'total']]
+  return (
+    <table className="vf-tabla">
+      <thead>
+        <tr>
+          <th></th>
+          <th className="vf-n">La factura dice</th>
+          <th className="vf-n">Contabilium cargó</th>
+          <th className="vf-n">Diferencia</th>
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map(([etiqueta, k]) => {
+          const dif = c.diferencia?.[k]
+          const hayDif = dif && dif !== '0,00'
+          return (
+            <tr key={k}>
+              <td>{etiqueta}</td>
+              <td className="vf-n mono">{conSigno(a, c.pdf?.[k])}</td>
+              <td className="vf-n mono">{c.contabilium?.[k]}</td>
+              <td className={`vf-n mono ${hayDif ? 'vf-dif' : ''}`}>{hayDif ? (dif.startsWith('-') ? dif : `+${dif}`) : '—'}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs, mostrarCuadro }) {
   const pasos = pasosDeTiempo(a, ahoraMs)
   return (
     <div className={`vf-card vf-borde-${color}`}>
@@ -74,12 +111,14 @@ function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs }) {
       {a.titulo && <div className="vf-archivo">{a.archivo}</div>}
       {pasos.length > 0 && <div className="fe-linea">{pasos.map((p) => <span key={p}>{p}</span>)}</div>}
       <p className="vf-aviso">{a.motivo}</p>
+      {mostrarCuadro && <Cuadro a={a} />}
+      {mostrarCuadro && (a.avisos || []).map((x, i) => <p key={i} className="vf-aviso">⚠️ {x}</p>)}
       {mostrarQueHacer && <p className="fe-que-hacer"><strong>Qué hacer:</strong> {queHacer(a)}</p>}
     </div>
   )
 }
 
-function resumenGeneral(data, atencion, enProceso, segundos) {
+function resumenGeneral(data, diferencias, atencion, enProceso, segundos) {
   if (!data.actualizado) {
     return { tono: 'info', icono: '⏳', titulo: 'Todavía no hay reportes del programa', detalle: 'Cuando el programa de la oficina corra por primera vez, el estado aparece acá.' }
   }
@@ -88,6 +127,15 @@ function resumenGeneral(data, atencion, enProceso, segundos) {
   }
   if (data.error) {
     return { tono: 'alerta', icono: '⚠️', titulo: 'El programa tiene un problema', detalle: data.error }
+  }
+  if (diferencias.length) {
+    const n = diferencias.length
+    const resto = atencion.length
+    return {
+      tono: 'alerta', icono: '⚠️',
+      titulo: `${n} factura${n === 1 ? ' cargada' : 's cargadas'} con diferencia de importes`,
+      detalle: resto ? `Mirá abajo cuál es la diferencia. Además hay ${resto} para revisar.` : 'Mirá abajo qué importe no coincide y cómo corregirlo.',
+    }
   }
   if (atencion.length) {
     const n = atencion.length
@@ -147,10 +195,11 @@ export default function FacturasEstadoView({ onUnauthorized }) {
   const simulacion = data.modo === 'simulacion'
   const ahoraMs = Date.now()
   const segundos = data.segundos == null ? null : data.segundos + (ahoraMs - recibidoEn) / 1000
-  const atencion = data.archivos.filter((a) => a.accion === 'dejar' || a.accion === 'error')
+  const diferencias = data.archivos.filter(esDiferencia)
+  const atencion = data.archivos.filter((a) => (a.accion === 'dejar' || a.accion === 'error') && !esDiferencia(a))
   const enProceso = data.archivos.filter((a) => a.accion === 'esperar' || (!simulacion && a.accion === 'enviar'))
   const sePasarian = simulacion ? data.archivos.filter((a) => a.accion === 'enviar' || a.accion === 'mover') : []
-  const banner = resumenGeneral(data, atencion, enProceso, segundos)
+  const banner = resumenGeneral(data, diferencias, atencion, enProceso, segundos)
 
   // historial agrupado por día
   const dias = []
@@ -185,6 +234,20 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         </p>
       )}
       {error && <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>No se pudo actualizar ({error}). Se muestra lo último que se pudo cargar.</p>}
+
+      {diferencias.length > 0 && (
+        <>
+          <h3 className="section-title">🔴 Cargadas con diferencia de importes ({diferencias.length})</h3>
+          <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 8px' }}>
+            Contabilium las cargó, pero lo que cargó no coincide con la factura. El PDF queda en "Para pasar" hasta que se corrija.
+          </p>
+          {diferencias.map((a) => (
+            <Tarjeta key={a.archivo} a={a} color={a.estado === 'diferencia' ? 'alerta' : 'atencion'}
+              etiqueta={a.estado === 'diferencia' ? 'Diferencia de importes' : 'Diferencia menor'}
+              mostrarQueHacer mostrarCuadro ahoraMs={ahoraMs} />
+          ))}
+        </>
+      )}
 
       {atencion.length > 0 && (
         <>
