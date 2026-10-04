@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
+import Modal from './Modal.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 
 export default function StockView({ onUnauthorized }) {
   const [umbral, setUmbral] = useState(15)
@@ -7,9 +9,12 @@ export default function StockView({ onUnauthorized }) {
   const [soloPendientes, setSoloPendientes] = useState(true)
   const [ordenMagnitud, setOrdenMagnitud] = useState('desc') // desc | asc | ninguno
   const [magnitudMinima, setMagnitudMinima] = useState(0)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [direccionFiltro, setDireccionFiltro] = useState('todos') // todos | positiva | negativa
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [poleandoScan, setPoleandoScan] = useState(false)
+  const [scanProgreso, setScanProgreso] = useState(null)
   const [error, setError] = useState(null)
   const [lastScan, setLastScan] = useState(null)
   const [mostrarQuiebres, setMostrarQuiebres] = useState(false)
@@ -148,12 +153,22 @@ export default function StockView({ onUnauthorized }) {
   const handleScan = () => {
     setScanning(true)
     setError(null)
+    setScanProgreso(null)
     apiFetch(`/ml/stock/scan?umbral=${umbral}`, { method: 'POST' }, onUnauthorized)
       .then((res) => {
         if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
         return res.json()
       })
       .then((json) => {
+        // Con Contabilium configurado, el escaneo corre en segundo plano
+        // (tarda varios minutos por el límite de la API) - el polling de
+        // abajo se encarga de mostrar el progreso y cortar 'scanning'
+        // cuando termine. Sin Contabilium, sigue siendo síncrono (fallback
+        // viejo contra ML) y ya viene con el resultado en 'json'.
+        if (json.iniciado || json.ya_estaba_corriendo) {
+          setPoleandoScan(true)
+          return
+        }
         setLastScan(json)
         setScanning(false)
         fetchAlerts()
@@ -163,6 +178,39 @@ export default function StockView({ onUnauthorized }) {
         setScanning(false)
       })
   }
+
+  useEffect(() => {
+    if (!poleandoScan) return
+    let cancelado = false
+
+    const consultarProgresoScan = () => {
+      apiFetch('/ml/stock/scan/progreso', {}, onUnauthorized)
+        .then((res) => res.json())
+        .then((d) => {
+          if (cancelado) return
+          setScanProgreso(d)
+          if (!d.corriendo) {
+            setPoleandoScan(false)
+            setScanning(false)
+            setLastScan({
+              productos_escaneados: d.revisados,
+              alertas_nuevas: d.alertas_nuevas || [],
+              umbral,
+              error: d.error,
+            })
+            fetchAlerts()
+          }
+        })
+        .catch(() => {})
+    }
+
+    consultarProgresoScan()
+    const intervalo = setInterval(consultarProgresoScan, 1500)
+    return () => {
+      cancelado = true
+      clearInterval(intervalo)
+    }
+  }, [poleandoScan, umbral, fetchAlerts, onUnauthorized])
 
   const toggleRevisado = (alerta) => {
     const nuevoValor = !alerta.revisado
@@ -181,16 +229,20 @@ export default function StockView({ onUnauthorized }) {
   }
 
   const [revirtiendoId, setRevirtiendoId] = useState(null)
+  const [confirmacion, setConfirmacion] = useState(null)
   const [revertirError, setRevertirError] = useState(null)
 
   const [revertirInfo, setRevertirInfo] = useState(null)
 
   const revertirCambio = (alerta) => {
-    if (!confirm(
-      `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades ` +
-      `(el valor de antes del cambio)?`
-    )) return
+    setConfirmacion({
+      mensaje: `¿Devolver el stock de "${alerta.title}" a ${alerta.stock_anterior} unidades (el valor de antes del cambio)?`,
+      peligroso: true,
+      onConfirmar: () => ejecutarRevertirCambio(alerta),
+    })
+  }
 
+  const ejecutarRevertirCambio = (alerta) => {
     setRevirtiendoId(alerta.id)
     setRevertirError(null)
     setRevertirInfo(null)
@@ -222,6 +274,88 @@ export default function StockView({ onUnauthorized }) {
       })
   }
 
+  const [mostrarModalFull, setMostrarModalFull] = useState(false)
+  const [enviosFull, setEnviosFull] = useState(null)
+  const [cargandoEnviosFull, setCargandoEnviosFull] = useState(false)
+  const [errorEnviosFull, setErrorEnviosFull] = useState(null)
+  const [envioSeleccionado, setEnvioSeleccionado] = useState(null)
+  const [descuadreData, setDescuadreData] = useState(null)
+  const [cargandoDescuadre, setCargandoDescuadre] = useState(false)
+  const [chequeandoAhora, setChequeandoAhora] = useState(false)
+  const [errorDescuadre, setErrorDescuadre] = useState(null)
+
+  const abrirModalFull = () => {
+    setMostrarModalFull(true)
+    setEnvioSeleccionado(null)
+    setDescuadreData(null)
+    setErrorDescuadre(null)
+    setCargandoEnviosFull(true)
+    setErrorEnviosFull(null)
+    apiFetch('/full/envios/enviados', {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setEnviosFull(d.envios)
+        setCargandoEnviosFull(false)
+      })
+      .catch((err) => {
+        setErrorEnviosFull(err.message)
+        setCargandoEnviosFull(false)
+      })
+  }
+
+  const elegirEnvioFull = (envio) => {
+    setEnvioSeleccionado(envio)
+    setDescuadreData(null)
+    setErrorDescuadre(null)
+    setCargandoDescuadre(true)
+    apiFetch(`/full/envios/${envio.id}/descuadre`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setDescuadreData(d)
+        setCargandoDescuadre(false)
+      })
+      .catch((err) => {
+        setErrorDescuadre(err.message)
+        setCargandoDescuadre(false)
+      })
+  }
+
+  const chequearAhoraFull = () => {
+    if (!envioSeleccionado) return
+    setChequeandoAhora(true)
+    setErrorDescuadre(null)
+    apiFetch(`/full/envios/${envioSeleccionado.id}/chequear-descuadre`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => {
+        setDescuadreData(d)
+        setChequeandoAhora(false)
+      })
+      .catch((err) => {
+        setErrorDescuadre(err.message)
+        setChequeandoAhora(false)
+      })
+  }
+
+  const cerrarModalFull = () => {
+    setMostrarModalFull(false)
+    setEnvioSeleccionado(null)
+    setDescuadreData(null)
+  }
+
+  const filtrosActivos = (umbral !== 15 ? 1 : 0) + (magnitudMinima > 0 ? 1 : 0) + (ordenMagnitud !== 'desc' ? 1 : 0) + (mostrarQuiebres ? 1 : 0) + (mostrarDiscrepancias ? 1 : 0)
+
   const alertsFiltradas = (() => {
     let resultado = alerts.filter((a) => {
       if (Math.abs(a.diferencia) < magnitudMinima) return false
@@ -240,49 +374,13 @@ export default function StockView({ onUnauthorized }) {
   return (
     <>
       <div className="controls">
-        <label className="corte-label">
-          Umbral (unidades)
-          <input
-            type="number"
-            className="corte-input"
-            value={umbral}
-            onChange={(e) => setUmbral(Number(e.target.value))}
-            min={1}
-            style={{ width: 90 }}
-          />
-        </label>
-        <span className="umbral-hint">
-          Las pausas por quedar en 0 sin venta que lo explique se avisan siempre, aunque sean chicas
-        </span>
-
         <button className="scan-btn" onClick={handleScan} disabled={scanning}>
           {scanning ? 'Escaneando...' : '🔍 Escanear ahora'}
         </button>
 
-        <button className="sort-btn" onClick={() => setSoloPendientes((v) => !v)}>
-          {soloPendientes ? '✓ ' : ''}Solo pendientes
+        <button className="sort-btn btn-toggle" aria-pressed={soloPendientes} onClick={() => setSoloPendientes((v) => !v)}>
+          Solo pendientes
         </button>
-
-        <button
-          className="sort-btn"
-          onClick={() => setOrdenMagnitud((v) => (v === 'desc' ? 'asc' : v === 'asc' ? 'ninguno' : 'desc'))}
-        >
-          {ordenMagnitud === 'desc' && '↓ Mayor cambio primero'}
-          {ordenMagnitud === 'asc' && '↑ Menor cambio primero'}
-          {ordenMagnitud === 'ninguno' && '↕ Sin ordenar'}
-        </button>
-
-        <label className="corte-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          Cambio mínimo
-          <input
-            type="number"
-            className="corte-input"
-            value={magnitudMinima}
-            onChange={(e) => setMagnitudMinima(Number(e.target.value) || 0)}
-            min={0}
-            style={{ width: 70 }}
-          />
-        </label>
 
         <div className="tabs">
           <button className={`tab ${direccionFiltro === 'todos' ? 'active' : ''}`} onClick={() => setDireccionFiltro('todos')}>
@@ -296,19 +394,75 @@ export default function StockView({ onUnauthorized }) {
           </button>
         </div>
 
-        <button className="sort-btn" onClick={toggleQuiebres}>
-          📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
+        <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
+          Filtros {filtrosActivos > 0 ? `(${filtrosActivos}) ` : ''}{mostrarFiltros ? '▲' : '▼'}
         </button>
 
-        <button className="sort-btn" onClick={toggleDiscrepancias}>
-          ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
+        <button className="sort-btn" onClick={abrirModalFull}>
+          📦 Chequear discrepancias por Full
         </button>
       </div>
 
-      {lastScan && (
+      {mostrarFiltros && (
+        <div className="controls">
+          <label className="corte-label">
+            Umbral (unidades)
+            <input
+              type="number"
+              className="corte-input"
+              value={umbral}
+              onChange={(e) => setUmbral(Number(e.target.value))}
+              min={1}
+              style={{ width: 90 }}
+            />
+          </label>
+          <span className="umbral-hint">
+            Las pausas por quedar en 0 sin venta que lo explique se avisan siempre, aunque sean chicas
+          </span>
+
+          <button
+            className="sort-btn"
+            onClick={() => setOrdenMagnitud((v) => (v === 'desc' ? 'asc' : v === 'asc' ? 'ninguno' : 'desc'))}
+          >
+            {ordenMagnitud === 'desc' && '↓ Mayor cambio primero'}
+            {ordenMagnitud === 'asc' && '↑ Menor cambio primero'}
+            {ordenMagnitud === 'ninguno' && '↕ Sin ordenar'}
+          </button>
+
+          <label className="corte-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Cambio mínimo
+            <input
+              type="number"
+              className="corte-input"
+              value={magnitudMinima}
+              onChange={(e) => setMagnitudMinima(Number(e.target.value) || 0)}
+              min={0}
+              style={{ width: 70 }}
+            />
+          </label>
+
+          <button className="sort-btn" onClick={toggleQuiebres}>
+            📉 {mostrarQuiebres ? 'Ocultar' : 'Ver'} quiebres históricos
+          </button>
+
+          <button className="sort-btn" onClick={toggleDiscrepancias}>
+            ⚠ {mostrarDiscrepancias ? 'Ocultar' : 'Ver'} discrepancias con Contabilium
+          </button>
+        </div>
+      )}
+
+      {scanning && scanProgreso && scanProgreso.total > 0 && (
+        <div className="scan-result">
+          Escaneando contra Contabilium: {scanProgreso.revisados}/{scanProgreso.total}
+          {scanProgreso.sku_actual ? ` (SKU ${scanProgreso.sku_actual})` : ''} - puede tardar varios minutos.
+        </div>
+      )}
+
+      {!scanning && lastScan && (
         <div className="scan-result">
           Último escaneo: {lastScan.productos_escaneados} productos revisados,{' '}
           {lastScan.alertas_nuevas.length} alerta(s) nueva(s) (umbral ±{lastScan.umbral}).
+          {lastScan.error && ` ⚠ Se cortó antes de terminar: ${lastScan.error}`}
         </div>
       )}
 
@@ -342,6 +496,11 @@ export default function StockView({ onUnauthorized }) {
                 <div className="alert-title">
                   {a.title}
                   <span className="id-cell mono">SKU: {a.sku}</span>
+                  {a.fuente === 'contabilium' && (
+                    <span className="badge badge-explicada" title="Stock real (StockConReservas) de Contabilium">
+                      Contabilium
+                    </span>
+                  )}
                   {a.revertido && <span className="badge badge-revertido">↩ Revertido</span>}
                   {!a.revertido && a.motivo === 'pausa' && (
                     <span className="badge badge-sin-explicar">
@@ -389,9 +548,9 @@ export default function StockView({ onUnauthorized }) {
 
       {mostrarQuiebres && (
         <div className="list">
-          <label className="corte-label" style={{ margin: '0 0 6px 12px' }}>
+          <h2 className="section-title" style={{ margin: '0 0 6px 12px' }}>
             Quiebres de stock (últimos 90 días)
-          </label>
+          </h2>
           {cargandoQuiebres && <div className="loading-state">Cargando...</div>}
           {quiebresData && quiebresData.productos.length === 0 && (
             <div className="empty-state">Sin quiebres registrados todavía en este período.</div>
@@ -413,9 +572,9 @@ export default function StockView({ onUnauthorized }) {
       {mostrarDiscrepancias && (
         <div className="list">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 6px 12px' }}>
-            <label className="corte-label" style={{ marginBottom: 0 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>
               Stock en 0 en ML, pero con stock en Contabilium
-            </label>
+            </h2>
             <button
               className="sort-btn"
               onClick={actualizarDiscrepanciasAhora}
@@ -472,6 +631,103 @@ export default function StockView({ onUnauthorized }) {
             </div>
           ))}
         </div>
+      )}
+
+      {mostrarModalFull && (
+        <Modal titulo="📦 Discrepancias por Full" onCerrar={cerrarModalFull}>
+          {!envioSeleccionado && (
+                <>
+                  <p className="tutorial-texto" style={{ marginBottom: 14 }}>
+                    Elegí un Envío Full ya mandado para ver cómo venía el stock en
+                    Contabilium antes de cerrarlo, y compararlo contra el stock
+                    actual cuando quieras chequearlo (esto puede tardar horas o
+                    días en desconfigurarse, así que no hay apuro).
+                  </p>
+                  {cargandoEnviosFull && <div className="loading-state">Cargando envíos...</div>}
+                  {errorEnviosFull && <div className="error-state">Error: {errorEnviosFull}</div>}
+                  {enviosFull && enviosFull.length === 0 && (
+                    <div className="empty-state">Todavía no hay ningún Full mandado.</div>
+                  )}
+                  {enviosFull?.map((e) => (
+                    <button
+                      key={e.id}
+                      className="tutorial-indice-item"
+                      onClick={() => elegirEnvioFull(e)}
+                    >
+                      <span>
+                        {e.nombre}
+                        <span className="id-cell" style={{ display: 'block' }}>
+                          {e.fecha_enviado && new Date(e.fecha_enviado).toLocaleString('es-AR', {
+                            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                          })}
+                          {' · '}{e.total_skus} producto(s)
+                          {e.ya_chequeado > 0 && ` · ${e.ya_chequeado} ya chequeado(s)`}
+                        </span>
+                      </span>
+                      <span>›</span>
+                    </button>
+                  ))}
+                </>
+          )}
+
+          {envioSeleccionado && (
+                <>
+                  <button
+                    className="sort-btn"
+                    style={{ marginBottom: 12 }}
+                    onClick={() => { setEnvioSeleccionado(null); setDescuadreData(null) }}
+                  >
+                    ← Elegir otro envío
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                    <strong>{envioSeleccionado.nombre}</strong>
+                    <button
+                      className="scan-btn"
+                      onClick={chequearAhoraFull}
+                      disabled={chequeandoAhora}
+                    >
+                      {chequeandoAhora ? '🔄 Chequeando...' : '🔄 Chequear ahora'}
+                    </button>
+                  </div>
+
+                  {cargandoDescuadre && <div className="loading-state">Cargando...</div>}
+                  {errorDescuadre && <div className="error-state">Error: {errorDescuadre}</div>}
+
+                  {descuadreData?.snapshots.map((s) => {
+                    const tieneDespues = s.stock_despues !== null && s.stock_despues !== undefined
+                    const hayDiferencia = tieneDespues && s.diferencia !== 0
+                    return (
+                      <div key={s.sku} className="row">
+                        <div className="title-cell">
+                          {s.titulo}
+                          <span className="id-cell mono">SKU: {s.sku}</span>
+                        </div>
+                        <span className="badge badge-explicada">Antes: {s.stock_antes ?? '?'}</span>
+                        {tieneDespues ? (
+                          <span className={`badge ${hayDiferencia ? 'badge-sin-explicar' : 'badge-explicada'}`}>
+                            Ahora: {s.stock_despues} ({s.diferencia > 0 ? '+' : ''}{s.diferencia})
+                          </span>
+                        ) : (
+                          <span className="id-cell">Todavía sin chequear</span>
+                        )}
+                        {s.error_antes && <span className="id-cell">⚠ antes: {s.error_antes}</span>}
+                        {s.error_despues && <span className="id-cell">⚠ ahora: {s.error_despues}</span>}
+                      </div>
+                    )
+                  })}
+                </>
+          )}
+        </Modal>
+      )}
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
       )}
     </>
   )

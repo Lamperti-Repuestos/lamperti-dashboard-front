@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { apiFetch } from './api.js'
+import AlertModal from './AlertModal.jsx'
 
 const normalizar = (s) =>
   (s || '')
@@ -29,6 +30,7 @@ function parsearLineaManual(lineaOriginal) {
 
 function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando, mostrarPrecio }) {
   const [textoCarga, setTextoCarga] = useState('')
+  const [aviso, setAviso] = useState(null)
 
   const actualizarFila = (id, campo, valor) => {
     setFilas((prev) => prev.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)))
@@ -53,7 +55,7 @@ function TablaEditable({ titulo, filas, setFilas, onDictar, onDetener, dictando,
   return (
     <div className="paste-box">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-        <label className="corte-label" style={{ marginBottom: 0 }}>{titulo}</label>
+        <h2 className="section-title" style={{ margin: 0 }}>{titulo}</h2>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {onDictar && (
             <button
@@ -189,7 +191,7 @@ export default function CotejoPackingListView({ onUnauthorized }) {
   const iniciarDictado = (destino) => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      alert('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
+      setAviso('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
       return
     }
     const recognition = new SpeechRecognition()
@@ -450,6 +452,7 @@ export default function CotejoPackingListView({ onUnauthorized }) {
           ))}
         </div>
       )}
+      {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
 }

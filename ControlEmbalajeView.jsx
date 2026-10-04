@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
 import EtiquetasView from './EtiquetasView.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
+import AlertModal from './AlertModal.jsx'
 
 export default function ControlEmbalajeView({ onUnauthorized }) {
   const [items, setItems] = useState([])
@@ -12,6 +14,10 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false)
   const [catalogo, setCatalogo] = useState([])
   const [ocultarEmbalados, setOcultarEmbalados] = useState(false)
+  const [soloNoEncontrados, setSoloNoEncontrados] = useState(false)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [confirmacion, setConfirmacion] = useState(null)
+  const [aviso, setAviso] = useState(null)
   const [horasCruce, setHorasCruce] = useState(24)
   const [filtroTipo, setFiltroTipo] = useState('todos') // todos | colecta | flex
   const [escuchando, setEscuchando] = useState(false)
@@ -124,13 +130,37 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       })
   }
 
+  const toggleNoEncontrado = (item) => {
+    const nuevo = !item.no_encontrado
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, no_encontrado: nuevo } : it))
+    )
+    apiFetch(`/control-embalaje/${item.id}/no-encontrado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ no_encontrado: nuevo }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.detail || 'Error')
+        }
+      })
+      .catch((err) => {
+        setMsg(`Error al marcar no encontrado: ${err.message}`)
+        fetchLista()
+      })
+  }
+
   const finalizarEmbalaje = () => {
     const sinEmbalar = items.filter((it) => !it.checked).length
-    const confirmMsg = sinEmbalar > 0
+    const mensaje = sinEmbalar > 0
       ? `Todavía hay ${sinEmbalar} sin embalar. ¿Finalizar igual? Se guarda todo en el historial y se vacía la lista.`
       : '¿Finalizar el embalaje de hoy? Se guarda en el historial y se vacía la lista.'
-    if (!confirm(confirmMsg)) return
+    setConfirmacion({ mensaje, onConfirmar: ejecutarFinalizarEmbalaje })
+  }
 
+  const ejecutarFinalizarEmbalaje = () => {
     setFinalizando(true)
     apiFetch('/control-embalaje/finalizar', { method: 'POST' }, onUnauthorized)
       .then(async (res) => {
@@ -143,6 +173,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           `✅ Embalaje finalizado y guardado`,
           `Total: ${data.total} · Embalados: ${data.embalados} · Sin embalar: ${data.sin_embalar}`,
           `Faltantes (cruzado con "Para separar"): ${data.faltantes}`,
+          `No encontrados al embalar: ${data.no_encontrados}`,
           `Colecta: ${data.colecta} · Flex: ${data.flex}`,
         ]
         setMsg(lineas.join('\n'))
@@ -166,7 +197,14 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   }
 
   const limpiarTodo = () => {
-    if (!confirm('¿Vaciar todo el checklist? Se borra todo lo que hay, embalado o no.')) return
+    setConfirmacion({
+      mensaje: '¿Vaciar todo el checklist? Se borra todo lo que hay, embalado o no.',
+      peligroso: true,
+      onConfirmar: ejecutarLimpiarTodo,
+    })
+  }
+
+  const ejecutarLimpiarTodo = () => {
     setLimpiando(true)
     apiFetch('/control-embalaje', { method: 'DELETE' }, onUnauthorized)
       .then(() => {
@@ -179,7 +217,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const buscarPorVoz = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      alert('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
+      setAviso('Este navegador no tiene reconocimiento de voz (probá con Chrome).')
       return
     }
     const recognition = new SpeechRecognition()
@@ -319,18 +357,31 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, '')
 
-  const filtered = useMemo(
-    () => aplicarFiltros(items, query, filtroTipo, ocultarEmbalados),
-    [items, query, ocultarEmbalados, filtroTipo]
-  )
+  const filtered = useMemo(() => {
+    const base = aplicarFiltros(items, query, filtroTipo, ocultarEmbalados)
+    return soloNoEncontrados ? base.filter((it) => it.no_encontrado) : base
+  }, [items, query, ocultarEmbalados, filtroTipo, soloNoEncontrados])
 
   const embalados = items.filter((it) => it.checked).length
+
+  // Cuánto falta embalar de cada tipo, sobre lo YA importado al control
+  // (no sobre lo que hay en ML sin importar todavía) - se recalcula solo
+  // cada vez que se tilda algo o se importa una tanda nueva, porque las
+  // dos cosas actualizan 'items'.
+  const pendientesPorTipo = useMemo(() => {
+    const sinEmbalar = items.filter((it) => !it.checked)
+    return {
+      colecta: sinEmbalar.filter((it) => it.tipo_envio === 'colecta').length,
+      flex: sinEmbalar.filter((it) => it.tipo_envio === 'flex').length,
+      todos: sinEmbalar.length,
+    }
+  }, [items])
 
   return (
     <>
       <div className="paste-box">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label className="corte-label" style={{ marginBottom: 0 }}>🖨 Etiquetas (imprimir / despachar)</label>
+          <h2 className="section-title" style={{ margin: 0 }}>🖨 Etiquetas (imprimir / despachar)</h2>
           <button className="sort-btn" onClick={() => setMostrarEtiquetas((v) => !v)}>
             {mostrarEtiquetas ? 'Ocultar' : 'Ver'}
           </button>
@@ -351,60 +402,77 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button
-          className={`sort-btn ${escuchando ? 'toggle-on-red' : ''}`}
-          onClick={buscarPorVoz}
-          title="Buscar por voz"
-        >
-          {escuchando ? '🔴 Escuchando...' : '🎤 Voz'}
-        </button>
         <div className="tabs">
           <button
             className={`tab ${filtroTipo === 'todos' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('todos')}
           >
-            Todos
+            Todos ({pendientesPorTipo.todos})
           </button>
           <button
             className={`tab tab-colecta ${filtroTipo === 'colecta' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('colecta')}
           >
-            Colecta
+            Colecta ({pendientesPorTipo.colecta})
           </button>
           <button
             className={`tab tab-flex ${filtroTipo === 'flex' ? 'active' : ''}`}
             onClick={() => setFiltroTipo('flex')}
           >
-            Flex
+            Flex ({pendientesPorTipo.flex})
           </button>
         </div>
         <button
-          className={`sort-btn ${ocultarEmbalados ? 'toggle-on-green' : ''}`}
+          className="sort-btn btn-toggle"
+          aria-pressed={ocultarEmbalados}
           onClick={() => setOcultarEmbalados((v) => !v)}
         >
-          {ocultarEmbalados ? '✓ ' : ''}Ocultar embalados
+          Ocultar embalados
         </button>
-        <label className="corte-label">
-          Cruce (hs)
-          <input
-            type="number"
-            className="corte-input"
-            value={horasCruce}
-            onChange={(e) => setHorasCruce(Number(e.target.value))}
-            min={1}
-            style={{ width: 60 }}
-          />
-        </label>
-        <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
-          🗑 Vaciar todo
+        <button
+          className="sort-btn btn-toggle"
+          aria-pressed={soloNoEncontrados}
+          onClick={() => setSoloNoEncontrados((v) => !v)}
+          title="Para que Gastón revise rápido lo que no se encontró"
+        >
+          🔍 Solo no encontrados
         </button>
         <button className="scan-btn" onClick={finalizarEmbalaje} disabled={finalizando || items.length === 0}>
           ✅ Finalizar embalaje
         </button>
-        <button className="sort-btn" onClick={toggleHistorial}>
-          📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} historial
+        <button className="sort-btn" onClick={() => setMostrarFiltros((v) => !v)}>
+          Filtros {mostrarFiltros ? '▲' : '▼'}
         </button>
       </div>
+
+      {mostrarFiltros && (
+        <div className="controls">
+          <button
+            className={`sort-btn ${escuchando ? 'toggle-on-red' : ''}`}
+            onClick={buscarPorVoz}
+            title="Buscar por voz"
+          >
+            {escuchando ? '🔴 Escuchando...' : '🎤 Voz'}
+          </button>
+          <label className="corte-label">
+            Cruce (hs)
+            <input
+              type="number"
+              className="corte-input"
+              value={horasCruce}
+              onChange={(e) => setHorasCruce(Number(e.target.value))}
+              min={1}
+              style={{ width: 60 }}
+            />
+          </label>
+          <button className="sort-btn" onClick={limpiarTodo} disabled={limpiando}>
+            🗑 Vaciar todo
+          </button>
+          <button className="sort-btn" onClick={toggleHistorial}>
+            📜 {mostrarHistorial ? 'Ocultar' : 'Ver'} historial
+          </button>
+        </div>
+      )}
 
       {mostrarHistorial && (
         <div className="paste-box">
@@ -486,6 +554,9 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               {!item.faltante_en_picking && item.separado_en_picking && (
                 <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
               )}
+              {item.no_encontrado && (
+                <span className="badge badge-sin-explicar">🔍 No se encontró esta venta al embalar</span>
+              )}
               {item.etiqueta_impresa && (
                 <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
               )}
@@ -497,12 +568,30 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
               >
                 {item.faltante_en_picking ? '⚠ Faltante' : 'Faltante'}
               </button>
+              <button
+                type="button"
+                className={`faltante-btn ${item.no_encontrado ? 'faltante-btn-active' : ''}`}
+                onClick={() => toggleNoEncontrado(item)}
+                title="No encontré ESTA venta al ir a embalarla (sin tocar Para separar ni otras ventas del mismo producto)"
+              >
+                {item.no_encontrado ? '🔍 No encontrado' : 'No encontrado'}
+              </button>
             </div>
           </div>
         ))}
       </div>
 
       <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+
+      {confirmacion && (
+        <ConfirmModal
+          mensaje={confirmacion.mensaje}
+          peligroso={confirmacion.peligroso}
+          onConfirmar={() => { const fn = confirmacion.onConfirmar; setConfirmacion(null); fn() }}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+      {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
 }

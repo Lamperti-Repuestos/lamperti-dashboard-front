@@ -209,9 +209,9 @@ export default function PublicidadView({ onUnauthorized }) {
               ⚠ El ACOS es un porcentaje, no una cantidad - una torta no representa bien "cuánto pesa" cada campaña en el ACOS total. Sirve más para comparar barras que para ver proporción.
             </p>
           )}
-          <label className="corte-label" style={{ marginBottom: 8 }}>
+          <h2 className="section-title" style={{ margin: '0 0 8px' }}>
             {metricaActual.label} por campaña
-          </label>
+          </h2>
           <GraficoTorta datos={data.campañas} metricaId={metrica} formato={metricaActual.formato} />
         </div>
       )}
@@ -243,9 +243,9 @@ export default function PublicidadView({ onUnauthorized }) {
 
                 {articulosData?.articulos?.length > 0 && (
                   <div className="paste-box">
-                    <label className="corte-label" style={{ marginBottom: 8 }}>
+                    <h2 className="section-title" style={{ margin: '0 0 8px' }}>
                       {metricaActual.label} por artículo - "{c.nombre}"
-                    </label>
+                    </h2>
                     <GraficoTorta datos={articulosData.articulos.map((a) => ({ ...a, nombre: a.titulo || a.item_id }))} metricaId={metrica} formato={metricaActual.formato} />
                   </div>
                 )}

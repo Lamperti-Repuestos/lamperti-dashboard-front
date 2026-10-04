@@ -76,6 +76,14 @@ export default function PickingListView({ onUnauthorized }) {
   const [hideChecked, setHideChecked] = useState(false)
   const [onlyChecked, setOnlyChecked] = useState(false)
   const [onlyFaltantes, setOnlyFaltantes] = useState(false)
+  const [mostrarCortes, setMostrarCortes] = useState(false)
+  const [mostrarDiagnostico, setMostrarDiagnostico] = useState(false)
+
+  const estadoFiltro = onlyChecked ? 'separados' : hideChecked ? 'pendientes' : 'todos'
+  const setEstadoFiltro = (v) => {
+    setOnlyChecked(v === 'separados')
+    setHideChecked(v === 'pendientes')
+  }
   const [expanded, setExpanded] = useState(() => new Set())
   const [zoomUrl, setZoomUrl] = useState(null)
 
@@ -233,29 +241,51 @@ export default function PickingListView({ onUnauthorized }) {
       data.grupos.reduce((acc, g) => acc + g.productos.filter((p) => p.faltante).length, 0)
     : 0
 
+  // "fulfillment" (Full) queda afuera a propósito, lo empaqueta ML - no es
+  // un problema. Cualquier OTRO tipo no reconocido sí merece mirarse.
+  const huboTipoInesperado = data?.debug
+    ? Object.keys(data.debug.logistic_type_no_reconocido || {}).some((t) => t !== 'fulfillment')
+    : false
+
   return (
     <>
       <div className="controls">
-        <div className="corte-inputs">
-          <label className="corte-label">
-            Corte Flex
-            <input
-              type="time"
-              value={corteFlex}
-              onChange={(e) => setCorteFlex(e.target.value)}
-              className="corte-input"
-            />
-          </label>
-          <label className="corte-label">
-            Corte Colecta
-            <input
-              type="time"
-              value={corteColecta}
-              onChange={(e) => setCorteColecta(e.target.value)}
-              className="corte-input"
-            />
-          </label>
-        </div>
+        <button className="sort-btn" onClick={() => setMostrarCortes((v) => !v)}>
+          ⚙ Cortes {mostrarCortes ? '▲' : '▼'}
+        </button>
+
+        {data?.debug && (
+          <button
+            className={`sort-btn ${(data.debug.shipment_fetch_fallo > 0 || huboTipoInesperado) ? 'toggle-on-red' : ''}`}
+            onClick={() => setMostrarDiagnostico((v) => !v)}
+            title="Por qué un pedido puede no aparecer acá - para chequear que no se esté perdiendo ninguno"
+          >
+            🔎 Diagnóstico {mostrarDiagnostico ? '▲' : '▼'}
+          </button>
+        )}
+
+        {mostrarCortes && (
+          <div className="corte-inputs">
+            <label className="corte-label">
+              Corte Flex
+              <input
+                type="time"
+                value={corteFlex}
+                onChange={(e) => setCorteFlex(e.target.value)}
+                className="corte-input"
+              />
+            </label>
+            <label className="corte-label">
+              Corte Colecta
+              <input
+                type="time"
+                value={corteColecta}
+                onChange={(e) => setCorteColecta(e.target.value)}
+                className="corte-input"
+              />
+            </label>
+          </div>
+        )}
 
         <div className="tabs">
           <button className={`tab ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
@@ -281,27 +311,57 @@ export default function PickingListView({ onUnauthorized }) {
           </button>
         </div>
 
+        <div className="tabs">
+          <button className={`tab ${estadoFiltro === 'todos' ? 'active' : ''}`} onClick={() => setEstadoFiltro('todos')}>
+            Todos
+          </button>
+          <button className={`tab ${estadoFiltro === 'pendientes' ? 'active' : ''}`} onClick={() => setEstadoFiltro('pendientes')}>
+            Pendientes
+          </button>
+          <button className={`tab ${estadoFiltro === 'separados' ? 'active' : ''}`} onClick={() => setEstadoFiltro('separados')}>
+            Separados
+          </button>
+        </div>
+
         <div className="toggle-group">
           <button
-            className={`sort-btn ${onlyChecked ? 'toggle-on-green' : ''}`}
-            onClick={() => { setOnlyChecked((v) => !v); setHideChecked(false) }}
-          >
-            {onlyChecked ? '✓ ' : ''}Ver separados
-          </button>
-          <button
-            className={`sort-btn ${hideChecked ? 'toggle-on-green' : ''}`}
-            onClick={() => { setHideChecked((v) => !v); setOnlyChecked(false) }}
-          >
-            {hideChecked ? '✓ ' : ''}Ocultar separados
-          </button>
-          <button
-            className={`sort-btn ${onlyFaltantes ? 'toggle-on-red' : ''}`}
+            className="sort-btn btn-toggle"
+            aria-pressed={onlyFaltantes}
             onClick={() => setOnlyFaltantes((v) => !v)}
           >
-            {onlyFaltantes ? '✓ ' : ''}Solo faltantes
+            Solo faltantes
           </button>
         </div>
       </div>
+
+      {mostrarDiagnostico && data?.debug && (
+        <div className="scan-result" style={{ display: 'block' }}>
+          <p style={{ margin: '0 0 8px', fontWeight: 600 }}>
+            De {data.debug.orders_encontradas} pedido(s) pagos encontrados en el rango:
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>{data.debug.procesadas_flex_colecta} son Colecta/Flex y están en la lista de arriba.</li>
+            <li>{data.debug.sin_shipping_id_acordar} son Acordar entrega (sin envío, normal).</li>
+            {Object.entries(data.debug.logistic_type_no_reconocido || {}).map(([tipo, cant]) => (
+              <li key={tipo} style={tipo !== 'fulfillment' ? { color: '#B23A2E', fontWeight: 600 } : undefined}>
+                {cant} con tipo de envío "{tipo}"
+                {tipo === 'fulfillment'
+                  ? ' (Full - queda afuera a propósito, lo empaqueta ML)'
+                  : ' - ⚠ tipo no reconocido, revisar a mano'}
+              </li>
+            ))}
+            {Object.entries(data.debug.status_excluido || {}).map(([estado, cant]) => (
+              <li key={estado}>{cant} con envío ya en estado "{estado}" (no hace falta separarlos)</li>
+            ))}
+            {data.debug.shipment_fetch_fallo > 0 && (
+              <li style={{ color: '#B23A2E', fontWeight: 600 }}>
+                ⚠ {data.debug.shipment_fetch_fallo} pedido(s) no se pudieron chequear (falló la consulta a
+                ML) - estos NO aparecen en la lista de arriba y conviene revisarlos a mano en Mercado Libre.
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {!loading && !error && data && (
         <div className="summary">

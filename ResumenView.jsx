@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 
-function Tile({ valor, label, color, onClick, alerta }) {
+function Tile({ valor, label, activo, colorActivo, onClick, alerta }) {
   return (
-    <div
-      className="resumen-tile"
-      style={{ background: color, cursor: onClick ? 'pointer' : 'default' }}
+    <button
+      type="button"
+      className={`resumen-tile ${activo ? '' : 'resumen-tile-neutro'}`}
+      style={activo ? { background: colorActivo } : undefined}
       onClick={onClick}
     >
       {alerta && <div className="resumen-tile-alerta">⚠</div>}
       <div className="resumen-tile-valor">{valor}</div>
       <div className="resumen-tile-label">{label}</div>
-    </div>
+      {onClick && <span className="resumen-tile-flecha">›</span>}
+    </button>
   )
 }
 
@@ -71,7 +73,22 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
   return (
     <>
       {ventas && (
-        <div className="paste-box" style={{ textAlign: 'center' }}>
+        <div className="hero-ventas" style={{ textAlign: 'center' }}>
+          {!editandoObjetivo && (
+            <button
+              className="hero-ventas-menu"
+              onClick={() => {
+                setNuevaMeta(ventas.proximo_objetivo?.meta || '')
+                setNuevoPremio(ventas.proximo_objetivo?.premio || '')
+                setEditandoObjetivo(true)
+              }}
+              aria-label={ventas.proximo_objetivo ? 'Cambiar objetivo' : 'Cargar objetivo'}
+              title={ventas.proximo_objetivo ? 'Cambiar objetivo' : 'Cargar objetivo'}
+            >
+              ⋯
+            </button>
+          )}
+
           <div style={{ fontSize: 48, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--navy)', lineHeight: 1 }}>
             {ventas.total}
           </div>
@@ -82,8 +99,8 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
             <span className="badge badge-colecta">📦 Colecta: {ventas.colecta}</span>
             <span className="badge badge-flex">🚚 Flex: {ventas.flex}</span>
-            <span className="badge badge-acordar">🏭 Full: {ventas.full}</span>
-            <span className="badge badge-multi">🤝 Acordar: {ventas.acordar}</span>
+            <span className="badge badge-full">🏭 Full: {ventas.full}</span>
+            <span className="badge badge-acordar">🤝 Acordar: {ventas.acordar}</span>
           </div>
 
           {ventas.proximo_objetivo && ventas.total < ventas.proximo_objetivo.meta && (
@@ -97,20 +114,10 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               🏆 ¡Objetivo de {ventas.proximo_objetivo.meta} alcanzado! → {ventas.proximo_objetivo.premio}
             </div>
           )}
-          {!ventas.proximo_objetivo && (
+          {!ventas.proximo_objetivo && !editandoObjetivo && (
             <div style={{ marginTop: 14, fontSize: 13, color: 'var(--gray-muted)' }}>
               Todavía no hay un objetivo cargado.
             </div>
-          )}
-
-          {!editandoObjetivo && (
-            <button className="sort-btn" style={{ marginTop: 12 }} onClick={() => {
-              setNuevaMeta(ventas.proximo_objetivo?.meta || '')
-              setNuevoPremio(ventas.proximo_objetivo?.premio || '')
-              setEditandoObjetivo(true)
-            }}>
-              ✏️ {ventas.proximo_objetivo ? 'Cambiar objetivo' : 'Cargar objetivo'}
-            </button>
           )}
 
           {editandoObjetivo && (
@@ -146,27 +153,30 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
         <Tile
           valor={data.total_pendiente_separar}
           label="Unidades pendientes de separar"
-          color="#1A2B6B"
+          activo={data.total_pendiente_separar > 0}
+          colorActivo="var(--atencion)"
           onClick={() => onIrA?.('picking')}
         />
         <Tile
           valor={data.productos_sobreventa}
           label="Producto(s) en sobreventa (48h)"
-          color={data.productos_sobreventa > 0 ? '#B03A2E' : '#2E7D46'}
+          activo={data.productos_sobreventa > 0}
+          colorActivo="var(--alerta)"
           alerta={data.productos_sobreventa > 0}
           onClick={() => onIrA?.('metricas')}
         />
         <Tile
           valor={data.reclamos_con_deadline_hoy.length}
           label="Reclamo(s) con vencimiento hoy"
-          color={data.reclamos_con_deadline_hoy.length > 0 ? '#B8860B' : '#2E7D46'}
+          activo={data.reclamos_con_deadline_hoy.length > 0}
+          colorActivo="var(--atencion)"
           alerta={data.reclamos_con_deadline_hoy.length > 0}
           onClick={() => onIrA?.('postventa')}
         />
         <Tile
           valor={data.reclamos_abiertos_total}
           label="Reclamos abiertos (total)"
-          color="#4A67B8"
+          activo={false}
           onClick={() => onIrA?.('postventa')}
         />
       </div>

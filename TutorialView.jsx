@@ -317,7 +317,7 @@ export default function TutorialView({ onCerrar }) {
                 onClick={() => irASeccion(idx)}
               >
                 {s.titulo}
-                <span className="mono" style={{ fontSize: 11, opacity: 0.6 }}>
+                <span className="mono" style={{ fontSize: 12, opacity: 0.6 }}>
                   {s.pasos.length} paso(s)
                 </span>
               </button>

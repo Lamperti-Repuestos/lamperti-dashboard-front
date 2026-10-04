@@ -274,7 +274,7 @@ export default function FullView({ onUnauthorized }) {
                 )}
                 {r.encontrado && r.sku && (
                   <span className="stock-edit">
-                    <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>Enviar:</span>
+                    <span style={{ fontSize: 12, color: 'var(--gray-muted)' }}>Enviar:</span>
                     <input
                       type="number"
                       min={0}
@@ -285,7 +285,7 @@ export default function FullView({ onUnauthorized }) {
                       }
                     />
                     {r.sugerencia_enviar && (
-                      <span style={{ fontSize: 11, color: 'var(--gray-muted)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
                         (ML sugería {r.sugerencia_enviar})
                       </span>
                     )}
@@ -365,16 +365,18 @@ export default function FullView({ onUnauthorized }) {
         </div>
         <div className="toggle-group">
           <button
-            className={`sort-btn ${soloSinStock ? 'toggle-on-red' : ''}`}
+            className="sort-btn btn-toggle"
+            aria-pressed={soloSinStock}
             onClick={() => { setSoloSinStock((v) => !v); setOcultarSinStock(false) }}
           >
-            {soloSinStock ? '✓ ' : ''}Solo sin stock
+            Solo sin stock
           </button>
           <button
-            className={`sort-btn ${ocultarSinStock ? 'toggle-on-green' : ''}`}
+            className="sort-btn btn-toggle"
+            aria-pressed={ocultarSinStock}
             onClick={() => { setOcultarSinStock((v) => !v); setSoloSinStock(false) }}
           >
-            {ocultarSinStock ? '✓ ' : ''}Ocultar sin stock
+            Ocultar sin stock
           </button>
         </div>
       </div>

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PublicationsView from './PublicationsView.jsx'
+import PublicadorView from './PublicadorView.jsx'
+import AltaRapidaView from './AltaRapidaView.jsx'
 import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
 import FullView from './FullView.jsx'
@@ -9,16 +11,22 @@ import CotejoPackingListView from './CotejoPackingListView.jsx'
 import PostventaView from './PostventaView.jsx'
 import MetricasView from './MetricasView.jsx'
 import PublicidadView from './PublicidadView.jsx'
+import VentasFullView from './VentasFullView.jsx'
 import CostosView from './CostosView.jsx'
 import ResumenView from './ResumenView.jsx'
 import TutorialView from './TutorialView.jsx'
 import LogisticaView from './LogisticaView.jsx'
 import NotasView from './NotasView.jsx'
+import DevolucionesProveedoresView from './DevolucionesProveedoresView.jsx'
+import SubagenteView from './SubagenteView.jsx'
+import PedidorView from './PedidorView.jsx'
+import VerificadorFacturasView from './VerificadorFacturasView.jsx'
+import FacturasEstadoView from './FacturasEstadoView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'postventa', 'metricas', 'publicidad', 'costos']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturas', 'facturasestado']
 
 const GRUPOS = [
   {
@@ -27,6 +35,8 @@ const GRUPOS = [
     vistas: [
       { id: 'picking', label: 'Para separar' },
       { id: 'publications', label: 'Publicaciones' },
+      { id: 'altarapida', label: 'Alta rápida (celular)' },
+      { id: 'publicador', label: 'Publicador masivo' },
       { id: 'stock', label: 'Stock' },
       { id: 'full', label: 'Gestión Full' },
       { id: 'pedidos', label: 'Envío Full' },
@@ -34,6 +44,16 @@ const GRUPOS = [
       { id: 'cotejo', label: 'Cotejo Packing List' },
       { id: 'logistica', label: 'Logística' },
       { id: 'notas', label: 'Notas' },
+      { id: 'devoluciones', label: 'Devoluciones a proveedores' },
+      { id: 'pedidor', label: 'Pedidor (beta)' },
+    ],
+  },
+  {
+    id: 'facturacion',
+    nombre: 'Facturación',
+    vistas: [
+      { id: 'facturasestado', label: 'Estado de facturas' },
+      { id: 'facturas', label: 'Verificar facturas' },
     ],
   },
   {
@@ -48,6 +68,7 @@ const GRUPOS = [
       { id: 'metricas', label: 'Métricas' },
       { id: 'publicidad', label: 'Publicidad' },
       { id: 'costos', label: 'Costos' },
+      { id: 'ventasfull', label: 'Ventas Full' },
     ],
   },
 ]
@@ -61,7 +82,14 @@ export default function App() {
     const guardada = localStorage.getItem('dashboard_view')
     return VIEWS.includes(guardada) ? guardada : 'resumen'
   })
-  const [grupoAbierto, setGrupoAbierto] = useState(() => localStorage.getItem('dashboard_grupo') || null)
+  const [grupoAbierto, setGrupoAbierto] = useState(() => {
+    // Lo guardado puede haber quedado desactualizado si una pantalla cambió de grupo del menú:
+    // manda el grupo de la pantalla en la que se estaba, y un grupo que ya no existe se ignora.
+    const guardado = localStorage.getItem('dashboard_grupo')
+    const delaPantalla = GRUPO_POR_VISTA[view]
+    if (delaPantalla) return delaPantalla
+    return GRUPOS.some((g) => g.id === guardado) ? guardado : null
+  })
   const [mostrarTutorial, setMostrarTutorial] = useState(
     () => localStorage.getItem('dashboard_tutorial_visto') !== 'si'
   )
@@ -110,28 +138,55 @@ export default function App() {
   // Swipe para cambiar de pestaña en celular (izquierda/derecha)
   const touchStart = useRef(null)
 
+  const elementoIgnoraSwipe = (el) => {
+    let n = el
+    while (n && n !== document.body) {
+      const tag = n.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+      if (n.scrollWidth > n.clientWidth) return true
+      n = n.parentElement
+    }
+    return false
+  }
+
   const handleTouchStart = (e) => {
     const t = e.touches[0]
-    touchStart.current = { x: t.clientX, y: t.clientY }
+    touchStart.current = {
+      x: t.clientX,
+      y: t.clientY,
+      ignorar: elementoIgnoraSwipe(e.target),
+    }
   }
 
   const handleTouchEnd = (e) => {
     if (!touchStart.current) return
-    const t = e.changedTouches[0]
-    const dx = t.clientX - touchStart.current.x
-    const dy = t.clientY - touchStart.current.y
+    const { x, y, ignorar } = touchStart.current
     touchStart.current = null
+    if (ignorar) return
+
+    const t = e.changedTouches[0]
+    const dx = t.clientX - x
+    const dy = t.clientY - y
 
     // Ignoramos gestos cortos o mayormente verticales (eso es scroll normal)
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
 
-    const currentIndex = VIEWS.indexOf(view)
-    if (dx < 0 && currentIndex < VIEWS.length - 1) {
-      setView(VIEWS[currentIndex + 1])
+    // El swipe se mueve solo dentro del grupo actual (o entre Resumen y
+    // el primer/último ítem del grupo) - nunca salta a otro grupo sin
+    // que se vea en el menú.
+    const vistasNavegables = grupoAbierto
+      ? GRUPOS.find((g) => g.id === grupoAbierto).vistas.map((v) => v.id)
+      : ['resumen']
+    const currentIndex = vistasNavegables.indexOf(view)
+    if (currentIndex === -1) return
+
+    if (dx < 0 && currentIndex < vistasNavegables.length - 1) {
+      irA(vistasNavegables[currentIndex + 1])
     } else if (dx > 0 && currentIndex > 0) {
-      setView(VIEWS[currentIndex - 1])
+      irA(vistasNavegables[currentIndex - 1])
     }
   }
+
 
   if (authed === null) {
     return <div className="loading-state">Cargando...</div>
@@ -149,6 +204,13 @@ export default function App() {
           <div className="header-text">
             <h1>Dashboard</h1>
           </div>
+          <button
+            className={`view-tab header-ayuda ${view === 'subagente' ? 'active' : ''}`}
+            onClick={() => { setView('subagente'); setGrupoAbierto(null) }}
+            title="Asistente (beta)"
+          >
+            🤖
+          </button>
           <button
             className="view-tab header-ayuda"
             onClick={() => setMostrarTutorial(true)}
@@ -204,8 +266,11 @@ export default function App() {
 
       <div className="view-wrap" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {view === 'resumen' && <ResumenView onUnauthorized={handleUnauthorized} onIrA={irA} />}
+        {view === 'subagente' && <SubagenteView onUnauthorized={handleUnauthorized} />}
         {view === 'picking' && <PickingListView onUnauthorized={handleUnauthorized} />}
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
+        {view === 'altarapida' && <AltaRapidaView onUnauthorized={handleUnauthorized} />}
+        {view === 'publicador' && <PublicadorView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
@@ -213,10 +278,15 @@ export default function App() {
         {view === 'cotejo' && <CotejoPackingListView onUnauthorized={handleUnauthorized} />}
         {view === 'logistica' && <LogisticaView onUnauthorized={handleUnauthorized} />}
         {view === 'notas' && <NotasView onUnauthorized={handleUnauthorized} />}
+        {view === 'devoluciones' && <DevolucionesProveedoresView onUnauthorized={handleUnauthorized} />}
+        {view === 'pedidor' && <PedidorView onUnauthorized={handleUnauthorized} />}
+        {view === 'facturas' && <VerificadorFacturasView onUnauthorized={handleUnauthorized} />}
+        {view === 'facturasestado' && <FacturasEstadoView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
         {view === 'costos' && <CostosView onUnauthorized={handleUnauthorized} />}
+        {view === 'ventasfull' && <VentasFullView onUnauthorized={handleUnauthorized} />}
       </div>
 
       {mostrarTutorial && <TutorialView onCerrar={cerrarTutorial} />}

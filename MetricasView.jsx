@@ -187,38 +187,21 @@ export default function MetricasView({ onUnauthorized }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         )}
-        <div className="tabs">
-          <button className={`tab ${vista === 'unidades' ? 'active' : ''}`} onClick={() => setVista('unidades')}>
-            🏆 Top unidades
-          </button>
-          <button className={`tab ${vista === 'monto' ? 'active' : ''}`} onClick={() => setVista('monto')}>
-            💰 Top $
-          </button>
-          <button className={`tab ${vista === 'neto' ? 'active' : ''}`} onClick={() => setVista('neto')}>
-            💵 Neto real
-          </button>
-          <button className={`tab tab-acordar ${vista === 'sin_ventas' ? 'active' : ''}`} onClick={() => setVista('sin_ventas')}>
-            😴 Sin ventas
-          </button>
-          <button className={`tab tab-colecta ${vista === 'quiebres' ? 'active' : ''}`} onClick={() => setVista('quiebres')}>
-            📉 Quiebres de stock
-          </button>
-          <button className={`tab tab-flex ${vista === 'reclamos' ? 'active' : ''}`} onClick={() => setVista('reclamos')}>
-            ⚠ Reclamos por producto
-          </button>
-          <button className={`tab ${vista === 'sobreventa' ? 'active' : ''}`} onClick={() => setVista('sobreventa')}>
-            🔥 Sobreventa 48h
-          </button>
-          <button className={`tab ${vista === 'devoluciones' ? 'active' : ''}`} onClick={() => setVista('devoluciones')}>
-            ↩ Devoluciones acumuladas
-          </button>
-          <button className={`tab ${vista === 'clientes' ? 'active' : ''}`} onClick={() => setVista('clientes')}>
-            🔁 Clientes recurrentes
-          </button>
-          <button className={`tab ${vista === 'stock_bajo_full' ? 'active' : ''}`} onClick={() => setVista('stock_bajo_full')}>
-            🟡 Stock bajo en Full
-          </button>
-        </div>
+        <label className="corte-label" style={{ minWidth: 220 }}>
+          Reporte
+          <select className="corte-input" style={{ width: '100%' }} value={vista} onChange={(e) => setVista(e.target.value)}>
+            <option value="unidades">🏆 Top unidades</option>
+            <option value="monto">💰 Top $</option>
+            <option value="neto">💵 Neto real</option>
+            <option value="sin_ventas">😴 Sin ventas</option>
+            <option value="quiebres">📉 Quiebres de stock</option>
+            <option value="reclamos">⚠ Reclamos por producto</option>
+            <option value="sobreventa">🔥 Sobreventa 48h</option>
+            <option value="devoluciones">↩ Devoluciones acumuladas</option>
+            <option value="clientes">🔁 Clientes recurrentes</option>
+            <option value="stock_bajo_full">🟡 Stock bajo en Full</option>
+          </select>
+        </label>
         {!VISTAS_CUSTOM.includes(vista) && (
           <label className="corte-label">
             Período (días)
