@@ -30,6 +30,43 @@
   box-sizing: border-box;
 }
 
+/* Foco visible - solo para quien navega con teclado, no con mouse/touch */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+:root[data-theme="dark"] button:focus-visible,
+:root[data-theme="dark"] a:focus-visible,
+:root[data-theme="dark"] input:focus-visible,
+:root[data-theme="dark"] select:focus-visible,
+:root[data-theme="dark"] textarea:focus-visible,
+:root[data-theme="dark"] [tabindex]:focus-visible {
+  outline-color: var(--yellow);
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Feedback al tocar - transición corta, sin mover layout (solo color/opacidad/transform) */
+button, .view-tab, .tab, .badge {
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, opacity 150ms ease-out, transform 100ms ease-out;
+}
+button:active, .view-tab:active, .tab:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .view-tab, .tab, .badge, button:active, .view-tab:active, .tab:active {
+    transition: none;
+    transform: none;
+  }
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -745,8 +782,8 @@ button {
 
 /* Picking list */
 .pick-checkbox {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   accent-color: #2E7D46;
   cursor: pointer;
