@@ -1681,3 +1681,5 @@ button {
 .cr-fila-sin td { background: var(--bg-atencion, rgba(255, 193, 7, 0.16)); }
 .cr-dia .cr-dia-sin { color: var(--atencion); font-weight: 700; }
 .cr-aviso-sin { font-size: 14px; margin: 4px 0 8px; padding: 8px 12px; border-left: 4px solid var(--atencion); background: rgba(255, 193, 7, 0.12); border-radius: var(--radius); }
+.cr-buscador { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.cr-buscador input { flex: 1 1 220px; max-width: 420px; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--gray-line); border-radius: var(--radius); background: var(--card-bg); color: var(--charcoal); }
