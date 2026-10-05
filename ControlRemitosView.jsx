@@ -227,6 +227,12 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
     }, onUnauthorized).then(() => onCambio()).catch((e) => setError(e.message))
   }
 
+  // copia repetida: no se controla y el programa la aparta a la carpeta "Repetidas" (no se borra nada)
+  const marcarCopia = () => {
+    if (!window.confirm('¿Esta factura es una copia repetida de otra? No se va a controlar y el programa la aparta a la carpeta "Repetidas" de Nora Control (no se borra).')) return
+    pedir(`/facturas/control/${c.id}/copia`, { method: 'POST' }, onUnauthorized).then(() => onCambio()).catch((e) => setError(e.message))
+  }
+
   const abrirPdf = () => {
     // la ventana se abre ya (si no, el navegador bloquea el popup) y después se le pone el PDF
     const ventana = window.open('', '_blank')
@@ -268,6 +274,11 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
       {!c.confiable && <p className="vf-aviso">⚠️ No pude leer esta factura con seguridad. Controlala mirando el PDF.</p>}
       {c.confiable && !c.a_nombre_de_lamperti && <p className="vf-aviso">⚠️ No encontré el CUIT de Lamperti en la factura. Revisá que sea nuestra.</p>}
       {c.avisos.map((a, i) => <p key={i} className="vf-aviso">⚠️ {a}</p>)}
+      {c.posible_copia && (
+        <div className="vf-acciones" style={{ margin: '6px 0 0' }}>
+          <button className="sort-btn" onClick={marcarCopia}>🗂 Es una copia repetida</button>
+        </div>
+      )}
       {c.importes && (
         <div className="vf-resumen-ok mono">
           Total {c.importes.total} · neto {c.importes.neto} · IVA {c.importes.iva}
@@ -740,6 +751,24 @@ export default function ControlRemitosView({ onUnauthorized }) {
               <h3 className="section-title">✅ Controladas, por pasar a "Para pasar" ({conformes.length})</h3>
               {conformes.map((c) => <Tarjeta key={c.id} c={c} onCambio={cargar} onUnauthorized={onUnauthorized} />)}
             </>
+          )}
+
+          {!buscando && data.repetidas && data.repetidas.length > 0 && (
+            <details className="vf-detalles">
+              <summary>Copias repetidas apartadas ({data.repetidas.length})</summary>
+              <p className="cr-nota">Los archivos están en la subcarpeta "Repetidas" de Nora Control. No se borró nada.</p>
+              {data.repetidas.map((r, i) => (
+                <div key={i} className="vf-card vf-borde-info">
+                  <div className="vf-card-cab">
+                    <span className="vf-badge vf-badge-info">Copia</span>
+                    {r.titulo && <strong>{r.titulo}</strong>}
+                    <span>{r.archivo}</span>
+                    <span className="vf-fecha">{horaExacta(r.fecha, false)}</span>
+                  </div>
+                  <div className="vf-archivo">{r.motivo}</div>
+                </div>
+              ))}
+            </details>
           )}
 
           {pasaronVisibles.length > 0 && (
