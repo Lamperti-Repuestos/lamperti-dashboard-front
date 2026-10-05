@@ -7,10 +7,10 @@ const REFRESCO_MS = 60 * 1000
 const QUE_HACER = {
   diferencia: 'Corregir la compra en Contabilium: entrar a Compras realizadas, abrirla y poner los importes de la factura. El programa archiva el PDF solo cuando coincidan. No hace falta mandarla de nuevo.',
   diferencia_menor: 'Corregir la compra en Contabilium (la diferencia es chica o es solo la fecha o el tipo). El programa archiva el PDF solo cuando coincida. No hace falta mandarla de nuevo.',
-  pendiente: 'Entrar a Consulta de comprobantes en Contabilium e importarla (Estado: Pendiente; elegí Período "Últimos 7 días" o más: filtra por la fecha de la factura, no por cuándo llegó). Si el proveedor es nuevo, primero darlo de alta.',
+  pendiente: 'Está lista para importar. En Contabilium: Compras → Importar con IA → tocar «Importar comprobante» en esta factura → revisar lo que leyó la IA → Finalizar. (Si no la ves, elegí Período "Últimos 7 días" o más: filtra por la fecha de la factura, no por cuándo llegó.) Si el proveedor es nuevo, primero darlo de alta. El programa archiva el PDF solo cuando quede cargada y coincida.',
   rechazada: 'La casilla de Contabilium la rechazó. Revisar la factura y cargarla a mano.',
   revisar: 'El programa no pudo leer este PDF con seguridad. Mirarlo y pasarlo a mano.',
-  no_cargada: 'Se mandó a Contabilium pero no aparece con los datos esperados. Revisar la casilla de compras (Consulta de comprobantes): puede que la IA haya leído mal el número o el CUIT de la factura.',
+  no_cargada: 'Se mandó a la casilla de Contabilium pero no aparece en Consulta de comprobantes. Normalmente aparece en menos de un minuto: revisá si la casilla está recibiendo (si no, avisale a soporte de Contabilium) o cargala a mano. También puede ser que la IA haya leído mal el número o el CUIT.',
   duplicada: 'Es el mismo comprobante que otro PDF de la carpeta. Dejar solo uno.',
 }
 
@@ -64,9 +64,9 @@ function pasosDeTiempo(a, ahoraMs) {
   const pasos = []
   if (a.enviada_en) pasos.push(`✉ Mandada ${cuando(a.enviada_en)}`)
   if (a.llego_en) pasos.push(`📥 Llegó a Contabilium ${cuando(a.llego_en)}`)
-  if (a.enviada_en && a.estado === 'pendiente') {
-    pasos.push(`⏳ Sigue pendiente hace ${hace(Math.max(0, (ahoraMs - new Date(a.enviada_en).getTime()) / 1000))}`)
-  }
+  const desdeEnvio = a.enviada_en ? hace(Math.max(0, (ahoraMs - new Date(a.enviada_en).getTime()) / 1000)) : null
+  if (desdeEnvio && a.estado === 'pendiente') pasos.push(`⏳ Hace ${desdeEnvio} que se mandó y todavía nadie la importó`)
+  if (desdeEnvio && a.estado === 'no_cargada' && !a.llego_en) pasos.push(`⏳ Hace ${desdeEnvio} que se mandó y todavía no aparece en Contabilium`)
   return pasos
 }
 
@@ -78,6 +78,7 @@ const conSigno = (a, v) => (v && (a.titulo || '').startsWith('NC') && !v.startsW
 function Cuadro({ a }) {
   const c = a.comparacion
   if (!c) return null
+  const esLectura = a.estado === 'pendiente'      // todavía no es una compra: son los importes que leyó la IA
   const filas = [['Neto', 'neto'], ['IVA', 'iva'], ['Percepciones / otros', 'otros'], ['Total', 'total']]
   return (
     <table className="vf-tabla">
@@ -85,7 +86,7 @@ function Cuadro({ a }) {
         <tr>
           <th></th>
           <th className="vf-n">La factura dice</th>
-          <th className="vf-n">Contabilium cargó</th>
+          <th className="vf-n">{esLectura ? 'La IA leyó' : 'Contabilium cargó'}</th>
           <th className="vf-n">Diferencia</th>
         </tr>
       </thead>
@@ -118,7 +119,7 @@ function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs, mostrarCuadro }
       </div>
       {a.titulo && <div className="vf-archivo">{a.archivo}</div>}
       {pasos.length > 0 && <div className="fe-linea">{pasos.map((p) => <span key={p}>{p}</span>)}</div>}
-      <p className="vf-aviso">{a.motivo}</p>
+      {!(mostrarCuadro && a.estado === 'pendiente') && <p className="vf-aviso">{a.motivo}</p>}
       {mostrarCuadro && <Cuadro a={a} />}
       {mostrarCuadro && (a.avisos || []).map((x, i) => <p key={i} className="vf-aviso">⚠️ {x}</p>)}
       {mostrarQueHacer && <p className="fe-que-hacer"><strong>Qué hacer:</strong> {queHacer(a)}</p>}
@@ -126,7 +127,7 @@ function Tarjeta({ a, color, etiqueta, mostrarQueHacer, ahoraMs, mostrarCuadro }
   )
 }
 
-function resumenGeneral(data, diferencias, atencion, enProceso, segundos) {
+function resumenGeneral(data, diferencias, atencion, enProceso, segundos, sinLlegar = []) {
   if (!data.actualizado) {
     return { tono: 'info', icono: '⏳', titulo: 'Todavía no hay reportes del programa', detalle: 'Cuando el programa de la oficina corra por primera vez, el estado aparece acá.' }
   }
@@ -136,6 +137,14 @@ function resumenGeneral(data, diferencias, atencion, enProceso, segundos) {
   if (data.error) {
     return { tono: 'alerta', icono: '⚠️', titulo: 'El programa tiene un problema', detalle: data.error }
   }
+  if (sinLlegar.length) {
+    const n = sinLlegar.length
+    return {
+      tono: 'atencion', icono: '📭',
+      titulo: `${n} factura${n === 1 ? ' mandada' : 's mandadas'} que no aparece${n === 1 ? '' : 'n'} en la casilla de Contabilium`,
+      detalle: 'Normalmente aparecen en menos de un minuto. Revisá que la casilla de compras esté recibiendo (si no, avisale a soporte de Contabilium) o cargalas a mano.',
+    }
+  }
   if (diferencias.length) {
     const n = diferencias.length
     const resto = atencion.length
@@ -143,6 +152,14 @@ function resumenGeneral(data, diferencias, atencion, enProceso, segundos) {
       tono: 'alerta', icono: '⚠️',
       titulo: `${n} factura${n === 1 ? ' cargada' : 's cargadas'} con diferencia de importes`,
       detalle: resto ? `Mirá abajo cuál es la diferencia. Además hay ${resto} para revisar.` : 'Mirá abajo qué importe no coincide y cómo corregirlo.',
+    }
+  }
+  if (atencion.length && atencion.every((a) => a.estado === 'pendiente')) {
+    const n = atencion.length
+    return {
+      tono: 'atencion', icono: '📥',
+      titulo: `${n} factura${n === 1 ? ' lista' : 's listas'} para importar en Contabilium`,
+      detalle: 'En Contabilium: Compras → Importar con IA → «Importar comprobante» → revisar → Finalizar. Mirá abajo si la IA leyó algo distinto a la factura.',
     }
   }
   if (atencion.length) {
@@ -207,7 +224,10 @@ export default function FacturasEstadoView({ onUnauthorized }) {
   const atencion = data.archivos.filter((a) => (a.accion === 'dejar' || a.accion === 'error') && !esDiferencia(a))
   const enProceso = data.archivos.filter((a) => a.accion === 'esperar' || (!simulacion && a.accion === 'enviar'))
   const sePasarian = simulacion ? data.archivos.filter((a) => a.accion === 'enviar' || a.accion === 'mover') : []
-  const banner = resumenGeneral(data, diferencias, atencion, enProceso, segundos)
+  // mandadas hace más de 20 minutos y todavía sin aparecer en la casilla (normalmente tarda menos de un minuto)
+  const sinLlegar = data.archivos.filter((a) => a.enviada_en && !a.llego_en && a.estado === 'no_cargada'
+    && ahoraMs - new Date(a.enviada_en).getTime() > 20 * 60 * 1000)
+  const banner = resumenGeneral(data, diferencias, atencion, enProceso, segundos, simulacion ? [] : sinLlegar)
 
   // historial agrupado por día
   const dias = []
@@ -261,7 +281,9 @@ export default function FacturasEstadoView({ onUnauthorized }) {
         <>
           <h3 className="section-title">⚠️ Necesitan atención ({atencion.length})</h3>
           {atencion.map((a) => (
-            <Tarjeta key={a.archivo} a={a} color={a.accion === 'error' ? 'info' : 'alerta'} etiqueta={a.accion === 'error' ? 'Reintentando' : 'Revisar'} mostrarQueHacer ahoraMs={ahoraMs} />
+            <Tarjeta key={a.archivo} a={a} color={a.accion === 'error' ? 'info' : a.estado === 'pendiente' ? 'atencion' : 'alerta'}
+              etiqueta={a.accion === 'error' ? 'Reintentando' : a.estado === 'pendiente' ? 'Lista para importar' : 'Revisar'}
+              mostrarQueHacer mostrarCuadro={a.estado === 'pendiente' && !!a.comparacion} ahoraMs={ahoraMs} />
           ))}
         </>
       )}
