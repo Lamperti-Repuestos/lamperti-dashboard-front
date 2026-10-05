@@ -22,6 +22,9 @@ const MOTIVOS_SIN_REMITO = [
 ]
 const textoMotivo = (k) => (MOTIVOS_SIN_REMITO.find(([clave]) => clave === k) || [k, k])[1].replace(' (explicarlo en la nota)', '')
 
+// Para buscar sin importar mayúsculas ni tildes: "amo" encuentra "AMORTIGUADOR", "cigue" encuentra "CIGUEÑAL"
+const normalizar = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
 const DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 // Hora exacta con segundos: "hoy a las 18:24:05" / "el 30/09 a las 18:24:05"
@@ -135,6 +138,7 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
   const [error, setError] = useState(null)
   const [verFoto, setVerFoto] = useState(false)
   const [errorPdf, setErrorPdf] = useState(null)
+  const [buscar, setBuscar] = useState('')
   const primera = useRef(true)
 
   // los ítems tildados se guardan solos (si se recarga la página, siguen ahí)
@@ -154,6 +158,16 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
   }, [tildados])
 
   const n = c.items.length
+  // Buscador de ítems: cada palabra tiene que aparecer en el código o la descripción ("filtro aceite")
+  const palabras = normalizar(buscar).split(/\s+/).filter(Boolean)
+  const visibles = c.items
+    .map((it, i) => i)
+    .filter((i) => {
+      if (!palabras.length) return true
+      const texto = normalizar(`${c.items[i].codigo} ${c.items[i].descripcion}`)
+      return palabras.every((w) => texto.includes(w))
+    })
+  const filtrando = palabras.length > 0
   const alternar = (i) =>
     setTildados((prev) => {
       const sig = new Set(prev)
@@ -252,11 +266,34 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
             </button>
             {verItems && (
               <>
-                <button className="sort-btn" onClick={() => setTildados(new Set(c.items.map((_, i) => i)))}>Tildar todos</button>
-                <button className="sort-btn" onClick={() => setTildados(new Set())}>Destildar</button>
+                <button className="sort-btn" onClick={() => setTildados((prev) => new Set([...prev, ...visibles]))}>
+                  {filtrando ? `Tildar los ${visibles.length} que se ven` : 'Tildar todos'}
+                </button>
+                <button className="sort-btn" onClick={() => setTildados((prev) => new Set([...prev].filter((i) => !visibles.includes(i))))}>
+                  {filtrando ? 'Destildar los que se ven' : 'Destildar'}
+                </button>
               </>
             )}
           </div>
+          {verItems && n > 4 && (
+            <div className="cr-buscador">
+              <input
+                type="search"
+                value={buscar}
+                placeholder="🔍 Buscar ítem (código o descripción)"
+                aria-label="Buscar ítem de la factura"
+                onChange={(e) => setBuscar(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && setBuscar('')}
+              />
+              {filtrando && (
+                <>
+                  <span className="cr-nota">{visibles.length} de {n}</span>
+                  <button className="sort-btn" onClick={() => setBuscar('')}>Borrar búsqueda</button>
+                </>
+              )}
+            </div>
+          )}
+          {verItems && filtrando && visibles.length === 0 && <p className="cr-nota">Ningún ítem coincide con «{buscar}».</p>}
           {verItems && (
             <div className="vf-scroll">
               <table className="vf-tabla">
@@ -271,7 +308,7 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {c.items.map((it, i) => (
+                  {visibles.map((i) => ({ it: c.items[i], i })).map(({ it, i }) => (
                     <tr key={i} className={tildados.has(i) ? 'vf-tildado' : ''}>
                       <td className="vf-c">
                         <input type="checkbox" className="pick-checkbox" checked={tildados.has(i)} onChange={() => alternar(i)} aria-label={`Ítem ${it.codigo || i + 1} controlado`} />
