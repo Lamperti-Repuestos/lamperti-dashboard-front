@@ -25,6 +25,17 @@ const textoMotivo = (k) => (MOTIVOS_SIN_REMITO.find(([clave]) => clave === k) ||
 // Para buscar sin importar mayúsculas ni tildes: "amo" encuentra "AMORTIGUADOR", "cigue" encuentra "CIGUEÑAL"
 const normalizar = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
+// "30-58044645-7" y "30580446457" tienen que encontrarse entre sí
+const cuitConGuiones = (c) => (/^\d{11}$/.test(c || '') ? `${c.slice(0, 2)}-${c.slice(2, 10)}-${c.slice(10)}` : '')
+
+// Buscador de facturas: cada palabra tiene que aparecer en el proveedor, el número, el CUIT, el archivo, el remito...
+function coincideFactura(c, palabras) {
+  if (!palabras.length) return true
+  const texto = normalizar([c.proveedor, c.titulo, c.cuit, cuitConGuiones(c.cuit), c.archivo, c.remito, c.nota, c.fecha, c.importes?.total]
+    .filter(Boolean).join(' '))
+  return palabras.every((w) => texto.includes(w))
+}
+
 const DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 // Hora exacta con segundos: "hoy a las 18:24:05" / "el 30/09 a las 18:24:05"
@@ -205,6 +216,17 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
       })
   }
 
+  // el nombre se guarda por CUIT: se pone una vez y vale para todas las facturas de ese proveedor
+  const nombrarProveedor = () => {
+    const nombre = window.prompt(`Nombre del proveedor (CUIT ${c.cuit}):`, c.proveedor || '')
+    if (nombre === null) return
+    pedir(`/facturas/control/proveedor/${c.cuit}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre }),
+    }, onUnauthorized).then(() => onCambio()).catch((e) => setError(e.message))
+  }
+
   const abrirPdf = () => {
     // la ventana se abre ya (si no, el navegador bloquea el popup) y después se le pone el PDF
     const ventana = window.open('', '_blank')
@@ -231,8 +253,14 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
     <div className={`vf-card vf-borde-${color}`}>
       <div className="vf-card-cab">
         <span className={`vf-badge vf-badge-${color}`}>{etiqueta}</span>
-        <strong>{c.titulo || c.archivo}</strong>
-        {c.cuit && <span className="vf-prov">CUIT {c.cuit}</span>}
+        {c.proveedor && <strong>{c.proveedor}</strong>}
+        <span className={c.proveedor ? '' : 'cr-titulo'}>{c.titulo || c.archivo}</span>
+        {c.cuit && (
+          <span className="vf-prov">
+            CUIT {c.cuit}
+            <button className="cr-lapiz" title={c.proveedor ? 'Cambiar el nombre del proveedor' : 'Ponerle nombre a este proveedor'} aria-label="Nombre del proveedor" onClick={nombrarProveedor}>✏️</button>
+          </span>
+        )}
         {c.fecha && <span className="vf-fecha">{c.fecha}</span>}
       </div>
       <div className="vf-archivo">{c.archivo} · llegó {horaExacta(c.leido_en, false)}</div>
@@ -520,7 +548,7 @@ function ReporteDiario({ onUnauthorized }) {
                     {d.remitos.map((r, i) => (
                       <tr key={i} className={r.resultado === 'sin_remito' ? 'cr-fila-sin' : ''}>
                         <td className="mono">{r.hora}</td>
-                        <td>{r.titulo || r.archivo}{r.cuit ? <div className="vf-archivo">CUIT {r.cuit}</div> : null}</td>
+                        <td>{r.proveedor ? <strong>{r.proveedor} </strong> : null}{r.titulo || r.archivo}{r.cuit ? <div className="vf-archivo">CUIT {r.cuit}</div> : null}</td>
                         <td className="mono">{r.remito || '—'}</td>
                         <td>
                           {r.resultado === 'conforme' ? '✅ Conforme' : r.resultado === 'sin_remito' ? <strong>⏭ Sin control de remito</strong> : <strong className="vf-dif">⚠️ Con diferencia</strong>}
@@ -546,6 +574,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [pestana, setPestana] = useState('controlar')
+  const [buscarFactura, setBuscarFactura] = useState('')
   const [arrastrando, setArrastrando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [errorSubida, setErrorSubida] = useState(null)
@@ -594,9 +623,19 @@ export default function ControlRemitosView({ onUnauthorized }) {
     )
   }
 
-  const porControlar = data.pendientes.filter((p) => p.estado === 'pendiente')
-  const conDiferencia = data.pendientes.filter((p) => p.estado === 'diferencia')
-  const conformes = data.pendientes.filter((p) => p.estado === 'conforme' || p.estado === 'sin_remito')
+  const palabrasFactura = normalizar(buscarFactura).split(/\s+/).filter(Boolean)
+  const buscando = palabrasFactura.length > 0
+  const visibles = data.pendientes.filter((p) => coincideFactura(p, palabrasFactura))
+  const porControlar = visibles.filter((p) => p.estado === 'pendiente')
+  const conDiferencia = visibles.filter((p) => p.estado === 'diferencia')
+  const conformes = visibles.filter((p) => p.estado === 'conforme' || p.estado === 'sin_remito')
+  const pasaronVisibles = data.pasaron.filter((p) => coincideFactura(p, palabrasFactura))
+  const totalPorControlar = data.pendientes.filter((p) => p.estado === 'pendiente').length
+  // un botón por proveedor conocido, con cuántas facturas tiene: un toque y se ven solo las suyas
+  const proveedores = Object.entries(data.pendientes.reduce((acc, p) => {
+    if (p.proveedor) acc[p.proveedor] = (acc[p.proveedor] || 0) + 1
+    return acc
+  }, {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 
   return (
     <div className="vf-pagina">
@@ -631,7 +670,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
 
       <div className="vf-acciones">
         <button className={`sort-btn ${pestana === 'controlar' ? 'toggle-on-green' : ''}`} onClick={() => setPestana('controlar')}>
-          Para controlar ({porControlar.length})
+          Para controlar ({totalPorControlar})
         </button>
         <button className={`sort-btn ${pestana === 'reporte' ? 'toggle-on-green' : ''}`} onClick={() => setPestana('reporte')}>
           Reporte diario
@@ -642,8 +681,44 @@ export default function ControlRemitosView({ onUnauthorized }) {
 
       {pestana === 'controlar' && (
         <>
+          {data.pendientes.length > 3 && (
+            <div className="cr-busqueda">
+              <div className="cr-buscador">
+                <input
+                  type="search"
+                  value={buscarFactura}
+                  placeholder="🔍 Buscar factura (proveedor, número, CUIT, archivo…)"
+                  aria-label="Buscar factura"
+                  onChange={(e) => setBuscarFactura(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Escape' && setBuscarFactura('')}
+                />
+                {buscando && (
+                  <>
+                    <span className="cr-nota">{visibles.length} de {data.pendientes.length} facturas</span>
+                    <button className="sort-btn" onClick={() => setBuscarFactura('')}>Ver todas</button>
+                  </>
+                )}
+              </div>
+              {proveedores.length > 0 && (
+                <div className="cr-chips">
+                  {proveedores.map(([nombre, cantidad]) => (
+                    <button
+                      key={nombre}
+                      className={`sort-btn ${normalizar(buscarFactura) === normalizar(nombre) ? 'toggle-on-green' : ''}`}
+                      onClick={() => setBuscarFactura(normalizar(buscarFactura) === normalizar(nombre) ? '' : nombre)}
+                    >
+                      {nombre} ({cantidad})
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {data.pendientes.length === 0 && (
             <p className="cr-vacio">No hay facturas esperando control. 🎉</p>
+          )}
+          {buscando && visibles.length === 0 && data.pendientes.length > 0 && (
+            <p className="cr-vacio">Ninguna factura coincide con «{buscarFactura}».</p>
           )}
           {porControlar.map((c) => <Tarjeta key={c.id} c={c} onCambio={cargar} onUnauthorized={onUnauthorized} />)}
 
@@ -661,14 +736,15 @@ export default function ControlRemitosView({ onUnauthorized }) {
             </>
           )}
 
-          {data.pasaron.length > 0 && (
-            <details className="vf-detalles">
-              <summary>Ya pasaron a "Para pasar" ({data.pasaron.length})</summary>
-              {data.pasaron.map((c) => (
+          {pasaronVisibles.length > 0 && (
+            <details className="vf-detalles" open={buscando}>
+              <summary>Ya pasaron a "Para pasar" ({pasaronVisibles.length})</summary>
+              {pasaronVisibles.map((c) => (
                 <div key={c.id} className="vf-card vf-borde-ok">
                   <div className="vf-card-cab">
                     <span className="vf-badge vf-badge-ok">Pasada</span>
-                    <strong>{c.titulo || c.archivo}</strong>
+                    {c.proveedor && <strong>{c.proveedor}</strong>}
+                    <span>{c.titulo || c.archivo}</span>
                     {c.remito && <span className="vf-prov">Remito Nº {c.remito}</span>}
                     <span className="vf-fecha">{c.movida_en ? horaExacta(c.movida_en, false) : ''}</span>
                   </div>
