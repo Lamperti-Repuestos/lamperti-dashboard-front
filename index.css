@@ -1676,3 +1676,5 @@ button {
 .cr-dia > summary span:last-child { font-weight: 400; font-size: 14px; color: var(--charcoal); }
 .cr-dia .cr-dia-vacio { color: var(--gray-muted); }
 .cr-dia .cr-dia-dif { color: var(--alerta); font-weight: 700; }
+.cr-fotos { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cr-foto { width: 100%; max-width: 760px; border: 1px solid var(--gray-line); border-radius: var(--radius); background: #fff; cursor: zoom-in; }

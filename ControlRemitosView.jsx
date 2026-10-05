@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
+import ImageLightbox from './ImageLightbox.jsx'
 
 const REFRESCO_MS = 30 * 1000
 
@@ -30,6 +31,87 @@ async function pedir(path, opciones, onUnauthorized) {
   return data
 }
 
+// Los pedidos llevan la contraseña en un encabezado: por eso las imágenes y los archivos se bajan con fetch
+async function bajar(path, onUnauthorized) {
+  const res = await apiFetch(path, {}, onUnauthorized)
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(typeof data.detail === 'string' ? data.detail : `Error ${res.status}`)
+  }
+  return res.blob()
+}
+
+function guardarArchivo(blob, nombre) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
+// La "foto" de la factura: sirve para controlar a ojo si la lectura se equivocó en algún número o palabra.
+// Se muestra de a una página (muchas facturas traen el original y el duplicado) y se baja cada una al pedirla.
+function FotoFactura({ id, paginas, onUnauthorized }) {
+  const [pagina, setPagina] = useState(1)
+  const [fotos, setFotos] = useState({})
+  const [error, setError] = useState(null)
+  const [grande, setGrande] = useState(null)
+  const [cargandoGrande, setCargandoGrande] = useState(false)
+  const urls = useRef([])
+
+  useEffect(() => {
+    if (fotos[pagina]) return undefined
+    let vivo = true
+    setError(null)
+    bajar(`/facturas/control/${id}/pagina/${pagina}`, onUnauthorized)
+      .then((b) => {
+        const u = URL.createObjectURL(b)
+        urls.current.push(u)
+        if (vivo) setFotos((f) => ({ ...f, [pagina]: u }))
+      })
+      .catch((e) => vivo && setError(e.message))
+    return () => {
+      vivo = false
+    }
+  }, [id, pagina])
+
+  useEffect(() => () => {
+    urls.current.forEach((u) => URL.revokeObjectURL(u))
+  }, [])
+  useEffect(() => () => grande && URL.revokeObjectURL(grande), [grande])
+
+  // al tocar la imagen se baja una versión más grande, para leer los números chicos
+  const agrandar = () => {
+    setCargandoGrande(true)
+    bajar(`/facturas/control/${id}/pagina/${pagina}?escala=2.6`, onUnauthorized)
+      .then((b) => setGrande(URL.createObjectURL(b)))
+      .catch((e) => setError(e.message))
+      .finally(() => setCargandoGrande(false))
+  }
+
+  return (
+    <div className="cr-fotos">
+      {paginas > 1 && (
+        <div className="vf-acciones" style={{ margin: 0 }}>
+          {Array.from({ length: paginas }, (_, i) => (
+            <button key={i} className={`sort-btn ${pagina === i + 1 ? 'toggle-on-green' : ''}`} onClick={() => setPagina(i + 1)}>
+              Página {i + 1} de {paginas}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>No se pudo mostrar la factura: {error}</p>}
+      {!error && !fotos[pagina] && <p className="cr-nota">Cargando la factura…</p>}
+      {fotos[pagina] && <img src={fotos[pagina]} alt={`Factura, página ${pagina}`} className="cr-foto" onClick={agrandar} />}
+      <p className="cr-nota">{cargandoGrande ? 'Agrandando…' : 'Tocá la imagen para verla más grande.'}</p>
+      <ImageLightbox url={grande} onClose={() => setGrande(null)} />
+    </div>
+  )
+}
+
 function Tarjeta({ c, onCambio, onUnauthorized }) {
   const [tildados, setTildados] = useState(() => new Set(c.tildados || []))
   const [verItems, setVerItems] = useState(c.estado === 'pendiente')
@@ -40,6 +122,8 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
   const [editando, setEditando] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState(null)
+  const [verFoto, setVerFoto] = useState(false)
+  const [errorPdf, setErrorPdf] = useState(null)
   const primera = useRef(true)
 
   // los ítems tildados se guardan solos (si se recarga la página, siguen ahí)
@@ -89,6 +173,23 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
       })
   }
 
+  const abrirPdf = () => {
+    // la ventana se abre ya (si no, el navegador bloquea el popup) y después se le pone el PDF
+    const ventana = window.open('', '_blank')
+    setErrorPdf(null)
+    bajar(`/facturas/control/${c.id}/pdf`, onUnauthorized)
+      .then((b) => {
+        const url = URL.createObjectURL(b)
+        if (ventana) ventana.location.href = url
+        else guardarArchivo(b, c.archivo)
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      })
+      .catch((e) => {
+        ventana?.close()
+        setErrorPdf(e.message)
+      })
+  }
+
   const decidida = c.estado === 'conforme' || c.estado === 'diferencia'
   const formulario = !decidida || editando
   const color = c.estado === 'conforme' ? 'ok' : c.estado === 'diferencia' ? 'alerta' : 'info'
@@ -113,6 +214,17 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
           {c.importes.otros && c.importes.otros !== '0,00' ? ` · otros ${c.importes.otros}` : ''}
         </div>
       )}
+
+      <div className="vf-acciones" style={{ margin: '10px 0 0' }}>
+        {c.paginas > 0 && (
+          <button className="sort-btn" onClick={() => setVerFoto((v) => !v)}>
+            {verFoto ? '▾' : '▸'} 👁 Ver la factura (foto)
+          </button>
+        )}
+        <button className="sort-btn" onClick={abrirPdf}>📄 Abrir el PDF original</button>
+      </div>
+      {verFoto && c.paginas > 0 && <FotoFactura id={c.id} paginas={c.paginas} onUnauthorized={onUnauthorized} />}
+      {errorPdf && <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>{errorPdf}</p>}
 
       {n > 0 && (
         <div className="vf-items">
@@ -265,6 +377,15 @@ function Lectura({ lectura, pendientes }) {
 function ReporteDiario({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  const [errorDescarga, setErrorDescarga] = useState(null)
+
+  const descargar = (fecha) => {
+    setErrorDescarga(null)
+    const ruta = fecha ? `/facturas/control/reporte.csv?fecha=${fecha}` : '/facturas/control/reporte.csv?dias=60'
+    bajar(ruta, onUnauthorized)
+      .then((b) => guardarArchivo(b, fecha ? `reporte-remitos-${fecha}.csv` : 'reporte-remitos.csv'))
+      .catch((e) => setErrorDescarga(e.message))
+  }
 
   useEffect(() => {
     pedir('/facturas/control/reporte?dias=60', {}, onUnauthorized).then(setData).catch((e) => setError(e.message))
@@ -277,6 +398,10 @@ function ReporteDiario({ onUnauthorized }) {
       <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 8px' }}>
         Un renglón por día, con los remitos que se revisaron. Si un día no se revisó nada, queda anotado igual.
       </p>
+      <div className="vf-acciones">
+        <button className="sort-btn" onClick={() => descargar(null)}>⬇ Descargar los últimos 60 días (Excel)</button>
+      </div>
+      {errorDescarga && <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>{errorDescarga}</p>}
       {data.dias.map((d, idx) => {
         const fecha = new Date(`${d.fecha}T12:00:00`)
         const titulo = `${DIAS_SEMANA[d.dia_semana]} ${fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}${idx === 0 ? ' (hoy)' : ''}`
@@ -289,6 +414,9 @@ function ReporteDiario({ onUnauthorized }) {
               <span className="cr-dia-titulo">{titulo}</span>
               <span className={d.con_diferencia ? 'cr-dia-dif' : d.total === 0 ? 'cr-dia-vacio' : ''}>{resumen}</span>
             </summary>
+            <div className="vf-acciones" style={{ margin: '4px 0' }}>
+              <button className="sort-btn" onClick={() => descargar(d.fecha)}>⬇ Descargar este día</button>
+            </div>
             {d.remitos.length > 0 && (
               <div className="vf-scroll">
                 <table className="vf-tabla">
