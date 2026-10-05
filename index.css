@@ -1683,3 +1683,9 @@ button {
 .cr-aviso-sin { font-size: 14px; margin: 4px 0 8px; padding: 8px 12px; border-left: 4px solid var(--atencion); background: rgba(255, 193, 7, 0.12); border-radius: var(--radius); }
 .cr-buscador { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
 .cr-buscador input { flex: 1 1 220px; max-width: 420px; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--gray-line); border-radius: var(--radius); background: var(--card-bg); color: var(--charcoal); }
+.cr-busqueda { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.cr-busqueda .cr-buscador { margin-top: 0; }
+.cr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cr-titulo { font-weight: 700; }
+.cr-lapiz { background: none; border: 0; cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0.6; }
+.cr-lapiz:hover, .cr-lapiz:focus-visible { opacity: 1; }
