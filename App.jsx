@@ -20,14 +20,13 @@ import NotasView from './NotasView.jsx'
 import DevolucionesProveedoresView from './DevolucionesProveedoresView.jsx'
 import SubagenteView from './SubagenteView.jsx'
 import PedidorView from './PedidorView.jsx'
-import VerificadorFacturasView from './VerificadorFacturasView.jsx'
 import FacturasEstadoView from './FacturasEstadoView.jsx'
 import ControlRemitosView from './ControlRemitosView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturas', 'facturasestado', 'controlremitos']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos']
 
 const GRUPOS = [
   {
@@ -55,7 +54,6 @@ const GRUPOS = [
     vistas: [
       { id: 'controlremitos', label: 'Control de remitos' },
       { id: 'facturasestado', label: 'Estado de facturas' },
-      { id: 'facturas', label: 'Verificar facturas' },
     ],
   },
   {
@@ -282,7 +280,6 @@ export default function App() {
         {view === 'notas' && <NotasView onUnauthorized={handleUnauthorized} />}
         {view === 'devoluciones' && <DevolucionesProveedoresView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidor' && <PedidorView onUnauthorized={handleUnauthorized} />}
-        {view === 'facturas' && <VerificadorFacturasView onUnauthorized={handleUnauthorized} />}
         {view === 'facturasestado' && <FacturasEstadoView onUnauthorized={handleUnauthorized} />}
         {view === 'controlremitos' && <ControlRemitosView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
