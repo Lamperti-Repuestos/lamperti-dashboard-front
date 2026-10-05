@@ -575,6 +575,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [pestana, setPestana] = useState('controlar')
   const [buscarFactura, setBuscarFactura] = useState('')
+  const [proveedorElegido, setProveedorElegido] = useState('')   // botón de proveedor: se combina con lo que se escriba
   const [arrastrando, setArrastrando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [errorSubida, setErrorSubida] = useState(null)
@@ -624,12 +625,15 @@ export default function ControlRemitosView({ onUnauthorized }) {
   }
 
   const palabrasFactura = normalizar(buscarFactura).split(/\s+/).filter(Boolean)
-  const buscando = palabrasFactura.length > 0
-  const visibles = data.pendientes.filter((p) => coincideFactura(p, palabrasFactura))
+  // si el proveedor elegido ya no tiene facturas (se pasaron todas), el filtro se ignora para no dejar la lista vacía
+  const proveedorVigente = proveedorElegido && data.pendientes.some((p) => p.proveedor === proveedorElegido) ? proveedorElegido : ''
+  const buscando = palabrasFactura.length > 0 || proveedorVigente !== ''
+  const pasaFiltro = (p) => (!proveedorVigente || p.proveedor === proveedorVigente) && coincideFactura(p, palabrasFactura)
+  const visibles = data.pendientes.filter(pasaFiltro)
   const porControlar = visibles.filter((p) => p.estado === 'pendiente')
   const conDiferencia = visibles.filter((p) => p.estado === 'diferencia')
   const conformes = visibles.filter((p) => p.estado === 'conforme' || p.estado === 'sin_remito')
-  const pasaronVisibles = data.pasaron.filter((p) => coincideFactura(p, palabrasFactura))
+  const pasaronVisibles = data.pasaron.filter(pasaFiltro)
   const totalPorControlar = data.pendientes.filter((p) => p.estado === 'pendiente').length
   // un botón por proveedor conocido, con cuántas facturas tiene: un toque y se ven solo las suyas
   const proveedores = Object.entries(data.pendientes.reduce((acc, p) => {
@@ -687,7 +691,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
                 <input
                   type="search"
                   value={buscarFactura}
-                  placeholder="🔍 Buscar factura (proveedor, número, CUIT, archivo…)"
+                  placeholder={proveedorVigente ? `🔍 Buscar dentro de ${proveedorVigente} (número, remito, fecha…)` : '🔍 Buscar factura (proveedor, número, CUIT, archivo…)'}
                   aria-label="Buscar factura"
                   onChange={(e) => setBuscarFactura(e.target.value)}
                   onKeyDown={(e) => e.key === 'Escape' && setBuscarFactura('')}
@@ -695,7 +699,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
                 {buscando && (
                   <>
                     <span className="cr-nota">{visibles.length} de {data.pendientes.length} facturas</span>
-                    <button className="sort-btn" onClick={() => setBuscarFactura('')}>Ver todas</button>
+                    <button className="sort-btn" onClick={() => { setBuscarFactura(''); setProveedorElegido('') }}>Ver todas</button>
                   </>
                 )}
               </div>
@@ -704,8 +708,8 @@ export default function ControlRemitosView({ onUnauthorized }) {
                   {proveedores.map(([nombre, cantidad]) => (
                     <button
                       key={nombre}
-                      className={`sort-btn ${normalizar(buscarFactura) === normalizar(nombre) ? 'toggle-on-green' : ''}`}
-                      onClick={() => setBuscarFactura(normalizar(buscarFactura) === normalizar(nombre) ? '' : nombre)}
+                      className={`sort-btn ${proveedorVigente === nombre ? 'toggle-on-green' : ''}`}
+                      onClick={() => setProveedorElegido(proveedorVigente === nombre ? '' : nombre)}
                     >
                       {nombre} ({cantidad})
                     </button>
@@ -718,7 +722,9 @@ export default function ControlRemitosView({ onUnauthorized }) {
             <p className="cr-vacio">No hay facturas esperando control. 🎉</p>
           )}
           {buscando && visibles.length === 0 && data.pendientes.length > 0 && (
-            <p className="cr-vacio">Ninguna factura coincide con «{buscarFactura}».</p>
+            <p className="cr-vacio">
+              Ninguna factura coincide{proveedorVigente ? ` en ${proveedorVigente}` : ''}{buscarFactura.trim() ? ` con «${buscarFactura}»` : ''}.
+            </p>
           )}
           {porControlar.map((c) => <Tarjeta key={c.id} c={c} onCambio={cargar} onUnauthorized={onUnauthorized} />)}
 
