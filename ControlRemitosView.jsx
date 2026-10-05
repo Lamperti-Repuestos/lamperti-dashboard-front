@@ -13,6 +13,15 @@ const TIPOS_DIFERENCIA = [
   ['otro', 'Otro'],
 ]
 
+// "Pasar sin control de remito": para lo que no tiene remito que controlar, o cuando se decide pasarla igual.
+// Pasa como una conforme, pero en el reporte queda marcada aparte (para que se sepa que nadie miró un remito).
+const MOTIVOS_SIN_REMITO = [
+  ['nota_credito', 'Nota de crédito'],
+  ['servicio', 'Servicio (no lleva remito)'],
+  ['otro', 'Otro motivo (explicarlo en la nota)'],
+]
+const textoMotivo = (k) => (MOTIVOS_SIN_REMITO.find(([clave]) => clave === k) || [k, k])[1].replace(' (explicarlo en la nota)', '')
+
 const DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 // Hora exacta con segundos: "hoy a las 18:24:05" / "el 30/09 a las 18:24:05"
@@ -117,6 +126,8 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
   const [verItems, setVerItems] = useState(c.estado === 'pendiente')
   const [remito, setRemito] = useState(c.remito || '')
   const [conDiferencia, setConDiferencia] = useState(c.estado === 'diferencia')
+  const [sinRemito, setSinRemito] = useState(c.estado === 'sin_remito')
+  const [motivo, setMotivo] = useState(c.motivo || '')
   const [tipos, setTipos] = useState(() => new Set(c.diferencias || []))
   const [nota, setNota] = useState(c.nota || '')
   const [editando, setEditando] = useState(false)
@@ -160,7 +171,14 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
     pedir(`/facturas/control/${c.id}/resolver`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultado, remito, diferencias: resultado === 'diferencia' ? [...tipos] : [], nota, tildados: [...tildados] }),
+      body: JSON.stringify({
+        resultado,
+        remito: resultado === 'sin_remito' ? '' : remito,
+        diferencias: resultado === 'diferencia' ? [...tipos] : [],
+        motivo: resultado === 'sin_remito' ? motivo : null,
+        nota,
+        tildados: [...tildados],
+      }),
     }, onUnauthorized)
       .then(() => {
         setEditando(false)
@@ -190,10 +208,10 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
       })
   }
 
-  const decidida = c.estado === 'conforme' || c.estado === 'diferencia'
+  const decidida = c.estado === 'conforme' || c.estado === 'diferencia' || c.estado === 'sin_remito'
   const formulario = !decidida || editando
-  const color = c.estado === 'conforme' ? 'ok' : c.estado === 'diferencia' ? 'alerta' : 'info'
-  const etiqueta = c.estado === 'conforme' ? 'Conforme' : c.estado === 'diferencia' ? 'Con diferencia' : 'Para controlar'
+  const color = c.estado === 'conforme' ? 'ok' : c.estado === 'diferencia' ? 'alerta' : c.estado === 'sin_remito' ? 'atencion' : 'info'
+  const etiqueta = c.estado === 'conforme' ? 'Conforme' : c.estado === 'diferencia' ? 'Con diferencia' : c.estado === 'sin_remito' ? 'Sin control de remito' : 'Para controlar'
 
   return (
     <div className={`vf-card vf-borde-${color}`}>
@@ -283,6 +301,16 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
                   : 'El programa todavía no vio este PDF en la carpeta Nora Control: cuando lo vea, lo pasa solo. Si lo arrastraste desde otro lado, pasalo vos a "Para pasar".'}
               </div>
             </>
+          ) : c.estado === 'sin_remito' ? (
+            <>
+              <strong>⏭ Pasada sin control de remito</strong> · {textoMotivo(c.motivo)} · {c.controlado_por} {horaExacta(c.controlado_en, false)}
+              {c.nota && <div className="cr-nota">«{c.nota}»</div>}
+              <div className="cr-nota">
+                {c.en_carpeta
+                  ? 'Pasa sola a "Para pasar" en menos de 1 minuto. Queda anotado en el reporte diario que no se controló contra un remito.'
+                  : 'El programa todavía no vio este PDF en la carpeta Nora Control: cuando lo vea, lo pasa solo.'}
+              </div>
+            </>
           ) : (
             <>
               <strong>⚠️ Con diferencia</strong> · {[c.remito && `Remito Nº ${c.remito}`, `${c.controlado_por} ${horaExacta(c.controlado_en, false)}`].filter(Boolean).join(' · ')}
@@ -297,10 +325,26 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
 
       {formulario && (
         <div className="cr-decision">
-          <label className="cr-campo">
-            <span>Remito Nº</span>
-            <input type="text" value={remito} maxLength={40} placeholder="Ej: 0005-00012345" onChange={(e) => setRemito(e.target.value)} />
-          </label>
+          {!sinRemito && (
+            <label className="cr-campo">
+              <span>Remito Nº</span>
+              <input type="text" value={remito} maxLength={40} placeholder="Ej: 0005-00012345" onChange={(e) => setRemito(e.target.value)} />
+            </label>
+          )}
+          {sinRemito && (
+            <div className="cr-dif">
+              <div className="cr-nota">Se pasa igual a "Para pasar", pero en el reporte queda anotado que no se controló contra un remito.</div>
+              <div className="cr-tipos">
+                {MOTIVOS_SIN_REMITO.map(([k, label]) => (
+                  <label key={k} className="cr-tipo">
+                    <input type="radio" name={`motivo-${c.id}`} checked={motivo === k} onChange={() => setMotivo(k)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <textarea value={nota} maxLength={500} rows={2} placeholder="Nota (obligatoria si elegís Otro motivo)" onChange={(e) => setNota(e.target.value)} />
+            </div>
+          )}
           {conDiferencia && (
             <div className="cr-dif">
               <div className="cr-tipos">
@@ -319,10 +363,16 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
             </div>
           )}
           <div className="vf-acciones">
-            {!conDiferencia ? (
+            {sinRemito ? (
+              <>
+                <button className="sort-btn toggle-on-green" disabled={enviando || !motivo} onClick={() => marcar('sin_remito')}>⏭ Pasar sin control de remito</button>
+                <button className="sort-btn" disabled={enviando} onClick={() => setSinRemito(false)}>Volver</button>
+              </>
+            ) : !conDiferencia ? (
               <>
                 <button className="sort-btn toggle-on-green" disabled={enviando} onClick={() => marcar('conforme')}>✅ Remito conforme</button>
                 <button className="sort-btn" disabled={enviando} onClick={() => setConDiferencia(true)}>⚠️ Hay diferencia</button>
+                <button className="sort-btn" disabled={enviando} onClick={() => setSinRemito(true)}>⏭ Pasar sin control de remito</button>
               </>
             ) : (
               <>
@@ -393,11 +443,18 @@ function ReporteDiario({ onUnauthorized }) {
 
   if (error) return <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>No se pudo cargar: {error}</p>
   if (!data) return <div className="loading-state">Cargando…</div>
+  const sinControl = data.dias.reduce((n, d) => n + (d.sin_remito || 0), 0)
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 8px' }}>
         Un renglón por día, con los remitos que se revisaron. Si un día no se revisó nada, queda anotado igual.
       </p>
+      {sinControl > 0 && (
+        <p className="cr-aviso-sin">
+          ⏭ En estos días se pasaron <strong>{sinControl}</strong> factura{sinControl === 1 ? '' : 's'} sin control de remito
+          (aparecen marcadas en amarillo, con el motivo).
+        </p>
+      )}
       <div className="vf-acciones">
         <button className="sort-btn" onClick={() => descargar(null)}>⬇ Descargar los últimos 60 días (Excel)</button>
       </div>
@@ -407,12 +464,12 @@ function ReporteDiario({ onUnauthorized }) {
         const titulo = `${DIAS_SEMANA[d.dia_semana]} ${fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}${idx === 0 ? ' (hoy)' : ''}`
         const resumen = d.total === 0
           ? 'Sin remitos revisados'
-          : `${d.total} revisado${d.total === 1 ? '' : 's'}: ${d.conformes} conforme${d.conformes === 1 ? '' : 's'}${d.con_diferencia ? ` · ${d.con_diferencia} con diferencia` : ''}`
+          : `${d.total} revisado${d.total === 1 ? '' : 's'}: ${d.conformes} conforme${d.conformes === 1 ? '' : 's'}${d.con_diferencia ? ` · ${d.con_diferencia} con diferencia` : ''}${d.sin_remito ? ` · ${d.sin_remito} sin control de remito` : ''}`
         return (
           <details key={d.fecha} className="vf-detalles cr-dia" open={idx === 0 && d.total > 0}>
             <summary>
               <span className="cr-dia-titulo">{titulo}</span>
-              <span className={d.con_diferencia ? 'cr-dia-dif' : d.total === 0 ? 'cr-dia-vacio' : ''}>{resumen}</span>
+              <span className={d.con_diferencia ? 'cr-dia-dif' : d.sin_remito ? 'cr-dia-sin' : d.total === 0 ? 'cr-dia-vacio' : ''}>{resumen}</span>
             </summary>
             <div className="vf-acciones" style={{ margin: '4px 0' }}>
               <button className="sort-btn" onClick={() => descargar(d.fecha)}>⬇ Descargar este día</button>
@@ -425,12 +482,13 @@ function ReporteDiario({ onUnauthorized }) {
                   </thead>
                   <tbody>
                     {d.remitos.map((r, i) => (
-                      <tr key={i}>
+                      <tr key={i} className={r.resultado === 'sin_remito' ? 'cr-fila-sin' : ''}>
                         <td className="mono">{r.hora}</td>
                         <td>{r.titulo || r.archivo}{r.cuit ? <div className="vf-archivo">CUIT {r.cuit}</div> : null}</td>
                         <td className="mono">{r.remito || '—'}</td>
                         <td>
-                          {r.resultado === 'conforme' ? '✅ Conforme' : <strong className="vf-dif">⚠️ Con diferencia</strong>}
+                          {r.resultado === 'conforme' ? '✅ Conforme' : r.resultado === 'sin_remito' ? <strong>⏭ Sin control de remito</strong> : <strong className="vf-dif">⚠️ Con diferencia</strong>}
+                          {r.motivo && <div className="vf-archivo">{r.motivo}</div>}
                           {r.diferencias.length > 0 && <div className="vf-archivo">{r.diferencias.join(' · ')}</div>}
                           {r.nota && <div className="vf-archivo">«{r.nota}»</div>}
                         </td>
@@ -502,7 +560,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
 
   const porControlar = data.pendientes.filter((p) => p.estado === 'pendiente')
   const conDiferencia = data.pendientes.filter((p) => p.estado === 'diferencia')
-  const conformes = data.pendientes.filter((p) => p.estado === 'conforme')
+  const conformes = data.pendientes.filter((p) => p.estado === 'conforme' || p.estado === 'sin_remito')
 
   return (
     <div className="vf-pagina">
@@ -567,7 +625,7 @@ export default function ControlRemitosView({ onUnauthorized }) {
 
           {conformes.length > 0 && (
             <>
-              <h3 className="section-title">✅ Conformes, por pasar a "Para pasar" ({conformes.length})</h3>
+              <h3 className="section-title">✅ Controladas, por pasar a "Para pasar" ({conformes.length})</h3>
               {conformes.map((c) => <Tarjeta key={c.id} c={c} onCambio={cargar} onUnauthorized={onUnauthorized} />)}
             </>
           )}

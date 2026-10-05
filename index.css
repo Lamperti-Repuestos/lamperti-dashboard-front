@@ -1678,3 +1678,6 @@ button {
 .cr-dia .cr-dia-dif { color: var(--alerta); font-weight: 700; }
 .cr-fotos { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .cr-foto { width: 100%; max-width: 760px; border: 1px solid var(--gray-line); border-radius: var(--radius); background: #fff; cursor: zoom-in; }
+.cr-fila-sin td { background: var(--bg-atencion, rgba(255, 193, 7, 0.16)); }
+.cr-dia .cr-dia-sin { color: var(--atencion); font-weight: 700; }
+.cr-aviso-sin { font-size: 14px; margin: 4px 0 8px; padding: 8px 12px; border-left: 4px solid var(--atencion); background: rgba(255, 193, 7, 0.12); border-radius: var(--radius); }
