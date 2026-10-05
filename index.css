@@ -1659,3 +1659,20 @@ button {
 .fe-nuevo { background: var(--yellow); color: #2E2E2E; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 .fe-detalle { flex-basis: 100%; font-size: 12px; color: var(--gray-muted); padding-left: 54px; }
 
+
+/* ---- Control de remitos (factura vs remito físico, antes de pasarla a Contabilium) ---- */
+.cr-decision { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--gray-line); font-size: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.cr-nota { font-size: 13px; color: var(--gray-muted); }
+.cr-campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--gray-muted); }
+.cr-campo input, .cr-dif textarea { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--gray-line); border-radius: var(--radius); background: var(--card-bg); color: var(--charcoal); }
+.cr-campo input { width: min(280px, 100%); }
+.cr-dif { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.cr-dif textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.cr-tipos { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cr-tipo { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+.cr-vacio { color: var(--gray-muted); padding: 16px 0; }
+.cr-dia > summary { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.cr-dia-titulo { text-transform: capitalize; }
+.cr-dia > summary span:last-child { font-weight: 400; font-size: 14px; color: var(--charcoal); }
+.cr-dia .cr-dia-vacio { color: var(--gray-muted); }
+.cr-dia .cr-dia-dif { color: var(--alerta); font-weight: 700; }
