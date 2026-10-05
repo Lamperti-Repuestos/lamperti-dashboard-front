@@ -392,11 +392,10 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
 function Lectura({ lectura, pendientes }) {
   let tono = 'ok'
   let titulo = 'El programa está mirando la carpeta Nora Control'
-  let detalle = 'Las facturas que deje Aldo aparecen acá solas, en menos de 1 minuto.'
+  let detalle = null
   if (!lectura.actualizada) {
     tono = 'info'
     titulo = 'Todavía no hay lecturas de la carpeta'
-    detalle = 'Cuando el programa de la oficina mire la carpeta Nora Control por primera vez, las facturas aparecen acá. Mientras tanto se pueden arrastrar los PDF a mano.'
   } else if (!lectura.funcionando) {
     tono = 'alerta'
     titulo = 'El programa no está mirando la carpeta'
@@ -411,7 +410,7 @@ function Lectura({ lectura, pendientes }) {
   return (
     <div className={`fe-banner fe-banner-${tono}`}>
       <div className="fe-banner-titulo">{titulo}</div>
-      <div className="fe-banner-detalle">{detalle}</div>
+      {detalle && <div className="fe-banner-detalle">{detalle}</div>}
       {lectura.actualizada && (
         <div className="fe-banner-pie">
           Última lectura de la carpeta: {horaExacta(lectura.actualizada)}
@@ -565,11 +564,6 @@ export default function ControlRemitosView({ onUnauthorized }) {
   return (
     <div className="vf-pagina">
       <h2 className="section-title">Control de remitos</h2>
-      <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 4px' }}>
-        Las facturas que Aldo deja en la carpeta "Nora Control" aparecen acá solas. Controlalas contra el remito y marcá si está conforme:
-        al marcarla conforme, el programa la pasa solo a "Para pasar".
-      </p>
-
       <Lectura lectura={data.lectura} pendientes={data.pendientes} />
 
       <div
