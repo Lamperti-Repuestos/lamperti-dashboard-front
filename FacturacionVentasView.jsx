@@ -31,19 +31,27 @@ export default function FacturacionVentasView({ onUnauthorized }) {
   const [error, setError] = useState(null)
   const [dias, setDias] = useState(7)
   const [filtro, setFiltro] = useState('pendientes')
+  const [busquedaTexto, setBusquedaTexto] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [recarga, setRecarga] = useState(0)
 
   const [preparando, setPreparando] = useState(null) // número de ML en proceso de "preparar"
   const [resumen, setResumen] = useState(null) // { venta, datos }
   const [facturando, setFacturando] = useState(false)
+  const [adjuntando, setAdjuntando] = useState(null) // número de ML (o 'todas') mientras se adjunta
   const [aviso, setAviso] = useState(null)
+
+  // Espera a que termine de tipear antes de buscar en ML (si no, consulta por cada letra).
+  useEffect(() => {
+    const t = setTimeout(() => setBusqueda(busquedaTexto.trim()), 600)
+    return () => clearTimeout(t)
+  }, [busquedaTexto])
 
   useEffect(() => {
     let vigente = true
     setCargando(true)
     setError(null)
-    apiFetch(`/facturacion/pendientes?dias=${dias}`, {}, onUnauthorized)
+    apiFetch(`/facturacion/pendientes?dias=${dias}&q=${encodeURIComponent(busqueda)}`, {}, onUnauthorized)
       .then(async (res) => {
         if (!res.ok) throw new Error(await leerError(res))
         const d = await res.json()
@@ -61,25 +69,22 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       .then((d) => vigente && setRevision(d.pendientes || []))
       .catch(() => {})
     return () => { vigente = false }
-  }, [dias, recarga])
+  }, [dias, busqueda, recarga])
 
   const ventas = data?.ventas || []
   const cantFacturadas = ventas.filter((v) => v.facturada).length
   const cantPendientes = ventas.length - cantFacturadas
+  const sinAdjuntar = (v) => v.facturada && !v.factura?.adjunta_ml
+  const cantSinAdjuntar = ventas.filter(sinAdjuntar).length
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
     return ventas.filter((v) => {
       if (filtro === 'pendientes' && v.facturada) return false
       if (filtro === 'facturadas' && !v.facturada) return false
-      if (!q) return true
-      return (
-        String(v.id_orden_ml).includes(q) ||
-        (v.comprador || '').toLowerCase().includes(q) ||
-        (v.factura?.numero_factura || '').toLowerCase().includes(q)
-      )
+      if (filtro === 'sinadjuntar' && !sinAdjuntar(v)) return false
+      return true
     })
-  }, [ventas, filtro, busqueda])
+  }, [ventas, filtro])
 
   const preparar = async (venta) => {
     setPreparando(venta.id_orden_ml)
@@ -111,7 +116,9 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       if (!res.ok) throw new Error(await leerError(res))
       const d = await res.json()
       setResumen(null)
-      setAviso(d.simulado ? d.mensaje : `Factura emitida: ${d.numero_factura}\nCAE ${d.cae}`)
+      if (d.simulado) setAviso(d.mensaje)
+      else if (d.adjuntada) setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n✅ Quedó adjunta a la venta de ML.`)
+      else setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n⚠️ NO QUEDÓ ADJUNTA a la venta de ML:\n${d.error_adjunto}\n\nLa venta figura en amarillo: usá "Adjuntar a ML" para reintentar. No la vuelvas a facturar.`)
       setRecarga((n) => n + 1)
     } catch (err) {
       setResumen(null)
@@ -119,6 +126,37 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       setRecarga((n) => n + 1)
     } finally {
       setFacturando(false)
+    }
+  }
+
+  const adjuntar = async (venta) => {
+    setAdjuntando(venta.id_orden_ml)
+    try {
+      const res = await apiFetch(`/facturacion/${venta.id_orden_ml}/adjuntar`, { method: 'POST' }, onUnauthorized)
+      if (!res.ok) throw new Error(await leerError(res))
+      const d = await res.json()
+      setAviso(d.adjuntada ? '✅ La factura quedó adjunta a la venta de ML.' : `⚠️ Todavía no se pudo adjuntar:\n${d.error}`)
+    } catch (err) {
+      setAviso(`⚠️ No se pudo adjuntar:\n${err.message}`)
+    } finally {
+      setAdjuntando(null)
+      setRecarga((n) => n + 1)
+    }
+  }
+
+  const adjuntarTodas = async () => {
+    setAdjuntando('todas')
+    try {
+      const res = await apiFetch('/facturacion/adjuntar-pendientes?limite=20', { method: 'POST' }, onUnauthorized)
+      if (!res.ok) throw new Error(await leerError(res))
+      const d = await res.json()
+      const fallos = d.fallaron.map((f) => `• Factura ${f.numero_factura} (venta #${f.numero_orden_ml}): ${f.error}`).join('\n')
+      setAviso(`Se intentó con ${d.intentadas} factura(s): ${d.adjuntadas} quedaron adjuntas.${fallos ? `\n\nNo se pudieron adjuntar:\n${fallos}` : ''}`)
+    } catch (err) {
+      setAviso(`⚠️ No se pudo adjuntar:\n${err.message}`)
+    } finally {
+      setAdjuntando(null)
+      setRecarga((n) => n + 1)
     }
   }
 
@@ -134,7 +172,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         <label className="corte-label">
           Últimos días
           <select className="corte-input" value={dias} onChange={(e) => setDias(Number(e.target.value))}>
-            {[1, 3, 7, 15, 30].map((n) => <option key={n} value={n}>{n}</option>)}
+            {[1, 3, 7, 15, 30, 60, 90].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
         <button className={`sort-btn ${filtro === 'pendientes' ? 'active-outline' : ''}`} onClick={() => setFiltro('pendientes')}>
@@ -143,23 +181,35 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         <button className={`sort-btn ${filtro === 'facturadas' ? 'active-outline' : ''}`} onClick={() => setFiltro('facturadas')}>
           🟢 Facturadas ({cantFacturadas})
         </button>
+        <button className={`sort-btn ${filtro === 'sinadjuntar' ? 'active-outline' : ''}`} onClick={() => setFiltro('sinadjuntar')}>
+          🟡 Sin adjuntar ({cantSinAdjuntar})
+        </button>
         <button className={`sort-btn ${filtro === 'todas' ? 'active-outline' : ''}`} onClick={() => setFiltro('todas')}>
           Todas ({ventas.length})
         </button>
         <input
           className="corte-input"
-          style={{ width: 200 }}
-          placeholder="Buscar comprador o número"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          style={{ width: 260 }}
+          placeholder="Buscar usuario, producto, SKU o nº de venta"
+          value={busquedaTexto}
+          onChange={(e) => setBusquedaTexto(e.target.value)}
         />
         <button className="sort-btn" onClick={() => setRecarga((n) => n + 1)} disabled={cargando}>↻ Actualizar</button>
+        <button className="sort-btn" onClick={adjuntarTodas} disabled={adjuntando !== null}>
+          {adjuntando === 'todas' ? 'Adjuntando...' : '📎 Adjuntar las que faltan'}
+        </button>
       </div>
 
       {data && data.cruce_historico_ok === false && (
         <div className="error-state">
           No pude consultar Contabilium para cruzar las ventas con lo ya facturado. Hasta que se resuelva, una venta
           marcada como Pendiente puede estar ya facturada: no factures sin revisar antes.
+        </div>
+      )}
+
+      {data?.truncado && (
+        <div className="error-state">
+          Hay más de 2.000 ventas en este período y ML solo devuelve las últimas 2.000. Achicá los días o buscá por usuario o producto.
         </div>
       )}
 
@@ -193,8 +243,11 @@ export default function FacturacionVentasView({ onUnauthorized }) {
           {visibles.length === 0 && <div className="empty-state">No hay ventas para mostrar con este filtro.</div>}
           {visibles.map((v) => (
             <div key={v.id_orden_ml} className="row">
-              <span style={{ fontSize: 20 }} title={v.facturada ? 'Facturada' : 'Pendiente'}>
-                {v.facturada ? '🟢' : '🔴'}
+              <span
+                style={{ fontSize: 20 }}
+                title={!v.facturada ? 'Pendiente de facturar' : v.factura?.adjunta_ml ? 'Facturada y adjunta a la venta de ML' : 'Facturada, pero SIN adjuntar a la venta de ML'}
+              >
+                {!v.facturada ? '🔴' : v.factura?.adjunta_ml ? '🟢' : '🟡'}
               </span>
               <div className="title-cell">
                 {v.comprador || '—'}
@@ -203,12 +256,29 @@ export default function FacturacionVentasView({ onUnauthorized }) {
                   {v.facturada && v.factura ? ` · Factura ${v.factura.tipo_fc === 'FCA' ? 'A' : 'B'} ${v.factura.numero_factura}` : ''}
                   {!v.facturada && v.en_contabilium === false ? ' · todavía no está en Contabilium' : ''}
                 </span>
+                {v.productos?.length > 0 && (
+                  <span className="id-cell mono">
+                    {v.productos.map((p) => `${p.cantidad}× ${p.titulo || p.sku}`).join(' · ')}
+                  </span>
+                )}
+                {sinAdjuntar(v) && (
+                  <span className="id-cell mono" style={{ color: '#B23A2E' }}>
+                    Sin adjuntar a la venta de ML{v.factura?.adjunta_ml_error ? `: ${v.factura.adjunta_ml_error}` : ''}
+                  </span>
+                )}
               </div>
               <span className="badge badge-acordar">{formatoPesos.format(v.total || 0)}</span>
               {v.facturada ? (
-                v.factura?.url_comprobante && (
-                  <a className="sort-btn" href={v.factura.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>
-                )
+                <>
+                  {sinAdjuntar(v) && (
+                    <button className="scan-btn" disabled={adjuntando !== null} onClick={() => adjuntar(v)}>
+                      {adjuntando === v.id_orden_ml ? 'Adjuntando...' : 'Adjuntar a ML'}
+                    </button>
+                  )}
+                  {v.factura?.url_comprobante && (
+                    <a className="sort-btn" href={v.factura.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>
+                  )}
+                </>
               ) : (
                 <button
                   className="scan-btn"
@@ -241,6 +311,9 @@ export default function FacturacionVentasView({ onUnauthorized }) {
               MODO SIMULACIÓN: no se va a emitir nada real ante AFIP.
             </div>
           )}
+          <div className="id-cell mono" style={{ marginBottom: 8 }}>
+            La factura se adjunta sola a la venta de ML, y se verifica que haya quedado.
+          </div>
           <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.5 }}>
             <strong>{resumen.datos.comprador}</strong><br />
             {resumen.datos.tipo_doc} {resumen.datos.nro_doc}<br />
