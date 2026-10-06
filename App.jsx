@@ -22,11 +22,12 @@ import SubagenteView from './SubagenteView.jsx'
 import PedidorView from './PedidorView.jsx'
 import FacturasEstadoView from './FacturasEstadoView.jsx'
 import ControlRemitosView from './ControlRemitosView.jsx'
+import FacturacionVentasView from './FacturacionVentasView.jsx'
 import LoginForm from './LoginForm.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos', 'facturacionventas']
 
 const GRUPOS = [
   {
@@ -52,6 +53,7 @@ const GRUPOS = [
     id: 'facturacion',
     nombre: 'Facturación',
     vistas: [
+      { id: 'facturacionventas', label: 'Facturar ventas' },
       { id: 'controlremitos', label: 'Control de remitos' },
       { id: 'facturasestado', label: 'Estado de facturas' },
     ],
@@ -282,6 +284,7 @@ export default function App() {
         {view === 'pedidor' && <PedidorView onUnauthorized={handleUnauthorized} />}
         {view === 'facturasestado' && <FacturasEstadoView onUnauthorized={handleUnauthorized} />}
         {view === 'controlremitos' && <ControlRemitosView onUnauthorized={handleUnauthorized} />}
+        {view === 'facturacionventas' && <FacturacionVentasView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
