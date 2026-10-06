@@ -34,6 +34,9 @@ export default function FacturacionVentasView({ onUnauthorized }) {
   const [busquedaTexto, setBusquedaTexto] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [recarga, setRecarga] = useState(0)
+  const [tipoFc, setTipoFc] = useState('') // '' | 'FCA' | 'FCB'
+  const [montoMin, setMontoMin] = useState('')
+  const [montoMax, setMontoMax] = useState('')
 
   const [preparando, setPreparando] = useState(null) // número de ML en proceso de "preparar"
   const [resumen, setResumen] = useState(null) // { venta, datos }
@@ -82,9 +85,14 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       if (filtro === 'pendientes' && v.facturada) return false
       if (filtro === 'facturadas' && !v.facturada) return false
       if (filtro === 'sinadjuntar' && !sinAdjuntar(v)) return false
+      if (tipoFc && v.tipo_fc !== tipoFc) return false
+      const min = parseFloat(montoMin.replace(',', '.'))
+      const max = parseFloat(montoMax.replace(',', '.'))
+      if (!Number.isNaN(min) && (v.total || 0) < min) return false
+      if (!Number.isNaN(max) && (v.total || 0) > max) return false
       return true
     })
-  }, [ventas, filtro])
+  }, [ventas, filtro, tipoFc, montoMin, montoMax])
 
   const preparar = async (venta) => {
     setPreparando(venta.id_orden_ml)
@@ -194,6 +202,13 @@ export default function FacturacionVentasView({ onUnauthorized }) {
           value={busquedaTexto}
           onChange={(e) => setBusquedaTexto(e.target.value)}
         />
+        <select className="corte-input" value={tipoFc} onChange={(e) => setTipoFc(e.target.value)} title="Para las pendientes es una estimación por CUIT/DNI; el tipo real se confirma al preparar la factura">
+          <option value="">Factura A y B</option>
+          <option value="FCA">Solo Factura A</option>
+          <option value="FCB">Solo Factura B</option>
+        </select>
+        <input className="corte-input" style={{ width: 100 }} inputMode="decimal" placeholder="Monto mín." value={montoMin} onChange={(e) => setMontoMin(e.target.value)} />
+        <input className="corte-input" style={{ width: 100 }} inputMode="decimal" placeholder="Monto máx." value={montoMax} onChange={(e) => setMontoMax(e.target.value)} />
         <button className="sort-btn" onClick={() => setRecarga((n) => n + 1)} disabled={cargando}>↻ Actualizar</button>
         <button className="sort-btn" onClick={adjuntarTodas} disabled={adjuntando !== null}>
           {adjuntando === 'todas' ? 'Adjuntando...' : '📎 Adjuntar las que faltan'}
@@ -254,6 +269,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
                 <span className="id-cell mono">
                   {v.fecha ? new Date(v.fecha).toLocaleString('es-AR') : '—'} · #{v.id_orden_ml}
                   {v.facturada && v.factura ? ` · Factura ${v.factura.tipo_fc === 'FCA' ? 'A' : 'B'} ${v.factura.numero_factura}` : ''}
+                  {!v.facturada && v.tipo_fc ? ` · Factura ${v.tipo_fc === 'FCA' ? 'A' : 'B'} (estimada)` : ''}
                   {!v.facturada && v.en_contabilium === false ? ' · todavía no está en Contabilium' : ''}
                 </span>
                 {v.productos?.length > 0 && (
