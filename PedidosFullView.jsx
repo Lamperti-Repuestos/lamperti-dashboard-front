@@ -440,6 +440,24 @@ export default function PedidosFullView({ onUnauthorized }) {
                     En stock
                   </label>
 
+                  <button
+                    type="button"
+                    className="sort-btn"
+                    title={item.etiquetas_impresas
+                      ? 'Etiquetas ya impresas. Click para desmarcar.'
+                      : 'Etiquetas sin imprimir. Click para marcar como impresas.'}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: item.etiquetas_impresas ? '#15803d' : '#b91c1c',
+                      borderColor: item.etiquetas_impresas ? '#15803d' : '#b91c1c',
+                    }}
+                    onClick={() => toggleCampoBooleano(idx, item, 'etiquetas_impresas', 'marcar-etiquetas')}
+                  >
+                    {item.etiquetas_impresas ? '✅ Etiquetas impresas' : '❌ Etiquetas sin imprimir'}
+                  </button>
+
                   <span className="corte-label" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {editandoParcialId === item.id ? (
                       <>
