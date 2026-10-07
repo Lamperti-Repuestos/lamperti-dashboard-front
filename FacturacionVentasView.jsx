@@ -124,9 +124,13 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       if (!res.ok) throw new Error(await leerError(res))
       const d = await res.json()
       setResumen(null)
+      const contab = d.finalizada_contabilium
+        ? '\n✅ La orden quedó Finalizada en Contabilium.'
+        : '\nℹ️ La orden sigue como "Pagada" en Integraciones de Contabilium (la factura es válida igual).'
+      const nota = d.nota_revision ? `\n\n⚠️ PARA REVISAR: ${d.nota_revision}` : ''
       if (d.simulado) setAviso(d.mensaje)
-      else if (d.adjuntada) setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n✅ Quedó adjunta a la venta de ML.`)
-      else setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n⚠️ NO QUEDÓ ADJUNTA a la venta de ML:\n${d.error_adjunto}\n\nLa venta figura en amarillo: usá "Adjuntar a ML" para reintentar. No la vuelvas a facturar.`)
+      else if (d.adjuntada) setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n✅ Quedó adjunta a la venta de ML.${contab}${nota}`)
+      else setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n⚠️ NO QUEDÓ ADJUNTA a la venta de ML:\n${d.error_adjunto}\n\nLa venta figura en amarillo: usá "Adjuntar a ML" para reintentar. No la vuelvas a facturar.${contab}${nota}`)
       setRecarga((n) => n + 1)
     } catch (err) {
       setResumen(null)
@@ -232,7 +236,8 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         <>
           <h3 style={{ margin: '16px 0 8px' }}>⚠️ Para revisar ({revision.length})</h3>
           <div className="id-cell mono" style={{ marginBottom: 8 }}>
-            Al cliente le faltaba la Condición de IVA y se completó sola. Confirmá en Contabilium que sea la correcta.
+            Facturas con algo para mirar a mano: a un cliente le faltaba la Condición de IVA y se completó sola, o la factura
+            salió con una letra distinta de la esperada. Confirmalo en Contabilium.
           </div>
           <div className="list">
             {revision.map((f) => (
@@ -240,8 +245,11 @@ export default function FacturacionVentasView({ onUnauthorized }) {
                 <div className="title-cell">
                   {f.comprador}
                   <span className="id-cell mono">
-                    {f.tipo_doc} {f.nro_doc} · Factura {f.numero_factura}
+                    {f.tipo_doc} {f.nro_doc} · Factura {f.tipo_fc === 'FCA' ? 'A' : 'B'} {f.numero_factura || '(sin número leído)'}
                   </span>
+                  {f.nota_revision && (
+                    <span className="id-cell mono" style={{ color: '#B23A2E' }}>{f.nota_revision}</span>
+                  )}
                 </div>
                 <button className="sort-btn" onClick={() => marcarRevisado(f)}>Ya la revisé</button>
               </div>
@@ -329,7 +337,15 @@ export default function FacturacionVentasView({ onUnauthorized }) {
           )}
           <div className="id-cell mono" style={{ marginBottom: 8 }}>
             La factura se adjunta sola a la venta de ML, y se verifica que haya quedado.
+            {resumen.datos.se_finaliza_orden
+              ? ' La orden pasa a Finalizada en Contabilium.'
+              : ' La orden va a seguir como "Pagada" en Integraciones de Contabilium.'}
           </div>
+          {resumen.datos.orden_ya_tiene_comprobante && (
+            <div className="error-state" style={{ marginBottom: 12 }}>
+              Esta orden ya tiene un comprobante en Contabilium. Revisá en Integraciones antes de facturar.
+            </div>
+          )}
           <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.5 }}>
             <strong>{resumen.datos.comprador}</strong><br />
             {resumen.datos.tipo_doc} {resumen.datos.nro_doc}<br />
