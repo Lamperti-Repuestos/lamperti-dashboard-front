@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
 import Modal from './Modal.jsx'
 import AlertModal from './AlertModal.jsx'
@@ -14,6 +14,11 @@ function fechaAR(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 }
+
+const MAX_LOTE = 100
+const ICONO_ESTADO = { pendiente: '⌛', procesando: '⏳', ok: '✅', simulada: '🧪', error: '❌', omitida: '⏭️', revisar: '⚠️' }
+const guardado = (k) => { try { return localStorage.getItem(k) } catch { return null } }
+const guardar = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sin almacenamiento: no pasa nada */ } }
 
 async function leerError(res) {
   try {
@@ -44,6 +49,13 @@ export default function FacturacionVentasView({ onUnauthorized }) {
   const [adjuntando, setAdjuntando] = useState(null) // número de ML (o 'todas') mientras se adjunta
   const [aviso, setAviso] = useState(null)
 
+  // Facturación por lotes: se procesa en el servidor; acá solo se elige y se mira cómo va.
+  const [seleccion, setSeleccion] = useState([]) // números de venta elegidos
+  const [confirmandoLote, setConfirmandoLote] = useState(false)
+  const [creandoLote, setCreandoLote] = useState(false)
+  const [lote, setLote] = useState(null)
+  const loteViejoRef = useRef(null) // estado del lote en la consulta anterior, para detectar cuándo termina
+
   // Espera a que termine de tipear antes de buscar en ML (si no, consulta por cada letra).
   useEffect(() => {
     const t = setTimeout(() => setBusqueda(busquedaTexto.trim()), 600)
@@ -73,6 +85,57 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       .catch(() => {})
     return () => { vigente = false }
   }, [dias, busqueda, recarga])
+
+  // Al entrar (o volver a la pestaña, o desbloquear el celular): recuperar el último lote para ver cómo quedó.
+  const cargarUltimoLote = () =>
+    apiFetch('/facturacion/lote/ultimo', {}, onUnauthorized)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        const l = d?.lote
+        if (!l) return
+        if (l.estado === 'en_curso' || guardado('lote_cerrado') !== String(l.id)) setLote(l)
+      })
+      .catch(() => {})
+
+  useEffect(() => {
+    cargarUltimoLote()
+    const alVolver = () => { if (document.visibilityState === 'visible') cargarUltimoLote() }
+    document.addEventListener('visibilitychange', alVolver)
+    return () => document.removeEventListener('visibilitychange', alVolver)
+  }, [])
+
+  // Mientras el lote esté en curso: consultar cada 3 s y mantener la pantalla encendida (si el navegador lo permite).
+  const loteEnCurso = lote?.estado === 'en_curso'
+  useEffect(() => {
+    if (!loteEnCurso) return undefined
+    const id = lote.id
+    const t = setInterval(() => {
+      apiFetch(`/facturacion/lote/${id}`, {}, onUnauthorized)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((l) => l && setLote(l))
+        .catch(() => {}) // sin internet: el servidor sigue; se reintenta en 3 s
+    }, 3000)
+    let candado = null
+    const pedirCandado = async () => {
+      try {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible') candado = await navigator.wakeLock.request('screen')
+      } catch { /* no disponible: igual el lote sigue en el servidor */ }
+    }
+    pedirCandado()
+    const alVolver = () => { if (document.visibilityState === 'visible') pedirCandado() }
+    document.addEventListener('visibilitychange', alVolver)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', alVolver)
+      try { candado?.release() } catch { /* ya liberado */ }
+    }
+  }, [loteEnCurso, lote?.id])
+
+  // Cuando el lote termina, refrescar la lista una vez.
+  useEffect(() => {
+    if (loteViejoRef.current === 'en_curso' && lote?.estado === 'terminado') setRecarga((n) => n + 1)
+    loteViejoRef.current = lote?.estado || null
+  }, [lote?.estado])
 
   const ventas = data?.ventas || []
   const cantFacturadas = ventas.filter((v) => v.facturada).length
@@ -172,6 +235,49 @@ export default function FacturacionVentasView({ onUnauthorized }) {
     }
   }
 
+  const seleccionable = (v) => !v.facturada && v.en_contabilium !== false
+  const visiblesSeleccionables = visibles.filter(seleccionable)
+  const elegidas = ventas.filter((v) => seleccion.includes(v.id_orden_ml) && seleccionable(v))
+  const totalElegidas = elegidas.reduce((acc, v) => acc + (v.total || 0), 0)
+
+  const alternar = (v) =>
+    setSeleccion((sel) => (sel.includes(v.id_orden_ml) ? sel.filter((n) => n !== v.id_orden_ml) : sel.length >= MAX_LOTE ? sel : [...sel, v.id_orden_ml]))
+  const elegirTodas = () => setSeleccion(visiblesSeleccionables.slice(0, MAX_LOTE).map((v) => v.id_orden_ml))
+
+  const iniciarLote = async () => {
+    if (creandoLote || elegidas.length === 0) return
+    setCreandoLote(true)
+    try {
+      const res = await apiFetch('/facturacion/lote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ventas: elegidas.map((v) => ({ numero_ml: v.id_orden_ml, fecha: fechaAR(v.fecha), comprador: v.comprador, total: v.total })) }),
+      }, onUnauthorized)
+      if (!res.ok) throw new Error(await leerError(res))
+      setLote(await res.json())
+      setSeleccion([])
+      setConfirmandoLote(false)
+    } catch (err) {
+      setConfirmandoLote(false)
+      setAviso(`No se pudo armar el lote (no se facturó nada):\n${err.message}`)
+    } finally {
+      setCreandoLote(false)
+    }
+  }
+
+  const cancelarLote = async () => {
+    if (!lote) return
+    try {
+      const res = await apiFetch(`/facturacion/lote/${lote.id}/cancelar`, { method: 'POST' }, onUnauthorized)
+      if (res.ok) setLote(await res.json())
+    } catch { /* se reintenta tocando de nuevo */ }
+  }
+
+  const cerrarLote = () => {
+    if (lote) guardar('lote_cerrado', String(lote.id))
+    setLote(null)
+  }
+
   const marcarRevisado = async (f) => {
     const res = await apiFetch(`/facturacion/${f.id_orden_contabilium}/marcar-revisado`, { method: 'POST' }, onUnauthorized)
     if (res.ok) setRecarga((n) => n + 1)
@@ -258,6 +364,63 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         </>
       )}
 
+      {lote && (
+        <div className="error-state" style={{ background: 'var(--card-bg)', color: 'inherit', border: '1px solid var(--gray-line)', margin: '12px 0' }}>
+          <strong>
+            Lote #{lote.id}: {lote.hechos} de {lote.total} {lote.estado === 'en_curso' ? '· facturando…' : '· terminado'}
+            {lote.cancelar && lote.estado === 'en_curso' ? ' · cancelando (termina la que está en curso)' : ''}
+          </strong>
+          <div style={{ height: 8, background: 'var(--gray-line)', borderRadius: 4, margin: '8px 0' }}>
+            <div style={{ height: 8, borderRadius: 4, background: 'var(--navy)', width: `${lote.total ? (100 * lote.hechos) / lote.total : 0}%` }} />
+          </div>
+          {lote.estado === 'en_curso' ? (
+            <div className="id-cell mono">
+              Podés bloquear el celular o cerrar esta pantalla: la facturación sigue en el servidor. Al volver vas a ver cómo quedó.
+              Mientras tanto no vuelvas a facturar estas ventas.
+            </div>
+          ) : (
+            <div className="id-cell mono">
+              {Object.entries(lote.cuenta).map(([e, n]) => `${ICONO_ESTADO[e] || ''} ${e}: ${n}`).join(' · ')}
+            </div>
+          )}
+          <div style={{ maxHeight: 280, overflowY: 'auto', marginTop: 8 }}>
+            {lote.items.map((i) => (
+              <div key={i.id} className="id-cell mono" style={{ padding: '3px 0' }}>
+                {ICONO_ESTADO[i.estado] || ''} #{i.numero_ml} {i.comprador || ''}
+                {i.numero_factura ? ` · Factura ${i.numero_factura}` : ''}
+                {i.estado === 'ok' && i.adjuntada === false ? ' · ⚠️ SIN adjuntar a ML' : ''}
+                {i.mensaje ? ` · ${i.mensaje}` : ''}
+                {i.nota ? ` · ⚠️ ${i.nota}` : ''}
+                {i.estado === 'revisar' ? ' · NO reintentar sin mirar en Contabilium' : ''}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {lote.estado === 'en_curso' ? (
+              <button className="sort-btn" disabled={lote.cancelar} onClick={cancelarLote}>Cancelar las que faltan</button>
+            ) : (
+              <button className="sort-btn" onClick={cerrarLote}>Cerrar</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loteEnCurso && visiblesSeleccionables.length > 0 && (
+        <div className="controls" style={{ marginTop: 8 }}>
+          <button className="sort-btn" onClick={elegirTodas}>
+            ☑ Elegir las pendientes visibles ({Math.min(visiblesSeleccionables.length, MAX_LOTE)})
+          </button>
+          {seleccion.length > 0 && (
+            <>
+              <button className="sort-btn" onClick={() => setSeleccion([])}>Quitar selección</button>
+              <button className="scan-btn" onClick={() => setConfirmandoLote(true)}>
+                Facturar {elegidas.length} elegida(s) · {formatoPesos.format(totalElegidas)}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {cargando && <div className="loading-state">Cargando ventas...</div>}
       {error && <div className="error-state">Error: {error}</div>}
 
@@ -266,6 +429,16 @@ export default function FacturacionVentasView({ onUnauthorized }) {
           {visibles.length === 0 && <div className="empty-state">No hay ventas para mostrar con este filtro.</div>}
           {visibles.map((v) => (
             <div key={v.id_orden_ml} className="row">
+              {!v.facturada && (
+                <input
+                  type="checkbox"
+                  style={{ width: 22, height: 22 }}
+                  checked={seleccion.includes(v.id_orden_ml)}
+                  disabled={!seleccionable(v) || loteEnCurso}
+                  onChange={() => alternar(v)}
+                  aria-label={`Elegir la venta ${v.id_orden_ml}`}
+                />
+              )}
               <span
                 style={{ fontSize: 20 }}
                 title={!v.facturada ? 'Pendiente de facturar' : v.factura?.adjunta_ml ? 'Facturada y adjunta a la venta de ML' : 'Facturada, pero SIN adjuntar a la venta de ML'}
@@ -306,7 +479,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
               ) : (
                 <button
                   className="scan-btn"
-                  disabled={preparando !== null || facturando}
+                  disabled={preparando !== null || facturando || loteEnCurso}
                   onClick={() => preparar(v)}
                 >
                   {preparando === v.id_orden_ml ? 'Preparando...' : 'Facturar'}
@@ -371,6 +544,34 @@ export default function FacturacionVentasView({ onUnauthorized }) {
               </div>
             ))}
           </div>
+        </Modal>
+      )}
+
+      {confirmandoLote && (
+        <Modal
+          titulo={`Facturar ${elegidas.length} venta(s)`}
+          onCerrar={() => !creandoLote && setConfirmandoLote(false)}
+          footer={
+            <>
+              <button className="sort-btn" disabled={creandoLote} onClick={() => setConfirmandoLote(false)}>Cancelar</button>
+              <button className="scan-btn" disabled={creandoLote} onClick={iniciarLote}>
+                {creandoLote ? 'Armando el lote...' : data?.modo?.simulacion ? 'Simular el lote' : `Facturar ${elegidas.length}`}
+              </button>
+            </>
+          }
+        >
+          {data?.modo?.simulacion ? (
+            <div className="error-state" style={{ marginBottom: 12 }}>MODO SIMULACIÓN: no se va a emitir nada real ante AFIP.</div>
+          ) : (
+            <div className="error-state" style={{ marginBottom: 12 }}>
+              Se van a emitir {elegidas.length} facturas REALES ante AFIP por {formatoPesos.format(totalElegidas)} en total. No se pueden deshacer.
+            </div>
+          )}
+          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>
+            Se facturan de a una, en el servidor. Podés bloquear el celular o cerrar la pantalla: sigue solo y al volver ves cómo quedó.
+            Cada venta pasa por los mismos controles que el botón Facturar (ya facturada, adjunto en ML, etc.) y las que fallen quedan
+            marcadas sin frenar a las demás.
+          </p>
         </Modal>
       )}
 
