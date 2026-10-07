@@ -24,6 +24,7 @@ import FacturasEstadoView from './FacturasEstadoView.jsx'
 import ControlRemitosView from './ControlRemitosView.jsx'
 import FacturacionVentasView from './FacturacionVentasView.jsx'
 import LoginForm from './LoginForm.jsx'
+import GagSancor, { gagSancorVigente } from './GagSancor.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
@@ -119,6 +120,7 @@ export default function App() {
     setGrupoAbierto(GRUPO_POR_VISTA[nuevaVista] || null)
   }
   const [authed, setAuthed] = useState(null) // null = todavía chequeando
+  const [mostrarGag, setMostrarGag] = useState(gagSancorVigente)
 
   useEffect(() => {
     if (!getAuthHeader()) {
@@ -195,6 +197,9 @@ export default function App() {
   }
 
   if (!authed) {
+    if (mostrarGag) {
+      return <GagSancor onTerminar={() => setMostrarGag(false)} />
+    }
     return <LoginForm onSuccess={() => setAuthed(true)} />
   }
 
