@@ -129,7 +129,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         : '\nℹ️ La orden sigue como "Pagada" en Integraciones de Contabilium (la factura es válida igual).'
       const nota = d.nota_revision ? `\n\n⚠️ PARA REVISAR: ${d.nota_revision}` : ''
       if (d.simulado) setAviso(d.mensaje)
-      else if (d.adjuntada) setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n✅ Quedó adjunta a la venta de ML.${contab}${nota}`)
+      else if (d.adjuntada) setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n✅ ${d.adjuntada_por_contabilium ? 'Contabilium la adjuntó a la venta de ML (lo confirmé en ML).' : 'Quedó adjunta a la venta de ML.'}${contab}${nota}`)
       else setAviso(`Factura emitida: ${d.numero_factura} (CAE ${d.cae}).\n\n⚠️ NO QUEDÓ ADJUNTA a la venta de ML:\n${d.error_adjunto}\n\nLa venta figura en amarillo: usá "Adjuntar a ML" para reintentar. No la vuelvas a facturar.${contab}${nota}`)
       setRecarga((n) => n + 1)
     } catch (err) {
