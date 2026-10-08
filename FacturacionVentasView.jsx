@@ -235,7 +235,8 @@ export default function FacturacionVentasView({ onUnauthorized }) {
     }
   }
 
-  const seleccionable = (v) => !v.facturada && v.en_contabilium !== false
+  const cancelada = (v) => v.estado_ml && !['paid', 'confirmed'].includes(v.estado_ml)
+  const seleccionable = (v) => !v.facturada && v.en_contabilium !== false && !cancelada(v)
   const visiblesSeleccionables = visibles.filter(seleccionable)
   const elegidas = ventas.filter((v) => seleccion.includes(v.id_orden_ml) && seleccionable(v))
   const totalElegidas = elegidas.reduce((acc, v) => acc + (v.total || 0), 0)
@@ -308,7 +309,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         <input
           className="corte-input"
           style={{ width: 260 }}
-          placeholder="Buscar usuario, producto, SKU o nº de venta"
+          placeholder="Buscar nº de venta o de carrito, usuario, producto o SKU"
           value={busquedaTexto}
           onChange={(e) => setBusquedaTexto(e.target.value)}
         />
@@ -462,6 +463,8 @@ export default function FacturacionVentasView({ onUnauthorized }) {
                 {v.comprador || '—'}
                 <span className="id-cell mono">
                   {v.fecha ? new Date(v.fecha).toLocaleString('es-AR') : '—'} · #{v.id_orden_ml}
+                  {v.pack_id && v.pack_id !== v.id_orden_ml ? ` · carrito #${v.pack_id}` : ''}
+                  {cancelada(v) ? ` · ML: ${v.estado_ml === 'cancelled' ? 'CANCELADA' : v.estado_ml}` : ''}
                   {v.facturada && v.factura ? ` · Factura ${v.factura.tipo_fc === 'FCA' ? 'A' : 'B'} ${v.factura.numero_factura}` : ''}
                   {!v.facturada && v.tipo_fc ? ` · Factura ${v.tipo_fc === 'FCA' ? 'A' : 'B'} (estimada)` : ''}
                   {!v.facturada && v.en_contabilium === false ? ' · todavía no está en Contabilium' : ''}
@@ -489,6 +492,8 @@ export default function FacturacionVentasView({ onUnauthorized }) {
                     <a className="sort-btn" href={v.factura.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>
                   )}
                 </>
+              ) : cancelada(v) ? (
+                <span className="id-cell mono">No se factura</span>
               ) : (
                 <button
                   className="scan-btn"
