@@ -332,6 +332,19 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         </div>
       )}
 
+      {data?.indice?.activo && !data.indice.al_dia && (
+        <div className="id-cell mono" style={{ margin: '6px 0' }}>
+          Preparando la copia de las órdenes de Contabilium (la primera vez tarda unos minutos). Mientras tanto la lista lee
+          Contabilium en vivo y puede tardar más.
+        </div>
+      )}
+      {data?.indice?.al_dia && data.indice.desde && data.indice.objetivo && data.indice.desde > data.indice.objetivo && (
+        <div className="id-cell mono" style={{ margin: '6px 0' }}>
+          Copia de Contabilium completa desde el {new Date(data.indice.desde + 'T12:00:00').toLocaleDateString('es-AR')}: lo anterior
+          se lee en vivo (todavía se está completando hacia atrás).
+        </div>
+      )}
+
       {data?.truncado && (
         <div className="error-state">
           Hay más de 2.000 ventas en este período y ML solo devuelve las últimas 2.000. Achicá los días o buscá por usuario o producto.
