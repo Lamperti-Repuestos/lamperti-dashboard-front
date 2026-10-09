@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
 import Modal from './Modal.jsx'
 import AlertModal from './AlertModal.jsx'
@@ -29,6 +29,78 @@ async function leerError(res) {
   }
 }
 
+const cancelada = (v) => v.estado_ml && !['paid', 'confirmed'].includes(v.estado_ml)
+const sinAdjuntar = (v) => v.facturada && !v.factura?.adjunta_ml
+const FILAS_POR_PAGINA = 150
+
+const FilaVenta = memo(function FilaVenta({ v, marcada, bloqueoLote, ocupado, preparandoEste, adjuntandoEste, adjuntandoAlgo, acciones }) {
+  const noSeFactura = cancelada(v)
+  return (
+    <div className="row" style={marcada ? { background: 'rgba(46,125,70,0.12)', outline: '2px solid #2E7D46', outlineOffset: -2, borderRadius: 8 } : undefined}>
+      {!v.facturada && !noSeFactura && (
+        <input
+          type="checkbox"
+          style={{ width: 26, height: 26, accentColor: '#2E7D46', cursor: 'pointer', flexShrink: 0 }}
+          checked={marcada}
+          disabled={bloqueoLote}
+          onChange={() => acciones.current.alternar(v)}
+          aria-label={`Elegir la venta ${v.id_orden_ml}`}
+        />
+      )}
+      <span
+        style={{ fontSize: 20 }}
+        title={!v.facturada ? 'Pendiente de facturar' : v.factura?.adjunta_ml ? 'Facturada y adjunta a la venta de ML' : 'Facturada, pero SIN adjuntar a la venta de ML'}
+      >
+        {!v.facturada ? '🔴' : v.factura?.adjunta_ml ? '🟢' : '🟡'}
+      </span>
+      <div className="title-cell">
+        {v.comprador || '—'}{marcada ? ' ✔ elegida' : ''}
+        <span className="id-cell mono">
+          {v.fecha ? new Date(v.fecha).toLocaleString('es-AR') : '—'} · #{v.id_orden_ml}
+          {v.pack_id && v.pack_id !== v.id_orden_ml ? ` · carrito #${v.pack_id}` : ''}
+          {noSeFactura ? ` · ML: ${v.estado_ml === 'cancelled' ? 'CANCELADA' : v.estado_ml}` : ''}
+          {v.facturada && v.factura ? ` · Factura ${v.factura.tipo_fc === 'FCA' ? 'A' : 'B'} ${v.factura.numero_factura}` : ''}
+          {!v.facturada && v.tipo_fc ? ` · Factura ${v.tipo_fc === 'FCA' ? 'A' : 'B'} (estimada)` : ''}
+        </span>
+        {!v.facturada && v.en_contabilium === false && (
+          <span className="id-cell mono" style={{ color: '#B26A00' }}>
+            ⚠ Todavía no figura en Contabilium: si la elegís, puede no facturarse (queda con error, sin emitir nada).
+          </span>
+        )}
+        {v.productos?.length > 0 && (
+          <span className="id-cell mono">
+            {v.productos.map((p) => `${p.cantidad}× ${p.titulo || p.sku}`).join(' · ')}
+          </span>
+        )}
+        {sinAdjuntar(v) && (
+          <span className="id-cell mono" style={{ color: '#B23A2E' }}>
+            Sin adjuntar a la venta de ML{v.factura?.adjunta_ml_error ? `: ${v.factura.adjunta_ml_error}` : ''}
+          </span>
+        )}
+      </div>
+      <span className="badge badge-acordar">{formatoPesos.format(v.total || 0)}</span>
+      {v.facturada ? (
+        <>
+          {sinAdjuntar(v) && (
+            <button className="scan-btn" disabled={adjuntandoAlgo} onClick={() => acciones.current.adjuntar(v)}>
+              {adjuntandoEste ? 'Adjuntando...' : 'Adjuntar a ML'}
+            </button>
+          )}
+          {v.factura?.url_comprobante && (
+            <a className="sort-btn" href={v.factura.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>
+          )}
+        </>
+      ) : noSeFactura ? (
+        <span className="id-cell mono">No se factura</span>
+      ) : (
+        <button className="scan-btn" disabled={ocupado || bloqueoLote} onClick={() => acciones.current.preparar(v)}>
+          {preparandoEste ? 'Preparando...' : 'Facturar'}
+        </button>
+      )}
+    </div>
+  )
+})
+
 export default function FacturacionVentasView({ onUnauthorized }) {
   const [data, setData] = useState(null)
   const [revision, setRevision] = useState([])
@@ -51,10 +123,17 @@ export default function FacturacionVentasView({ onUnauthorized }) {
 
   // Facturación por lotes: se procesa en el servidor; acá solo se elige y se mira cómo va.
   const [seleccion, setSeleccion] = useState([]) // números de venta elegidos
+  const [sinHoy, setSinHoy] = useState(false) // oculta (y desmarca) las ventas de hoy: el día no terminó
+  const [mostrar, setMostrar] = useState(FILAS_POR_PAGINA) // cuántas filas se dibujan (con miles, todo junto se traba)
+  const [avisoSeleccion, setAvisoSeleccion] = useState(null)
+  const acciones = useRef({})
   const [confirmandoLote, setConfirmandoLote] = useState(false)
   const [creandoLote, setCreandoLote] = useState(false)
   const [lote, setLote] = useState(null)
   const loteViejoRef = useRef(null) // estado del lote en la consulta anterior, para detectar cuándo termina
+
+  // Al cambiar de filtro o de búsqueda se vuelve a mostrar desde el principio.
+  useEffect(() => { setMostrar(FILAS_POR_PAGINA) }, [dias, busqueda, filtro, tipoFc, montoMin, montoMax, sinHoy])
 
   // Espera a que termine de tipear antes de buscar en ML (si no, consulta por cada letra).
   useEffect(() => {
@@ -140,11 +219,14 @@ export default function FacturacionVentasView({ onUnauthorized }) {
   const ventas = data?.ventas || []
   const cantFacturadas = ventas.filter((v) => v.facturada).length
   const cantPendientes = ventas.length - cantFacturadas
-  const sinAdjuntar = (v) => v.facturada && !v.factura?.adjunta_ml
   const cantSinAdjuntar = ventas.filter(sinAdjuntar).length
+  const hoy = fechaAR(new Date().toISOString())
+  const esDeHoy = (v) => fechaAR(v.fecha) === hoy
+  const cantPendientesHoy = ventas.filter((v) => !v.facturada && esDeHoy(v)).length
 
   const visibles = useMemo(() => {
     return ventas.filter((v) => {
+      if (sinHoy && fechaAR(v.fecha) === fechaAR(new Date().toISOString())) return false
       if (filtro === 'pendientes' && v.facturada) return false
       if (filtro === 'facturadas' && !v.facturada) return false
       if (filtro === 'sinadjuntar' && !sinAdjuntar(v)) return false
@@ -155,7 +237,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       if (!Number.isNaN(max) && (v.total || 0) > max) return false
       return true
     })
-  }, [ventas, filtro, tipoFc, montoMin, montoMax])
+  }, [ventas, filtro, tipoFc, montoMin, montoMax, sinHoy])
 
   const preparar = async (venta) => {
     setPreparando(venta.id_orden_ml)
@@ -235,15 +317,49 @@ export default function FacturacionVentasView({ onUnauthorized }) {
     }
   }
 
-  const cancelada = (v) => v.estado_ml && !['paid', 'confirmed'].includes(v.estado_ml)
-  const seleccionable = (v) => !v.facturada && v.en_contabilium !== false && !cancelada(v)
+  // Se puede elegir toda venta pendiente que no esté cancelada. Si todavía no figura en Contabilium igual se deja
+  // elegir (se avisa en la fila): en el lote queda con error, sin emitir nada.
+  const seleccionable = (v) => !v.facturada && !cancelada(v)
   const visiblesSeleccionables = visibles.filter(seleccionable)
-  const elegidas = ventas.filter((v) => seleccion.includes(v.id_orden_ml) && seleccionable(v))
+  const selSet = useMemo(() => new Set(seleccion), [seleccion])
+  const elegidas = ventas.filter((v) => selSet.has(v.id_orden_ml) && seleccionable(v))
   const totalElegidas = elegidas.reduce((acc, v) => acc + (v.total || 0), 0)
+  const elegidasA = elegidas.filter((v) => v.tipo_fc === 'FCA').length
+  const elegidasB = elegidas.filter((v) => v.tipo_fc === 'FCB').length
+  const enContabiliumDudoso = elegidas.filter((v) => v.en_contabilium === false).length
 
-  const alternar = (v) =>
-    setSeleccion((sel) => (sel.includes(v.id_orden_ml) ? sel.filter((n) => n !== v.id_orden_ml) : sel.length >= MAX_LOTE ? sel : [...sel, v.id_orden_ml]))
-  const elegirTodas = () => setSeleccion(visiblesSeleccionables.slice(0, MAX_LOTE).map((v) => v.id_orden_ml))
+  const alternar = (v) => {
+    setSeleccion((sel) => {
+      if (sel.includes(v.id_orden_ml)) return sel.filter((n) => n !== v.id_orden_ml)
+      if (sel.length >= MAX_LOTE) {
+        setAvisoSeleccion(`Ya elegiste ${MAX_LOTE}, que es el máximo por lote. Facturá estas y después elegí las siguientes.`)
+        return sel
+      }
+      setAvisoSeleccion(null)
+      return [...sel, v.id_orden_ml]
+    })
+  }
+  const elegirTodas = () => {
+    const candidatas = visiblesSeleccionables
+    const elegir = candidatas.slice(0, MAX_LOTE)
+    setSeleccion(elegir.map((v) => v.id_orden_ml))
+    setAvisoSeleccion(
+      candidatas.length > MAX_LOTE
+        ? `Se marcaron las primeras ${MAX_LOTE} de ${candidatas.length} pendientes (el máximo por lote). Las que ves tildadas en verde son las elegidas.`
+        : `Se marcaron las ${elegir.length} pendientes. Las que ves tildadas en verde son las elegidas.`,
+    )
+  }
+  const quitarSeleccion = () => { setSeleccion([]); setAvisoSeleccion(null) }
+  const alternarSinHoy = () => {
+    const nuevo = !sinHoy
+    setSinHoy(nuevo)
+    if (nuevo) {
+      const deHoy = new Set(ventas.filter(esDeHoy).map((v) => v.id_orden_ml))
+      setSeleccion((sel) => sel.filter((n) => !deHoy.has(n)))   // lo ya elegido de hoy se desmarca
+    }
+  }
+
+  acciones.current = { alternar, preparar, adjuntar }
 
   const iniciarLote = async () => {
     if (creandoLote || elegidas.length === 0) return
@@ -320,6 +436,13 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         </select>
         <input className="corte-input" style={{ width: 100 }} inputMode="decimal" placeholder="Monto mín." value={montoMin} onChange={(e) => setMontoMin(e.target.value)} />
         <input className="corte-input" style={{ width: 100 }} inputMode="decimal" placeholder="Monto máx." value={montoMax} onChange={(e) => setMontoMax(e.target.value)} />
+        <button
+          className={`sort-btn ${sinHoy ? 'active-outline' : ''}`}
+          onClick={alternarSinHoy}
+          title="Oculta las ventas de hoy (el día no terminó) y las desmarca si estaban elegidas"
+        >
+          {sinHoy ? '📅 Sin las de hoy ✓' : `📅 Excluir las de hoy (${cantPendientesHoy})`}
+        </button>
         <button className="sort-btn" onClick={() => setRecarga((n) => n + 1)} disabled={cargando}>↻ Actualizar</button>
         <button className="sort-btn" onClick={adjuntarTodas} disabled={adjuntando !== null}>
           {adjuntando === 'todas' ? 'Adjuntando...' : '📎 Adjuntar las que faltan'}
@@ -419,19 +542,43 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         </div>
       )}
 
-      {!loteEnCurso && visiblesSeleccionables.length > 0 && (
-        <div className="controls" style={{ marginTop: 8 }}>
-          <button className="sort-btn" onClick={elegirTodas}>
-            ☑ Elegir las pendientes visibles ({Math.min(visiblesSeleccionables.length, MAX_LOTE)})
-          </button>
-          {seleccion.length > 0 && (
-            <>
-              <button className="sort-btn" onClick={() => setSeleccion([])}>Quitar selección</button>
-              <button className="scan-btn" onClick={() => setConfirmandoLote(true)}>
-                Facturar {elegidas.length} elegida(s) · {formatoPesos.format(totalElegidas)}
-              </button>
-            </>
+      {!loteEnCurso && (visiblesSeleccionables.length > 0 || seleccion.length > 0) && (
+        <div
+          style={{
+            position: 'sticky', top: 0, zIndex: 20, margin: '8px 0', padding: '10px 12px', borderRadius: 10,
+            background: 'var(--card-bg)', border: `2px solid ${seleccion.length ? '#2E7D46' : 'var(--gray-line)'}`,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 700 }}>
+            {seleccion.length === 0
+              ? 'Ninguna elegida'
+              : `✔ ${elegidas.length} elegida(s) · ${formatoPesos.format(totalElegidas)}`}
+            {seleccion.length > 0 && (
+              <span className="id-cell mono" style={{ marginLeft: 10, fontWeight: 400 }}>
+                Factura A: {elegidasA} · Factura B: {elegidasB} · máximo {MAX_LOTE} por lote
+              </span>
+            )}
+          </div>
+          {enContabiliumDudoso > 0 && (
+            <div className="id-cell mono" style={{ color: '#B26A00' }}>
+              ⚠ {enContabiliumDudoso} de las elegidas todavía no figuran en Contabilium: pueden quedar con error (sin emitir nada).
+            </div>
           )}
+          {avisoSeleccion && <div className="id-cell mono">{avisoSeleccion}</div>}
+          <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="sort-btn" onClick={elegirTodas} disabled={visiblesSeleccionables.length === 0}>
+              ☑ Elegir las primeras {Math.min(visiblesSeleccionables.length, MAX_LOTE)} pendientes
+            </button>
+            {seleccion.length > 0 && (
+              <>
+                <button className="sort-btn" onClick={quitarSeleccion}>Quitar selección</button>
+                <button className="scan-btn" onClick={() => setConfirmandoLote(true)}>
+                  Facturar {elegidas.length} elegida(s)
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -441,70 +588,26 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       {!cargando && data && (
         <div className="list" style={{ marginTop: 12 }}>
           {visibles.length === 0 && <div className="empty-state">No hay ventas para mostrar con este filtro.</div>}
-          {visibles.map((v) => (
-            <div key={v.id_orden_ml} className="row">
-              {!v.facturada && (
-                <input
-                  type="checkbox"
-                  style={{ width: 22, height: 22 }}
-                  checked={seleccion.includes(v.id_orden_ml)}
-                  disabled={!seleccionable(v) || loteEnCurso}
-                  onChange={() => alternar(v)}
-                  aria-label={`Elegir la venta ${v.id_orden_ml}`}
-                />
-              )}
-              <span
-                style={{ fontSize: 20 }}
-                title={!v.facturada ? 'Pendiente de facturar' : v.factura?.adjunta_ml ? 'Facturada y adjunta a la venta de ML' : 'Facturada, pero SIN adjuntar a la venta de ML'}
-              >
-                {!v.facturada ? '🔴' : v.factura?.adjunta_ml ? '🟢' : '🟡'}
-              </span>
-              <div className="title-cell">
-                {v.comprador || '—'}
-                <span className="id-cell mono">
-                  {v.fecha ? new Date(v.fecha).toLocaleString('es-AR') : '—'} · #{v.id_orden_ml}
-                  {v.pack_id && v.pack_id !== v.id_orden_ml ? ` · carrito #${v.pack_id}` : ''}
-                  {cancelada(v) ? ` · ML: ${v.estado_ml === 'cancelled' ? 'CANCELADA' : v.estado_ml}` : ''}
-                  {v.facturada && v.factura ? ` · Factura ${v.factura.tipo_fc === 'FCA' ? 'A' : 'B'} ${v.factura.numero_factura}` : ''}
-                  {!v.facturada && v.tipo_fc ? ` · Factura ${v.tipo_fc === 'FCA' ? 'A' : 'B'} (estimada)` : ''}
-                  {!v.facturada && v.en_contabilium === false ? ' · todavía no está en Contabilium' : ''}
-                </span>
-                {v.productos?.length > 0 && (
-                  <span className="id-cell mono">
-                    {v.productos.map((p) => `${p.cantidad}× ${p.titulo || p.sku}`).join(' · ')}
-                  </span>
-                )}
-                {sinAdjuntar(v) && (
-                  <span className="id-cell mono" style={{ color: '#B23A2E' }}>
-                    Sin adjuntar a la venta de ML{v.factura?.adjunta_ml_error ? `: ${v.factura.adjunta_ml_error}` : ''}
-                  </span>
-                )}
-              </div>
-              <span className="badge badge-acordar">{formatoPesos.format(v.total || 0)}</span>
-              {v.facturada ? (
-                <>
-                  {sinAdjuntar(v) && (
-                    <button className="scan-btn" disabled={adjuntando !== null} onClick={() => adjuntar(v)}>
-                      {adjuntando === v.id_orden_ml ? 'Adjuntando...' : 'Adjuntar a ML'}
-                    </button>
-                  )}
-                  {v.factura?.url_comprobante && (
-                    <a className="sort-btn" href={v.factura.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>
-                  )}
-                </>
-              ) : cancelada(v) ? (
-                <span className="id-cell mono">No se factura</span>
-              ) : (
-                <button
-                  className="scan-btn"
-                  disabled={preparando !== null || facturando || loteEnCurso}
-                  onClick={() => preparar(v)}
-                >
-                  {preparando === v.id_orden_ml ? 'Preparando...' : 'Facturar'}
-                </button>
-              )}
-            </div>
+          {visibles.slice(0, mostrar).map((v) => (
+            <FilaVenta
+              key={v.id_orden_ml}
+              v={v}
+              marcada={selSet.has(v.id_orden_ml)}
+              bloqueoLote={loteEnCurso}
+              ocupado={preparando !== null || facturando}
+              preparandoEste={preparando === v.id_orden_ml}
+              adjuntandoEste={adjuntando === v.id_orden_ml}
+              adjuntandoAlgo={adjuntando !== null}
+              acciones={acciones}
+            />
           ))}
+          {visibles.length > mostrar && (
+            <div style={{ padding: '12px 0', textAlign: 'center' }}>
+              <button className="sort-btn" onClick={() => setMostrar((n) => n + FILAS_POR_PAGINA)}>
+                Mostrar {Math.min(FILAS_POR_PAGINA, visibles.length - mostrar)} más ({visibles.length - mostrar} sin mostrar)
+              </button>
+            </div>
+          )}
         </div>
       )}
 
