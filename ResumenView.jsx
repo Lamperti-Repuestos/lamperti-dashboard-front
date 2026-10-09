@@ -96,6 +96,18 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
             Ventas hoy
           </div>
 
+          {ventas.ticket_promedio !== undefined && (
+            <div style={{ marginTop: 10, fontSize: 15, color: 'var(--navy)' }}>
+              🎟️ Ticket promedio:{' '}
+              <strong style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+                {ventas.total > 0 ? `$${Math.round(ventas.ticket_promedio).toLocaleString('es-AR')}` : '—'}
+              </strong>
+              <span style={{ color: 'var(--gray-muted)', fontSize: 13 }}>
+                {' '}· vendido hoy: ${Math.round(ventas.facturacion || 0).toLocaleString('es-AR')}
+              </span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
             <span className="badge badge-colecta">📦 Colecta: {ventas.colecta}</span>
             <span className="badge badge-flex">🚚 Flex: {ventas.flex}</span>
