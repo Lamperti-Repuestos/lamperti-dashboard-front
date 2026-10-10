@@ -4,18 +4,47 @@ import { apiFetch } from './api.js'
 
 const RANGOS = [7, 30, 60, 90]
 
+// Líneas que se pueden prender y apagar debajo del gráfico (se irán sumando más).
+const SERIES = [
+  { key: 'ticket', nombre: 'Ticket promedio', color: 'var(--navy)', campo: 'ticket_promedio' },
+  { key: 'full', nombre: 'Plata en Full', color: 'var(--serie-2)', campo: 'full_valor' },
+]
+const GUARDADO = 'dashboard_ticket_series'
+
+const leerActivas = () => {
+  try {
+    const g = JSON.parse(localStorage.getItem(GUARDADO) || 'null')
+    if (Array.isArray(g)) { const ok = g.filter((k) => SERIES.some((x) => x.key === k)); if (ok.length) return ok }
+  } catch { /* sin almacenamiento: queda el valor por defecto */ }
+  return ['ticket']
+}
+
 const pesos = (n) => (n == null ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`)
 const corta = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+const variacion = (v, base) => { const p = (v / base - 1) * 100; return `${p > 0 ? '+' : ''}${p.toFixed(1)}% vs. primer día` }
 const larga = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 
-function TooltipDia({ active, payload }) {
+function TooltipDia({ active, payload, activas, bases }) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
+  const indexado = activas.length >= 2
   return (
     <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--charcoal)' }}>
       <div style={{ fontWeight: 700 }}>{larga(d.fecha)}{d.parcial ? ' (día en curso)' : ''}</div>
-      <div>Ticket promedio: <strong>{pesos(d.ticket_promedio)}</strong></div>
-      <div style={{ color: 'var(--gray-muted)' }}>{d.ventas} ventas · {pesos(d.facturacion)}</div>
+      {activas.includes('ticket') && (
+        <div>
+          <span style={{ color: 'var(--navy)' }}>●</span> Ticket promedio: <strong>{pesos(d.ticket_promedio)}</strong>
+          {indexado && d.ticket_promedio != null && bases.ticket ? <span style={{ color: 'var(--gray-muted)' }}> ({variacion(d.ticket_promedio, bases.ticket)})</span> : null}
+        </div>
+      )}
+      {activas.includes('full') && (
+        <div>
+          <span style={{ color: 'var(--serie-2)' }}>●</span> En Full: <strong>{pesos(d.full_valor)}</strong>
+          {indexado && d.full_valor != null && bases.full ? <span style={{ color: 'var(--gray-muted)' }}> ({variacion(d.full_valor, bases.full)})</span> : null}
+          {d.full_valor == null && <span style={{ color: 'var(--gray-muted)' }}> (sin foto ese día)</span>}
+        </div>
+      )}
+      {activas.includes('ticket') && <div style={{ color: 'var(--gray-muted)' }}>{d.ventas} ventas · {pesos(d.facturacion)}</div>}
     </div>
   )
 }
@@ -37,6 +66,35 @@ export default function TicketPromedioView({ onUnauthorized }) {
   const [cargando, setCargando] = useState(true)
   const [fecha, setFecha] = useState('')
   const [tabla, setTabla] = useState(false)
+  const [activas, setActivas] = useState(leerActivas)
+  const [full, setFull] = useState(null)         // { 'YYYY-MM-DD': {valor, unidades, publicaciones} }
+  const [errorFull, setErrorFull] = useState(null)
+  const [cargandoFull, setCargandoFull] = useState(false)
+  const fullPrendida = activas.includes('full')
+
+  const alternar = (key) => {
+    const sig = activas.includes(key) ? activas.filter((k) => k !== key) : [...activas, key]
+    if (!sig.length) return                    // siempre queda al menos una línea
+    setActivas(sig)
+    try { localStorage.setItem(GUARDADO, JSON.stringify(sig)) } catch { /* no es grave */ }
+  }
+
+  useEffect(() => {
+    if (!fullPrendida) return undefined
+    let vivo = true
+    setCargandoFull(true)
+    setErrorFull(null)
+    apiFetch(`/metricas/valor-stock-full?dias=${dias}`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then((d) => vivo && setFull(Object.fromEntries(d.dias.map((x) => [x.fecha, x]))))
+      .catch((e) => vivo && setErrorFull(e.message))
+      .finally(() => vivo && setCargandoFull(false))
+    return () => { vivo = false }
+  }, [dias, fullPrendida])
 
   useEffect(() => {
     let vivo = true
@@ -54,7 +112,32 @@ export default function TicketPromedioView({ onUnauthorized }) {
     return () => { vivo = false }
   }, [dias])
 
-  const filas = data?.dias || []
+  const filas = useMemo(
+    () => (data?.dias || []).map((f) => ({
+      ...f,
+      full_valor: full?.[f.fecha]?.valor ?? null,
+      full_unidades: full?.[f.fecha]?.unidades ?? null,
+    })),
+    [data, full],
+  )
+  // Con una sola línea se ve en plata real; con dos o más valen cosas muy distintas ($75 mil vs $48 millones),
+  // así que se comparan como variación desde el primer día con dato (100 = ese primer día).
+  const seriesActivas = SERIES.filter((x) => activas.includes(x.key))
+  const indexado = seriesActivas.length >= 2
+  const unico = seriesActivas.length === 1 ? seriesActivas[0] : null
+  const bases = useMemo(() => {
+    const b = {}
+    for (const x of SERIES) b[x.key] = filas.find((f) => f[x.campo] != null && f[x.campo] > 0)?.[x.campo] ?? null
+    return b
+  }, [filas])
+  const datos = useMemo(
+    () => filas.map((f) => {
+      const o = { ...f }
+      for (const x of SERIES) o[`i_${x.key}`] = f[x.campo] != null && bases[x.key] ? (f[x.campo] / bases[x.key]) * 100 : null
+      return o
+    }),
+    [filas, bases],
+  )
   const elegido = useMemo(() => filas.find((f) => f.fecha === fecha), [filas, fecha])
   const hito = data?.hitos?.[0]
   const delta = hito?.antes?.ticket_promedio && hito?.desde?.ticket_promedio
@@ -107,20 +190,42 @@ export default function TicketPromedioView({ onUnauthorized }) {
 
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 8px 4px', opacity: cargando ? 0.6 : 1 }}>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={filas} margin={{ top: 18, right: 16, left: 4, bottom: 4 }}>
+              <LineChart data={datos} margin={{ top: 18, right: 16, left: 4, bottom: 4 }}>
                 <CartesianGrid stroke="var(--gray-line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="fecha" tickFormatter={corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={18} />
-                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" width={52} domain={['auto', 'auto']} />
-                <Tooltip content={<TooltipDia />} />
+                <YAxis
+                  tickFormatter={indexado ? (v) => `${Math.round(v)}` : unico?.key === 'full' ? (v) => `$${(v / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M` : (v) => `$${Math.round(v / 1000)}k`}
+                  tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" width={indexado ? 40 : 56} domain={['auto', 'auto']}
+                />
+                <Tooltip content={<TooltipDia activas={activas} bases={bases} />} />
+                {indexado && <ReferenceLine y={100} stroke="var(--gray-muted)" strokeDasharray="2 4" />}
                 {(data.hitos || []).map((h) => (
-                  <ReferenceLine key={h.fecha} x={h.fecha} stroke="var(--atencion)" strokeWidth={2} strokeDasharray="5 4"
+                  <ReferenceLine key={h.fecha} x={h.fecha} stroke="var(--charcoal)" strokeWidth={1.5} strokeDasharray="5 4"
                     label={{ value: `⚑ ${corta(h.fecha)}`, position: 'top', fill: 'var(--charcoal)', fontSize: 12 }} />
                 ))}
-                <Line type="linear" dataKey="ticket_promedio" stroke="var(--navy)" strokeWidth={2} dot={{ r: 3, strokeWidth: 2, stroke: 'var(--card-bg)', fill: 'var(--navy)' }}
-                  activeDot={{ r: 5 }} connectNulls isAnimationActive={false} />
+                {seriesActivas.map((x) => (
+                  <Line key={x.key} type="linear" dataKey={indexado ? `i_${x.key}` : x.campo} stroke={x.color} strokeWidth={2}
+                    dot={{ r: 3, strokeWidth: 2, stroke: 'var(--card-bg)', fill: x.color }} activeDot={{ r: 5 }}
+                    connectNulls={x.key === 'ticket'} isAnimationActive={false} />
+                ))}
               </LineChart>
             </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '4px 8px 8px' }} role="group" aria-label="Líneas del gráfico">
+              {SERIES.map((x) => {
+                const on = activas.includes(x.key)
+                return (
+                  <button key={x.key} type="button" className={`sort-btn ${on ? 'active-outline' : ''}`} aria-pressed={on} onClick={() => alternar(x.key)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span aria-hidden="true" style={{ width: 22, height: 0, borderTop: `3px ${on ? 'solid' : 'dashed'} ${x.color}`, opacity: on ? 1 : 0.5 }} />
+                    {x.nombre}{x.key === 'full' && cargandoFull ? ' …' : ''}
+                  </button>
+                )
+              })}
+            </div>
             <div style={{ fontSize: 12, color: 'var(--gray-muted)', padding: '0 8px 8px' }}>
+              {indexado && <div>Con dos líneas juntas se comparan como <strong>variación desde el primer día</strong> (100 = primer día), porque valen cosas muy distintas. Pasá el mouse por un día para ver los valores reales.</div>}
+              {errorFull && <div>⚠ No pude traer la plata en Full: {errorFull}</div>}
+              {fullPrendida && !errorFull && !cargandoFull && full && filas.some((f) => f.full_valor == null) && <div>Los días sin punto en "Plata en Full" no tienen foto del stock guardada.</div>}
               {(data.hitos || []).map((h) => <div key={h.fecha}>⚑ {larga(h.fecha)} — {h.texto}</div>)}
               <div>El último punto es el día en curso: puede moverse hasta que termine el día.</div>
               {data.hubo_truncado && <div>⚠ Algún período tuvo más de 2.000 ventas y ML devolvió solo parte: esos días pueden quedar bajos.</div>}
