@@ -25,6 +25,8 @@ const variacion = (v, base) => { const p = (v / base - 1) * 100; return `${p > 0
 const larga = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 
 const DIAS_SEM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+const conDiaCorto = (iso) => `${DIA_CORTO[new Date(`${iso}T12:00:00`).getDay()]} ${corta(iso)}`
 const conDia = (iso) => `${DIAS_SEM[new Date(`${iso}T12:00:00`).getDay()]} ${larga(iso)}`
 
 // Recharts avisa acá qué día está señalado (con el mouse o con las flechas del teclado); no dibuja nada.
@@ -50,6 +52,11 @@ function LectorDia({ d, señalado, activas, bases }) {
           <span style={{ color: 'var(--navy)' }}>●</span> Ticket promedio: <strong>{pesos(d.ticket_promedio)}</strong>
           {indexado && d.ticket_promedio != null && bases.ticket ? <span style={gris}> ({variacion(d.ticket_promedio, bases.ticket)})</span> : null}
           <span style={gris}> · {d.ventas} ventas</span>
+        </div>
+      )}
+      {activas.includes('ticket') && (
+        <div style={gris}>
+          {d.ventas > 0 ? <>Más alto: <strong style={{ color: 'var(--charcoal)' }}>{pesos(d.ticket_max)}</strong> · Más bajo: <strong style={{ color: 'var(--charcoal)' }}>{pesos(d.ticket_min)}</strong></> : 'Sin ventas ese día'}
         </div>
       )}
       {activas.includes('full') && (
@@ -192,7 +199,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
           {fecha && (
             <div style={{ marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-activo)', color: 'var(--charcoal)' }}>
               {elegido
-                ? <>📅 <strong>{larga(elegido.fecha)}</strong>: ticket promedio <strong>{pesos(elegido.ticket_promedio)}</strong> · {elegido.ventas} ventas · {pesos(elegido.facturacion)} vendidos{fullPrendida && <> · plata en Full <strong>{pesos(elegido.full_valor)}</strong>{elegido.full_valor == null ? ' (sin foto ese día)' : ''}</>}{elegido.parcial ? ' (día en curso)' : ''}</>
+                ? <>📅 <strong>{conDia(elegido.fecha)}</strong>: ticket promedio <strong>{pesos(elegido.ticket_promedio)}</strong>{elegido.ventas > 0 && <> (más alto {pesos(elegido.ticket_max)} · más bajo {pesos(elegido.ticket_min)})</>} · {elegido.ventas} ventas · {pesos(elegido.facturacion)} vendidos{fullPrendida && <> · plata en Full <strong>{pesos(elegido.full_valor)}</strong>{elegido.full_valor == null ? ' (sin foto ese día)' : ''}</>}{elegido.parcial ? ' (día en curso)' : ''}</>
                 : cargando ? 'Buscando ese día…' : 'Ese día queda fuera de los últimos 90 días que tengo cargados.'}
             </div>
           )}
@@ -206,10 +213,10 @@ export default function TicketPromedioView({ onUnauthorized }) {
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 8px 4px', opacity: cargando ? 0.6 : 1 }}>
             <div style={{ position: 'relative' }}>
             <LectorDia d={filas.find((f) => f.fecha === señalado) || filas[filas.length - 1]} señalado={!!señalado} activas={activas} bases={bases} />
-            <ResponsiveContainer width="100%" height={330}>
-              <LineChart data={datos} margin={{ top: 84, right: 16, left: 4, bottom: 4 }}>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={datos} margin={{ top: 104, right: 16, left: 4, bottom: 4 }}>
                 <CartesianGrid stroke="var(--gray-line)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="fecha" tickFormatter={corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={18} />
+                <XAxis dataKey="fecha" tickFormatter={dias <= 30 ? conDiaCorto : corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={dias <= 30 ? 8 : 18} />
                 <YAxis
                   tickFormatter={indexado ? (v) => `${Math.round(v)}` : unico?.key === 'full' ? (v) => `$${(v / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M` : (v) => `$${Math.round(v / 1000)}k`}
                   tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" width={indexado ? 40 : 56} domain={['auto', 'auto']}
@@ -257,15 +264,17 @@ export default function TicketPromedioView({ onUnauthorized }) {
             <div style={{ overflowX: 'auto', marginTop: 8 }}>
               <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13, color: 'var(--charcoal)' }}>
                 <thead>
-                  <tr>{['Día', 'Ventas', 'Vendido', 'Ticket promedio', ...(fullPrendida ? ['Plata en Full'] : [])].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
+                  <tr>{['Día', 'Ventas', 'Vendido', 'Ticket promedio', 'Más alto', 'Más bajo', ...(fullPrendida ? ['Plata en Full'] : [])].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
                 </thead>
                 <tbody>
                   {[...filas].reverse().map((f) => (
                     <tr key={f.fecha}>
-                      <td style={{ textAlign: 'right', padding: '4px 10px' }}>{larga(f.fecha)}{f.parcial ? ' *' : ''}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 10px' }}>{conDia(f.fecha)}{f.parcial ? ' *' : ''}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.ventas}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.facturacion)}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px', fontWeight: 700 }}>{pesos(f.ticket_promedio)}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.ticket_max)}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.ticket_min)}</td>
                       {fullPrendida && <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.full_valor == null ? 'sin foto' : pesos(f.full_valor)}</td>}
                     </tr>
                   ))}
