@@ -24,27 +24,41 @@ const corta = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const variacion = (v, base) => { const p = (v / base - 1) * 100; return `${p > 0 ? '+' : ''}${p.toFixed(1)}% vs. primer día` }
 const larga = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 
-function TooltipDia({ active, payload, activas, bases }) {
-  if (!active || !payload?.length) return null
-  const d = payload[0].payload
+const DIAS_SEM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const conDia = (iso) => `${DIAS_SEM[new Date(`${iso}T12:00:00`).getDay()]} ${larga(iso)}`
+
+// Recharts avisa acá qué día está señalado (con el mouse o con las flechas del teclado); no dibuja nada.
+function Puente({ active, payload, onDia }) {
+  const fecha = active && payload?.length ? payload[0].payload.fecha : null
+  useEffect(() => { onDia(fecha) }, [fecha])
+  return null
+}
+
+// Cuadro fijo (arriba a la izquierda del gráfico) con el detalle del día señalado.
+function LectorDia({ d, señalado, activas, bases }) {
+  if (!d) return null
   const indexado = activas.length >= 2
+  const gris = { color: 'var(--gray-muted)' }
   return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--charcoal)' }}>
-      <div style={{ fontWeight: 700 }}>{larga(d.fecha)}{d.parcial ? ' (día en curso)' : ''}</div>
+    <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, left: 62, maxWidth: '62%', pointerEvents: 'none', fontSize: 13, lineHeight: 1.45, color: 'var(--charcoal)' }}>
+      <div>
+        <strong>{conDia(d.fecha)}</strong>{d.parcial ? ' (día en curso)' : ''}
+        {!señalado && <span style={gris}> · pasá el mouse por un día</span>}
+      </div>
       {activas.includes('ticket') && (
         <div>
           <span style={{ color: 'var(--navy)' }}>●</span> Ticket promedio: <strong>{pesos(d.ticket_promedio)}</strong>
-          {indexado && d.ticket_promedio != null && bases.ticket ? <span style={{ color: 'var(--gray-muted)' }}> ({variacion(d.ticket_promedio, bases.ticket)})</span> : null}
+          {indexado && d.ticket_promedio != null && bases.ticket ? <span style={gris}> ({variacion(d.ticket_promedio, bases.ticket)})</span> : null}
+          <span style={gris}> · {d.ventas} ventas</span>
         </div>
       )}
       {activas.includes('full') && (
         <div>
-          <span style={{ color: 'var(--serie-2)' }}>●</span> En Full: <strong>{pesos(d.full_valor)}</strong>
-          {indexado && d.full_valor != null && bases.full ? <span style={{ color: 'var(--gray-muted)' }}> ({variacion(d.full_valor, bases.full)})</span> : null}
-          {d.full_valor == null && <span style={{ color: 'var(--gray-muted)' }}> (sin foto ese día)</span>}
+          <span style={{ color: 'var(--serie-2)' }}>●</span> Plata en Full: <strong>{pesos(d.full_valor)}</strong>
+          {indexado && d.full_valor != null && bases.full ? <span style={gris}> ({variacion(d.full_valor, bases.full)})</span> : null}
+          {d.full_valor == null && <span style={gris}> (sin foto ese día)</span>}
         </div>
       )}
-      {activas.includes('ticket') && <div style={{ color: 'var(--gray-muted)' }}>{d.ventas} ventas · {pesos(d.facturacion)}</div>}
     </div>
   )
 }
@@ -66,6 +80,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
   const [cargando, setCargando] = useState(true)
   const [fecha, setFecha] = useState('')
   const [tabla, setTabla] = useState(false)
+  const [señalado, setSeñalado] = useState(null)      // día sobre el que está el mouse (YYYY-MM-DD)
   const [activas, setActivas] = useState(leerActivas)
   const [full, setFull] = useState(null)         // { 'YYYY-MM-DD': {valor, unidades, publicaciones} }
   const [errorFull, setErrorFull] = useState(null)
@@ -177,7 +192,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
           {fecha && (
             <div style={{ marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-activo)', color: 'var(--charcoal)' }}>
               {elegido
-                ? <>📅 <strong>{larga(elegido.fecha)}</strong>: ticket promedio <strong>{pesos(elegido.ticket_promedio)}</strong> · {elegido.ventas} ventas · {pesos(elegido.facturacion)} vendidos{elegido.parcial ? ' (día en curso)' : ''}</>
+                ? <>📅 <strong>{larga(elegido.fecha)}</strong>: ticket promedio <strong>{pesos(elegido.ticket_promedio)}</strong> · {elegido.ventas} ventas · {pesos(elegido.facturacion)} vendidos{fullPrendida && <> · plata en Full <strong>{pesos(elegido.full_valor)}</strong>{elegido.full_valor == null ? ' (sin foto ese día)' : ''}</>}{elegido.parcial ? ' (día en curso)' : ''}</>
                 : cargando ? 'Buscando ese día…' : 'Ese día queda fuera de los últimos 90 días que tengo cargados.'}
             </div>
           )}
@@ -189,15 +204,17 @@ export default function TicketPromedioView({ onUnauthorized }) {
           </div>
 
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 8px 4px', opacity: cargando ? 0.6 : 1 }}>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={datos} margin={{ top: 18, right: 16, left: 4, bottom: 4 }}>
+            <div style={{ position: 'relative' }}>
+            <LectorDia d={filas.find((f) => f.fecha === señalado) || filas[filas.length - 1]} señalado={!!señalado} activas={activas} bases={bases} />
+            <ResponsiveContainer width="100%" height={330}>
+              <LineChart data={datos} margin={{ top: 84, right: 16, left: 4, bottom: 4 }}>
                 <CartesianGrid stroke="var(--gray-line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="fecha" tickFormatter={corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={18} />
                 <YAxis
                   tickFormatter={indexado ? (v) => `${Math.round(v)}` : unico?.key === 'full' ? (v) => `$${(v / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M` : (v) => `$${Math.round(v / 1000)}k`}
                   tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" width={indexado ? 40 : 56} domain={['auto', 'auto']}
                 />
-                <Tooltip content={<TooltipDia activas={activas} bases={bases} />} />
+                <Tooltip content={<Puente onDia={setSeñalado} />} cursor={{ stroke: 'var(--gray-muted)', strokeWidth: 1 }} isAnimationActive={false} />
                 {indexado && <ReferenceLine y={100} stroke="var(--gray-muted)" strokeDasharray="2 4" />}
                 {(data.hitos || []).map((h) => (
                   <ReferenceLine key={h.fecha} x={h.fecha} stroke="var(--charcoal)" strokeWidth={1.5} strokeDasharray="5 4"
@@ -210,6 +227,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
                 ))}
               </LineChart>
             </ResponsiveContainer>
+            </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '4px 8px 8px' }} role="group" aria-label="Líneas del gráfico">
               {SERIES.map((x) => {
                 const on = activas.includes(x.key)
@@ -223,7 +241,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
               })}
             </div>
             <div style={{ fontSize: 12, color: 'var(--gray-muted)', padding: '0 8px 8px' }}>
-              {indexado && <div>Con dos líneas juntas se comparan como <strong>variación desde el primer día</strong> (100 = primer día), porque valen cosas muy distintas. Pasá el mouse por un día para ver los valores reales.</div>}
+              {indexado && <div>Con dos líneas juntas se comparan como <strong>variación desde el primer día</strong> (100 = primer día), porque valen cosas muy distintas. Arriba a la izquierda ves los valores reales del día que señales.</div>}
               {errorFull && <div>⚠ No pude traer la plata en Full: {errorFull}</div>}
               {fullPrendida && !errorFull && !cargandoFull && full && filas.some((f) => f.full_valor == null) && <div>Los días sin punto en "Plata en Full" no tienen foto del stock guardada.</div>}
               {(data.hitos || []).map((h) => <div key={h.fecha}>⚑ {larga(h.fecha)} — {h.texto}</div>)}
@@ -239,7 +257,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
             <div style={{ overflowX: 'auto', marginTop: 8 }}>
               <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13, color: 'var(--charcoal)' }}>
                 <thead>
-                  <tr>{['Día', 'Ventas', 'Vendido', 'Ticket promedio'].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
+                  <tr>{['Día', 'Ventas', 'Vendido', 'Ticket promedio', ...(fullPrendida ? ['Plata en Full'] : [])].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
                 </thead>
                 <tbody>
                   {[...filas].reverse().map((f) => (
@@ -248,6 +266,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.ventas}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.facturacion)}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px', fontWeight: 700 }}>{pesos(f.ticket_promedio)}</td>
+                      {fullPrendida && <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.full_valor == null ? 'sin foto' : pesos(f.full_valor)}</td>}
                     </tr>
                   ))}
                 </tbody>
