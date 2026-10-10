@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 import TicketPromedioView from './TicketPromedioView.jsx'
+import ValorFullView from './ValorFullView.jsx'
 
 function Tile({ valor, label, activo, colorActivo, onClick, alerta }) {
   return (
@@ -195,6 +196,7 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
       </div>
 
       <TicketPromedioView onUnauthorized={onUnauthorized} />
+      <ValorFullView onUnauthorized={onUnauthorized} />
     </>
   )
 }
