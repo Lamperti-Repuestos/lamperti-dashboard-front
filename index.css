@@ -18,6 +18,7 @@
   --alerta: #B23A2E;
   --atencion: #8C6500;
   --info: #4A67B8;
+  --serie-2: #eb6834;
 }
 
 :root[data-theme="dark"] {
@@ -36,6 +37,7 @@
   --alerta: #863227;
   --atencion: #8F691E;
   --info: #2B4482;
+  --serie-2: #d95926;
 }
 
 @media (min-width: 640px) {
