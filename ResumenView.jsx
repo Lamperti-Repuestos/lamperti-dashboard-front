@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
+import TicketPromedioView from './TicketPromedioView.jsx'
 
 function Tile({ valor, label, activo, colorActivo, onClick, alerta }) {
   return (
@@ -192,6 +193,8 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
           onClick={() => onIrA?.('postventa')}
         />
       </div>
+
+      <TicketPromedioView onUnauthorized={onUnauthorized} />
     </>
   )
 }
