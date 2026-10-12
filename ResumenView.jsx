@@ -84,8 +84,15 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
 
   const obj = ventas?.proximo_objetivo
   const pesos = (n) => `$${Math.round(n).toLocaleString('es-AR')}`
+  const combinado = !!(obj && obj.meta && obj.ticket_meta)
   const okVentas = obj && (!obj.meta || ventas.total >= obj.meta)
-  const okTicket = obj && (!obj.ticket_meta || (ventas.total > 0 && ventas.ticket_promedio >= obj.ticket_meta))
+  // Con objetivo de ventas, el ticket cuenta en el momento en que se llega a esa cantidad (promedio de las primeras
+  // N ventas del día), no el de ahora: si no, una primera venta grande lo cumpliría de entrada.
+  const ticketAlLlegar = ventas?.ticket_al_llegar_a_meta
+  const okTicket = obj && (!obj.ticket_meta || (obj.meta
+    ? ticketAlLlegar != null && ticketAlLlegar >= obj.ticket_meta
+    : ventas.total > 0 && ventas.ticket_promedio >= obj.ticket_meta))
+  const ticketFallado = combinado && okVentas && ticketAlLlegar != null && ticketAlLlegar < obj.ticket_meta
   const cumplido = !!obj && okVentas && okTicket
 
   return (
@@ -146,18 +153,29 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               )}
               {obj.ticket_meta && (
                 <div>
-                  {okTicket
+                  {combinado ? (
+                    okVentas && ticketAlLlegar != null
+                      ? okTicket
+                        ? <>✅ Ticket promedio al llegar a las {obj.meta} ventas: <strong>{pesos(ticketAlLlegar)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
+                        : <>❌ Al llegar a las {obj.meta} ventas el ticket promedio era <strong>{pesos(ticketAlLlegar)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
+                      : ventas.total > 0
+                        ? <>Ticket promedio ahora: <strong>{pesos(ventas.ticket_promedio)}</strong> · se mide al llegar a las {obj.meta} ventas (objetivo {pesos(obj.ticket_meta)})</>
+                        : <>Ticket promedio objetivo: <strong>{pesos(obj.ticket_meta)}</strong> (se mide al llegar a las {obj.meta} ventas)</>
+                  ) : okTicket
                     ? <>✅ Ticket promedio: <strong>{pesos(ventas.ticket_promedio)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
                     : ventas.total > 0
                       ? <>Ticket promedio: <strong>{pesos(ventas.ticket_promedio)}</strong> · faltan <strong>{pesos(obj.ticket_meta - ventas.ticket_promedio)}</strong> para llegar a <strong>{pesos(obj.ticket_meta)}</strong></>
                       : <>Ticket promedio objetivo: <strong>{pesos(obj.ticket_meta)}</strong></>}
                 </div>
               )}
-              {obj.meta && obj.ticket_meta && !cumplido && (
-                <div style={{ color: 'var(--gray-muted)' }}>Hay que lograr las dos cosas juntas.</div>
+              {obj.ticket_meta && !obj.meta && (
+                <div style={{ color: 'var(--atencion)' }}>⚠ Sin cantidad de ventas, se mira el promedio de hoy hasta ahora: con pocas ventas puede cumplirse enseguida.</div>
               )}
-              <div style={cumplido ? { fontWeight: 700 } : undefined}>
-                {cumplido ? <>🏆 ¡Objetivo cumplido! → {obj.premio}</> : <>→ {obj.premio} 🎉</>}
+              {combinado && !cumplido && !ticketFallado && (
+                <div style={{ color: 'var(--gray-muted)' }}>Hay que lograr las dos cosas el mismo día.</div>
+              )}
+              <div style={cumplido || ticketFallado ? { fontWeight: 700 } : undefined}>
+                {cumplido ? <>🏆 ¡Objetivo cumplido! → {obj.premio}</> : ticketFallado ? <>Hoy no se logró: el ticket promedio tenía que estar en {pesos(obj.ticket_meta)} al llegar a las {obj.meta} ventas.</> : <>→ {obj.premio} 🎉</>}
               </div>
             </div>
           )}
@@ -187,8 +205,13 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
                 value={nuevoTicket}
                 onChange={(e) => setNuevoTicket(e.target.value)}
               />
+              {(Number(nuevoTicket) || 0) > 0 && (Number(nuevaMeta) || 0) <= 0 && (
+                <div role="note" style={{ fontSize: 12, color: 'var(--atencion)' }}>
+                  ⚠ Solo con ticket promedio, se mira el promedio de hoy hasta ahora: con pocas ventas (por ejemplo una de $80.000) se cumple enseguida. Conviene cargar también la cantidad de ventas.
+                </div>
+              )}
               <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
-                Podés cargar uno solo o los dos: con los dos, hay que lograr ambos.
+                Podés cargar uno solo o los dos. Con los dos, el ticket promedio se mide justo al llegar a la cantidad de ventas y hay que lograr ambos el mismo día.
               </div>
               <input
                 type="text"
