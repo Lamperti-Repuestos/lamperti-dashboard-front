@@ -86,13 +86,13 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
   const pesos = (n) => `$${Math.round(n).toLocaleString('es-AR')}`
   const combinado = !!(obj && obj.meta && obj.ticket_meta)
   const okVentas = obj && (!obj.meta || ventas.total >= obj.meta)
-  // Con objetivo de ventas, el ticket cuenta en el momento en que se llega a esa cantidad (promedio de las primeras
-  // N ventas del día), no el de ahora: si no, una primera venta grande lo cumpliría de entrada.
-  const ticketAlLlegar = ventas?.ticket_al_llegar_a_meta
+  // Con objetivo de ventas, el ticket recién cuenta desde que se llega a esa cantidad (si no, una primera venta grande
+  // lo cumpliría de entrada). Desde ahí, apenas el promedio del día llega al objetivo queda cumplido (lo decide el
+  // servidor: ticket_objetivo_cumplido) y no se pierde aunque después baje.
+  const ticketCumplido = ventas?.ticket_objetivo_cumplido
   const okTicket = obj && (!obj.ticket_meta || (obj.meta
-    ? ticketAlLlegar != null && ticketAlLlegar >= obj.ticket_meta
+    ? !!ticketCumplido
     : ventas.total > 0 && ventas.ticket_promedio >= obj.ticket_meta))
-  const ticketFallado = combinado && okVentas && ticketAlLlegar != null && ticketAlLlegar < obj.ticket_meta
   const cumplido = !!obj && okVentas && okTicket
 
   return (
@@ -154,13 +154,15 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               {obj.ticket_meta && (
                 <div>
                   {combinado ? (
-                    okVentas && ticketAlLlegar != null
-                      ? okTicket
-                        ? <>✅ Ticket promedio al llegar a las {obj.meta} ventas: <strong>{pesos(ticketAlLlegar)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
-                        : <>❌ Al llegar a las {obj.meta} ventas el ticket promedio era <strong>{pesos(ticketAlLlegar)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
-                      : ventas.total > 0
-                        ? <>Ticket promedio ahora: <strong>{pesos(ventas.ticket_promedio)}</strong> · se mide al llegar a las {obj.meta} ventas (objetivo {pesos(obj.ticket_meta)})</>
-                        : <>Ticket promedio objetivo: <strong>{pesos(obj.ticket_meta)}</strong> (se mide al llegar a las {obj.meta} ventas)</>
+                    okTicket && ticketCumplido
+                      ? ticketCumplido.con_la_venta === obj.meta
+                        ? <>✅ Ticket promedio al llegar a las {obj.meta} ventas: <strong>{pesos(ticketCumplido.promedio)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
+                        : <>✅ Ticket promedio llegó a <strong>{pesos(ticketCumplido.promedio)}</strong> con la venta Nº {ticketCumplido.con_la_venta} (objetivo {pesos(obj.ticket_meta)})</>
+                      : okVentas
+                        ? <>Ticket promedio ahora: <strong>{pesos(ventas.ticket_promedio)}</strong> · faltan <strong>{pesos(obj.ticket_meta - ventas.ticket_promedio)}</strong> para llegar a <strong>{pesos(obj.ticket_meta)}</strong>. Todavía puede cumplirse en lo que queda del día.</>
+                        : ventas.total > 0
+                          ? <>Ticket promedio ahora: <strong>{pesos(ventas.ticket_promedio)}</strong> · empieza a contar al llegar a las {obj.meta} ventas (objetivo {pesos(obj.ticket_meta)})</>
+                          : <>Ticket promedio objetivo: <strong>{pesos(obj.ticket_meta)}</strong> (cuenta desde las {obj.meta} ventas)</>
                   ) : okTicket
                     ? <>✅ Ticket promedio: <strong>{pesos(ventas.ticket_promedio)}</strong> (objetivo {pesos(obj.ticket_meta)})</>
                     : ventas.total > 0
@@ -171,11 +173,11 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               {obj.ticket_meta && !obj.meta && (
                 <div style={{ color: 'var(--atencion)' }}>⚠ Sin cantidad de ventas, se mira el promedio de hoy hasta ahora: con pocas ventas puede cumplirse enseguida.</div>
               )}
-              {combinado && !cumplido && !ticketFallado && (
+              {combinado && !cumplido && (
                 <div style={{ color: 'var(--gray-muted)' }}>Hay que lograr las dos cosas el mismo día.</div>
               )}
-              <div style={cumplido || ticketFallado ? { fontWeight: 700 } : undefined}>
-                {cumplido ? <>🏆 ¡Objetivo cumplido! → {obj.premio}</> : ticketFallado ? <>Hoy no se logró: el ticket promedio tenía que estar en {pesos(obj.ticket_meta)} al llegar a las {obj.meta} ventas.</> : <>→ {obj.premio} 🎉</>}
+              <div style={cumplido ? { fontWeight: 700 } : undefined}>
+                {cumplido ? <>🏆 ¡Objetivo cumplido! → {obj.premio}</> : <>→ {obj.premio} 🎉</>}
               </div>
             </div>
           )}
@@ -211,7 +213,7 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
                 </div>
               )}
               <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
-                Podés cargar uno solo o los dos. Con los dos, el ticket promedio se mide justo al llegar a la cantidad de ventas y hay que lograr ambos el mismo día.
+                Podés cargar uno solo o los dos. Con los dos, el ticket promedio empieza a contar desde que se llega a la cantidad de ventas; apenas llega al objetivo queda cumplido, aunque después baje. Hay que lograr ambos el mismo día.
               </div>
               <input
                 type="text"
