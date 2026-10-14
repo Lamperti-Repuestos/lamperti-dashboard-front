@@ -42,7 +42,7 @@ function LectorDia({ d, señalado, activas, bases }) {
   const indexado = activas.length >= 2
   const gris = { color: 'var(--gray-muted)' }
   return (
-    <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, left: 62, maxWidth: '62%', pointerEvents: 'none', fontSize: 13, lineHeight: 1.45, color: 'var(--charcoal)' }}>
+    <div role="status" aria-live="polite" style={{ minHeight: 98, padding: '2px 8px 6px 12px', fontSize: 13, lineHeight: 1.45, color: 'var(--charcoal)' }}>
       <div>
         <strong>{conDia(d.fecha)}</strong>{d.parcial ? ' (día en curso)' : ''}
         {!señalado && <span style={gris}> · pasá el mouse por un día</span>}
@@ -87,6 +87,9 @@ export default function TicketPromedioView({ onUnauthorized }) {
   const [cargando, setCargando] = useState(true)
   const [fecha, setFecha] = useState('')
   const [tabla, setTabla] = useState(false)
+  const [analisis, setAnalisis] = useState(null)      // { texto, generado_en, dias, en_cache }
+  const [cargandoAnalisis, setCargandoAnalisis] = useState(false)
+  const [errorAnalisis, setErrorAnalisis] = useState(null)
   const [señalado, setSeñalado] = useState(null)      // día sobre el que está el mouse (YYYY-MM-DD)
   const [activas, setActivas] = useState(leerActivas)
   const [full, setFull] = useState(null)         // { 'YYYY-MM-DD': {valor, unidades, publicaciones} }
@@ -166,6 +169,20 @@ export default function TicketPromedioView({ onUnauthorized }) {
     ? ((hito.desde.ticket_promedio - hito.antes.ticket_promedio) / hito.antes.ticket_promedio) * 100
     : null
 
+  const pedirAnalisis = () => {
+    setCargandoAnalisis(true)
+    setErrorAnalisis(null)
+    apiFetch(`/metricas/ticket-promedio/analisis?dias=${dias}`, { method: 'POST' }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then(setAnalisis)
+      .catch((e) => setErrorAnalisis(e.message))
+      .finally(() => setCargandoAnalisis(false))
+  }
+
   const elegirFecha = (valor) => {
     setFecha(valor)
     if (!valor) return
@@ -211,10 +228,10 @@ export default function TicketPromedioView({ onUnauthorized }) {
           </div>
 
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 8px 4px', opacity: cargando ? 0.6 : 1 }}>
-            <div style={{ position: 'relative' }}>
+            <div>
             <LectorDia d={filas.find((f) => f.fecha === señalado) || filas[filas.length - 1]} señalado={!!señalado} activas={activas} bases={bases} />
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={datos} margin={{ top: 104, right: 16, left: 4, bottom: 4 }}>
+            <ResponsiveContainer width="100%" height={290}>
+              <LineChart data={datos} margin={{ top: 22, right: 16, left: 4, bottom: 4 }}>
                 <CartesianGrid stroke="var(--gray-line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="fecha" tickFormatter={dias <= 30 ? conDiaCorto : corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={dias <= 30 ? 8 : 18} />
                 <YAxis
@@ -255,6 +272,30 @@ export default function TicketPromedioView({ onUnauthorized }) {
               <div>El último punto es el día en curso: puede moverse hasta que termine el día.</div>
               {data.hubo_truncado && <div>⚠ Algún período tuvo más de 2.000 ventas y ML devolvió solo parte: esos días pueden quedar bajos.</div>}
             </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <button type="button" className="scan-btn" onClick={pedirAnalisis} disabled={cargandoAnalisis} aria-busy={cargandoAnalisis}>
+              {cargandoAnalisis ? '🧠 Analizando…' : analisis ? '🧠 Actualizar análisis técnico de hoy' : '🧠 Obtener análisis técnico de hoy'}
+            </button>
+            <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--gray-muted)' }}>Lee los últimos {dias} días del gráfico</span>
+            {errorAnalisis && <div role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--alerta)' }}>No pude hacer el análisis: {errorAnalisis}</div>}
+            {analisis && (
+              <div style={{ marginTop: 10, background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 16px', opacity: cargandoAnalisis ? 0.6 : 1 }}>
+                <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--charcoal)' }}>
+                  {analisis.texto.split('\n').map((linea, i) => (
+                    linea.trim() === '' ? <div key={i} style={{ height: 8 }} />
+                      : /^[A-ZÁÉÍÓÚÑ0-9 ()/:,.-]{4,}$/.test(linea.trim())
+                        ? <div key={i} style={{ fontWeight: 700, marginTop: 4 }}>{linea}</div>
+                        : <div key={i}>{linea}</div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gray-muted)' }}>
+                  Generado a las {new Date(analisis.generado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · últimos {analisis.dias} días
+                  {analisis.en_cache ? ' · es el de hace unos minutos' : ''}. Es una lectura automática de los números del gráfico, orientativa: no es una predicción.
+                </div>
+              </div>
+            )}
           </div>
 
           <button type="button" className="sort-btn" style={{ marginTop: 8 }} onClick={() => setTabla(!tabla)}>
