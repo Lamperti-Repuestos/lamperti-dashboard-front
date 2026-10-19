@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PublicationsView from './PublicationsView.jsx'
 import PublicadorView from './PublicadorView.jsx'
+import PrecioAdicionalView from './PrecioAdicionalView.jsx'
 import AltaRapidaView from './AltaRapidaView.jsx'
 import PickingListView from './PickingListView.jsx'
 import StockView from './StockView.jsx'
@@ -22,11 +23,13 @@ import SubagenteView from './SubagenteView.jsx'
 import PedidorView from './PedidorView.jsx'
 import FacturasEstadoView from './FacturasEstadoView.jsx'
 import ControlRemitosView from './ControlRemitosView.jsx'
+import FacturacionVentasView from './FacturacionVentasView.jsx'
 import LoginForm from './LoginForm.jsx'
+import GagSancor, { gagSancorVigente } from './GagSancor.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'precioadicional', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos', 'facturacionventas']
 
 const GRUPOS = [
   {
@@ -37,6 +40,7 @@ const GRUPOS = [
       { id: 'publications', label: 'Publicaciones' },
       { id: 'altarapida', label: 'Alta rápida (celular)' },
       { id: 'publicador', label: 'Publicador masivo' },
+      { id: 'precioadicional', label: 'Precio adicional' },
       { id: 'stock', label: 'Stock' },
       { id: 'full', label: 'Gestión Full' },
       { id: 'pedidos', label: 'Envío Full' },
@@ -52,6 +56,7 @@ const GRUPOS = [
     id: 'facturacion',
     nombre: 'Facturación',
     vistas: [
+      { id: 'facturacionventas', label: 'Facturar ventas' },
       { id: 'controlremitos', label: 'Control de remitos' },
       { id: 'facturasestado', label: 'Estado de facturas' },
     ],
@@ -117,6 +122,7 @@ export default function App() {
     setGrupoAbierto(GRUPO_POR_VISTA[nuevaVista] || null)
   }
   const [authed, setAuthed] = useState(null) // null = todavía chequeando
+  const [mostrarGag, setMostrarGag] = useState(gagSancorVigente)
 
   useEffect(() => {
     if (!getAuthHeader()) {
@@ -193,6 +199,9 @@ export default function App() {
   }
 
   if (!authed) {
+    if (mostrarGag) {
+      return <GagSancor onTerminar={() => setMostrarGag(false)} />
+    }
     return <LoginForm onSuccess={() => setAuthed(true)} />
   }
 
@@ -271,6 +280,7 @@ export default function App() {
         {view === 'publications' && <PublicationsView onUnauthorized={handleUnauthorized} />}
         {view === 'altarapida' && <AltaRapidaView onUnauthorized={handleUnauthorized} />}
         {view === 'publicador' && <PublicadorView onUnauthorized={handleUnauthorized} />}
+        {view === 'precioadicional' && <PrecioAdicionalView onUnauthorized={handleUnauthorized} />}
         {view === 'stock' && <StockView onUnauthorized={handleUnauthorized} />}
         {view === 'full' && <FullView onUnauthorized={handleUnauthorized} />}
         {view === 'pedidos' && <PedidosFullView onUnauthorized={handleUnauthorized} />}
@@ -282,6 +292,7 @@ export default function App() {
         {view === 'pedidor' && <PedidorView onUnauthorized={handleUnauthorized} />}
         {view === 'facturasestado' && <FacturasEstadoView onUnauthorized={handleUnauthorized} />}
         {view === 'controlremitos' && <ControlRemitosView onUnauthorized={handleUnauthorized} />}
+        {view === 'facturacionventas' && <FacturacionVentasView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}

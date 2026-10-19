@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from './api.js'
 import ImageLightbox from './ImageLightbox.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 import AlertModal from './AlertModal.jsx'
+import { armarMarcadorEtiquetas } from './marcadorEtiquetas.js'
 
 const normalizarBusqueda = (s) =>
   (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '')
@@ -30,6 +31,13 @@ export default function PedidosFullView({ onUnauthorized }) {
   const [queryProducto, setQueryProducto] = useState('')
   const [editandoParcialId, setEditandoParcialId] = useState(null)
   const [parcialDraft, setParcialDraft] = useState('')
+  const marcadorRef = useRef(null)
+
+  useEffect(() => {
+    if (marcadorRef.current) {
+      marcadorRef.current.setAttribute('href', armarMarcadorEtiquetas(import.meta.env.VITE_API_URL))
+    }
+  }, [])
 
   const fetchPipeline = () => {
     apiFetch('/full/pipeline', {}, onUnauthorized)
@@ -236,6 +244,27 @@ export default function PedidosFullView({ onUnauthorized }) {
     <>
       <div className="paste-box">
         <label className="corte-label" style={{ marginBottom: 8 }}>
+          Etiquetas impresas desde Mercado Libre
+        </label>
+        <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+          Arrastrá este botón a la barra de favoritos del navegador:{' '}
+          <a
+            ref={marcadorRef}
+            className="sort-btn"
+            style={{ padding: '2px 10px', textDecoration: 'none', cursor: 'grab' }}
+            onClick={(e) => e.preventDefault()}
+          >
+            🏷️ Etiquetas Full
+          </a>
+          <br />
+          Después, en Mercado Libre, abrí la pantalla de etiquetado del envío (<span className="mono">/shipping/inbounds/…/labeling</span>)
+          y apretá el favorito: lee qué productos tienen el tilde verde y los marca acá con ✅ (los que no tienen tilde quedan con ❌).
+          Te muestra lo que leyó y lo confirmás antes de mandarlo.
+        </div>
+      </div>
+
+      <div className="paste-box">
+        <label className="corte-label" style={{ marginBottom: 8 }}>
           Agregar producto suelto
         </label>
         <input
@@ -439,6 +468,24 @@ export default function PedidosFullView({ onUnauthorized }) {
                     />
                     En stock
                   </label>
+
+                  <button
+                    type="button"
+                    className="sort-btn"
+                    title={item.etiquetas_impresas
+                      ? 'Etiquetas ya impresas. Click para desmarcar.'
+                      : 'Etiquetas sin imprimir. Click para marcar como impresas.'}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: item.etiquetas_impresas ? '#15803d' : '#b91c1c',
+                      borderColor: item.etiquetas_impresas ? '#15803d' : '#b91c1c',
+                    }}
+                    onClick={() => toggleCampoBooleano(idx, item, 'etiquetas_impresas', 'marcar-etiquetas')}
+                  >
+                    {item.etiquetas_impresas ? '✅ Etiquetas impresas' : '❌ Etiquetas sin imprimir'}
+                  </button>
 
                   <span className="corte-label" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {editandoParcialId === item.id ? (
