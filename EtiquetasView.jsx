@@ -8,7 +8,7 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
     <div className="paste-box">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
         <h2 className="section-title" style={{ margin: 0 }}>{titulo} ({items.length})</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="sort-btn" onClick={() => toggleTodos(items)}>
             {todosMarcados ? 'Desmarcar todas' : 'Marcar todas'}
           </button>

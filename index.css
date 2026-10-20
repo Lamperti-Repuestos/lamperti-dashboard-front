@@ -1062,7 +1062,13 @@ button {
   padding: 3px 8px;
   border-radius: 6px;
   color: var(--white);
-  white-space: nowrap;
+  /* en celular un rótulo largo tiene que partirse en renglones, no salirse de la pantalla */
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .badge-colecta { background: var(--navy); }
@@ -1602,7 +1608,11 @@ button {
   padding: 3px 9px;
   border-radius: 999px;
   color: #fff;
-  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 .vf-badge-ok { background: var(--ok); }
 .vf-badge-alerta { background: var(--alerta); }
