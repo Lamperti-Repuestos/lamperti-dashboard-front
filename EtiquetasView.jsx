@@ -40,7 +40,7 @@ function Seccion({ titulo, items, seleccionados, toggleUno, toggleTodos, onImpri
             checked={seleccionados.has(it.shipment_id)}
             onChange={() => toggleUno(it.shipment_id)}
           />
-          <div className="title-cell">
+          <div className="title-cell" title={it.multiproducto ? (it.titulos || []).join('\n') : undefined}>
             {it.titulo}
             <span className="id-cell mono">{it.comprador} · Envío #{it.shipment_id}</span>
           </div>
@@ -261,7 +261,7 @@ export default function EtiquetasView({ onUnauthorized, onImportado }) {
     apiFetch('/control-embalaje/importar-order-ids', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_ids: items.map((it) => String(it.order_id)) }),
+      body: JSON.stringify({ order_ids: items.flatMap((it) => (it.order_ids || [it.order_id]).map(String)) }),
     }, onUnauthorized)
       .then(async (res) => {
         const d = await res.json()
