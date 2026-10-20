@@ -414,7 +414,12 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     <div
       key={item.id}
       className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}
-      style={anidada ? { marginLeft: 24 } : undefined}
+      style={anidada ? {
+        marginLeft: 24,
+        background: 'var(--bg-activo)',
+        borderLeft: '4px solid var(--info)',
+        paddingLeft: 12,
+      } : undefined}
     >
       <input
         type="checkbox"
