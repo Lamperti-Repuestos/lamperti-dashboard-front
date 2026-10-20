@@ -122,6 +122,11 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-muted)', textTransform: 'uppercase', marginTop: 4 }}>
             Ventas hoy
           </div>
+          {ventas.ordenes != null && ventas.ordenes !== ventas.total && (
+            <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 2 }} title="Un carrito con varios productos cuenta como una venta, como en la pantalla Ventas de ML. El monitor de ventas de ML cuenta cada producto.">
+              {ventas.ordenes} contando cada producto de los multiproducto
+            </div>
+          )}
 
           {ventas.ticket_promedio !== undefined && (
             <div style={{ marginTop: 10, fontSize: 15, color: 'var(--navy)' }}>
@@ -131,6 +136,9 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               </strong>
               <span style={{ color: 'var(--gray-muted)', fontSize: 13 }}>
                 {' '}· vendido hoy: ${Math.round(ventas.facturacion || 0).toLocaleString('es-AR')}
+                {ventas.ticket_por_orden != null && ventas.ordenes !== ventas.total && ventas.total > 0 && (
+                  <> · por producto: ${Math.round(ventas.ticket_por_orden).toLocaleString('es-AR')}</>
+                )}
               </span>
             </div>
           )}

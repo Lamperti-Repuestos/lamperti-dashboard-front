@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { apiFetch } from './api.js'
+import VelasChart, { colorDe } from './VelasChart.jsx'
 
 const RANGOS = [7, 30, 60, 90]
 
 // Líneas que se pueden prender y apagar debajo del gráfico (se irán sumando más).
 const SERIES = [
   { key: 'ticket', nombre: 'Ticket promedio', color: 'var(--navy)', campo: 'ticket_promedio' },
+  { key: 'ventas', nombre: 'Ventas', color: 'var(--atencion)', campo: 'ventas' },
   { key: 'full', nombre: 'Plata en Full', color: 'var(--serie-2)', campo: 'full_valor' },
 ]
 const GUARDADO = 'dashboard_ticket_series'
+const GUARDADO_GRAFICO = 'dashboard_ticket_grafico'   // { tipo: 'lineas'|'velas', campo, modo }
+
+const leerGrafico = () => {
+  const porDefecto = { tipo: 'lineas', campo: 'ticket_promedio', modo: 'diaria' }
+  try { return { ...porDefecto, ...JSON.parse(localStorage.getItem(GUARDADO_GRAFICO) || '{}') } } catch { return porDefecto }
+}
 
 const leerActivas = () => {
   try {
@@ -51,7 +59,14 @@ function LectorDia({ d, señalado, activas, bases }) {
         <div>
           <span style={{ color: 'var(--navy)' }}>●</span> Ticket promedio: <strong>{pesos(d.ticket_promedio)}</strong>
           {indexado && d.ticket_promedio != null && bases.ticket ? <span style={gris}> ({variacion(d.ticket_promedio, bases.ticket)})</span> : null}
-          <span style={gris}> · {d.ventas} ventas</span>
+          <span style={gris}> · {d.ventas} ventas{d.ordenes > d.ventas ? ` (${d.ordenes} productos)` : ''}</span>
+        </div>
+      )}
+      {activas.includes('ventas') && (
+        <div>
+          <span style={{ color: 'var(--atencion)' }}>●</span> Ventas: <strong>{d.ventas}</strong>
+          {indexado && bases.ventas ? <span style={gris}> ({variacion(d.ventas, bases.ventas)})</span> : null}
+          {d.ordenes > d.ventas && <span style={gris}> · {d.ordenes} contando cada producto</span>}
         </div>
       )}
       {activas.includes('ticket') && (
@@ -70,6 +85,48 @@ function LectorDia({ d, señalado, activas, bases }) {
   )
 }
 
+// Cuadro del gráfico de velas con la vela señalada (o la última).
+function LectorVela({ v, señalada, campo, modo }) {
+  if (!v) return null
+  const gris = { color: 'var(--gray-muted)' }
+  const fmt = campo === 'ventas' ? (n) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 }) : pesos
+  const cambio = v.open && !v.parcial ? ((v.close / v.open - 1) * 100) : null
+  const periodo = modo === 'semanal' ? `Semana del ${conDia(v.fecha)}${v.fin !== v.fecha ? ` al ${corta(v.fin)}` : ''}` : conDia(v.fecha)
+  return (
+    <div role="status" aria-live="polite" style={{ minHeight: 98, padding: '2px 8px 6px 12px', fontSize: 13, lineHeight: 1.45, color: 'var(--charcoal)' }}>
+      <div>
+        <strong>{periodo}</strong>{v.parcial ? ' (en curso)' : ''}
+        {!señalada && <span style={gris}> · pasá el mouse por una vela</span>}
+      </div>
+      <div>
+        {modo === 'semanal' ? 'Semana anterior' : 'Día anterior'} <strong>{fmt(v.open)}</strong> · {modo === 'semanal' ? 'Esta semana' : 'Este día'} <strong style={{ color: colorDe(v) }}>{fmt(v.close)}</strong>
+        {modo === 'semanal' && <span style={gris}>{campo === 'ventas' ? ' por día' : ''}</span>}
+        {cambio != null && <span style={{ color: colorDe(v) }}> ({cambio > 0 ? '+' : ''}{cambio.toFixed(1)}%)</span>}
+        {v.parcial && <span style={gris}> · {modo === 'semanal' ? 'sin contar hoy' : 'todavía no terminó'}</span>}
+      </div>
+      <div style={gris}>
+        Máximo <strong style={{ color: 'var(--charcoal)' }}>{fmt(v.high)}</strong> · Mínimo <strong style={{ color: 'var(--charcoal)' }}>{fmt(v.low)}</strong>
+      </div>
+    </div>
+  )
+}
+
+// Las lecturas del análisis: líneas en MAYÚSCULAS como títulos, el resto como párrafo.
+function TextoAnalisis({ texto }) {
+  return texto.split('\n').map((linea, i) => (
+    linea.trim() === '' ? <div key={i} style={{ height: 8 }} />
+      : /^[A-ZÁÉÍÓÚÑ0-9 ()/:,.-]{4,}$/.test(linea.trim())
+        ? <div key={i} style={{ fontWeight: 700, marginTop: 4 }}>{linea}</div>
+        : <div key={i}>{linea}</div>
+  ))
+}
+
+const LECTURAS = [
+  { key: 'ventas', titulo: '📈 Ventas' },
+  { key: 'ticket', titulo: '🎟️ Ticket promedio' },
+  { key: 'relacion', titulo: '🔗 Cómo se relacionan' },
+]
+
 function Cifra({ titulo, valor, detalle }) {
   return (
     <div style={{ flex: '1 1 150px', background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
@@ -87,11 +144,12 @@ export default function TicketPromedioView({ onUnauthorized }) {
   const [cargando, setCargando] = useState(true)
   const [fecha, setFecha] = useState('')
   const [tabla, setTabla] = useState(false)
-  const [analisis, setAnalisis] = useState(null)      // { texto, generado_en, dias, en_cache }
+  const [analisis, setAnalisis] = useState(null)      // { texto, lecturas: {ventas, ticket, relacion}, generado_en, dias, en_cache }
   const [cargandoAnalisis, setCargandoAnalisis] = useState(false)
   const [errorAnalisis, setErrorAnalisis] = useState(null)
   const [señalado, setSeñalado] = useState(null)      // día sobre el que está el mouse (YYYY-MM-DD)
   const [activas, setActivas] = useState(leerActivas)
+  const [grafico, setGrafico] = useState(leerGrafico)
   const [full, setFull] = useState(null)         // { 'YYYY-MM-DD': {valor, unidades, publicaciones} }
   const [errorFull, setErrorFull] = useState(null)
   const [cargandoFull, setCargandoFull] = useState(false)
@@ -102,6 +160,12 @@ export default function TicketPromedioView({ onUnauthorized }) {
     if (!sig.length) return                    // siempre queda al menos una línea
     setActivas(sig)
     try { localStorage.setItem(GUARDADO, JSON.stringify(sig)) } catch { /* no es grave */ }
+  }
+
+  const cambiarGrafico = (cambio) => {
+    const sig = { ...grafico, ...cambio }
+    setGrafico(sig)
+    try { localStorage.setItem(GUARDADO_GRAFICO, JSON.stringify(sig)) } catch { /* no es grave */ }
   }
 
   useEffect(() => {
@@ -194,7 +258,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
   return (
     <div style={{ margin: '24px 24px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, color: 'var(--charcoal)' }}>🎟️ Ticket promedio por día</h3>
+        <h3 style={{ margin: 0, color: 'var(--charcoal)' }}>🎟️ Ventas y ticket promedio por día</h3>
         <div style={{ display: 'flex', gap: 6 }}>
           {RANGOS.map((r) => (
             <button key={r} type="button" className={`sort-btn ${r === dias ? 'active-outline' : ''}`} aria-pressed={r === dias} onClick={() => setDias(r)}>
@@ -222,12 +286,56 @@ export default function TicketPromedioView({ onUnauthorized }) {
           )}
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-            <Cifra titulo={`Promedio ${dias} días`} valor={pesos(data.periodo.ticket_promedio)} detalle={`${data.periodo.ventas} ventas · sin contar hoy`} />
+            <Cifra titulo={`Ticket promedio ${dias} días`} valor={pesos(data.periodo.ticket_promedio)}
+              detalle={`${data.periodo.ventas} ventas · sin contar hoy${data.periodo.ticket_por_orden != null && data.periodo.ordenes > data.periodo.ventas ? ` · por producto ${pesos(data.periodo.ticket_por_orden)}` : ''}`} />
+            <Cifra titulo="Ventas por día" valor={data.periodo.dias ? (data.periodo.ventas / data.periodo.dias).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : '—'}
+              detalle={`${data.periodo.ventas} en ${data.periodo.dias} días${data.periodo.ordenes > data.periodo.ventas ? ` · ${data.periodo.ordenes} contando cada producto` : ''}`} />
             {hito && <Cifra titulo="Antes del cambio" valor={pesos(hito.antes.ticket_promedio)} detalle={`${hito.antes.dias} días · ${hito.antes.ventas} ventas`} />}
             {hito && <Cifra titulo="Desde el cambio" valor={pesos(hito.desde.ticket_promedio)} detalle={`${hito.desde.dias} ${hito.desde.dias === 1 ? 'día' : 'días'} · ${hito.desde.ventas} ventas${delta != null ? ` · ${delta > 0 ? '+' : ''}${delta.toFixed(1)}%` : ''}`} />}
           </div>
 
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 8px 4px', opacity: cargando ? 0.6 : 1 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '0 8px 8px' }}>
+              <div role="group" aria-label="Tipo de gráfico" style={{ display: 'flex', gap: 6 }}>
+                {[['lineas', '〰 Líneas'], ['velas', '🕯 Velas']].map(([k, t]) => (
+                  <button key={k} type="button" className={`sort-btn ${grafico.tipo === k ? 'active-outline' : ''}`} aria-pressed={grafico.tipo === k} onClick={() => cambiarGrafico({ tipo: k })}>{t}</button>
+                ))}
+              </div>
+              {grafico.tipo === 'velas' && (
+                <>
+                  <div role="group" aria-label="Qué muestran las velas" style={{ display: 'flex', gap: 6 }}>
+                    {[['ventas', 'Ventas'], ['ticket_promedio', 'Ticket']].map(([k, t]) => (
+                      <button key={k} type="button" className={`sort-btn ${grafico.campo === k ? 'active-outline' : ''}`} aria-pressed={grafico.campo === k} onClick={() => cambiarGrafico({ campo: k })}>{t}</button>
+                    ))}
+                  </div>
+                  <div role="group" aria-label="Cada vela es" style={{ display: 'flex', gap: 6 }}>
+                    {[['diaria', 'Por día'], ['semanal', 'Por semana']].map(([k, t]) => (
+                      <button key={k} type="button" className={`sort-btn ${grafico.modo === k ? 'active-outline' : ''}`} aria-pressed={grafico.modo === k} onClick={() => cambiarGrafico({ modo: k })}>{t}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {grafico.tipo === 'velas' && data.velas && (
+              <>
+                <VelasChart
+                  key={`${grafico.campo}-${grafico.modo}-${dias}`}
+                  velas={data.velas[grafico.modo][grafico.campo]}
+                  formatoEje={grafico.campo === 'ventas' ? (v) => `${Math.round(v)}` : (v) => `$${Math.round(v / 1000)}k`}
+                  formatoFecha={dias <= 30 && grafico.modo === 'diaria' ? conDiaCorto : corta}
+                  hitos={data.hitos || []}
+                  lector={(v, señalada) => <LectorVela v={v} señalada={señalada} campo={grafico.campo} modo={grafico.modo} />}
+                />
+                <div style={{ fontSize: 12, color: 'var(--gray-muted)', padding: '4px 8px 8px' }}>
+                  {grafico.modo === 'diaria'
+                    ? <div>Cada vela es un día: abre donde cerró el día anterior y cierra en el valor del día. <span style={{ color: 'var(--ok)' }}>Verde</span> = subió, <span style={{ color: 'var(--alerta)' }}>roja</span> = bajó.</div>
+                    : <div>Cada vela es una semana (lunes a domingo): abre con el promedio {grafico.campo === 'ventas' ? 'de ventas por día' : 'del ticket'} de la semana anterior y cierra con el de esta. La mecha marca el mejor y el peor día. <span style={{ color: 'var(--ok)' }}>Verde</span> = mejor que la semana anterior, <span style={{ color: 'var(--alerta)' }}>roja</span> = peor.</div>}
+                  <div>La vela hueca y gris es la que está en curso: puede cambiar hasta que termine{grafico.modo === 'semanal' ? ' (el día de hoy no se cuenta)' : ''}.</div>
+                  {(data.hitos || []).map((h) => <div key={h.fecha}>⚑ {larga(h.fecha)} — {h.texto}</div>)}
+                </div>
+              </>
+            )}
+            {grafico.tipo === 'lineas' && (<>
             <div>
             <LectorDia d={filas.find((f) => f.fecha === señalado) || filas[filas.length - 1]} señalado={!!señalado} activas={activas} bases={bases} />
             <ResponsiveContainer width="100%" height={290}>
@@ -235,7 +343,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
                 <CartesianGrid stroke="var(--gray-line)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="fecha" tickFormatter={dias <= 30 ? conDiaCorto : corta} tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" minTickGap={dias <= 30 ? 8 : 18} />
                 <YAxis
-                  tickFormatter={indexado ? (v) => `${Math.round(v)}` : unico?.key === 'full' ? (v) => `$${(v / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M` : (v) => `$${Math.round(v / 1000)}k`}
+                  tickFormatter={indexado || unico?.key === 'ventas' ? (v) => `${Math.round(v)}` : unico?.key === 'full' ? (v) => `$${(v / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M` : (v) => `$${Math.round(v / 1000)}k`}
                   tick={{ fontSize: 12, fill: 'var(--gray-muted)' }} stroke="var(--gray-line)" width={indexado ? 40 : 56} domain={['auto', 'auto']}
                 />
                 <Tooltip content={<Puente onDia={setSeñalado} />} cursor={{ stroke: 'var(--gray-muted)', strokeWidth: 1 }} isAnimationActive={false} />
@@ -272,23 +380,26 @@ export default function TicketPromedioView({ onUnauthorized }) {
               <div>El último punto es el día en curso: puede moverse hasta que termine el día.</div>
               {data.hubo_truncado && <div>⚠ Algún período tuvo más de 2.000 ventas y ML devolvió solo parte: esos días pueden quedar bajos.</div>}
             </div>
+            </>)}
           </div>
 
           <div style={{ marginTop: 12 }}>
             <button type="button" className="scan-btn" onClick={pedirAnalisis} disabled={cargandoAnalisis} aria-busy={cargandoAnalisis}>
               {cargandoAnalisis ? '🧠 Analizando…' : analisis ? '🧠 Actualizar análisis técnico de hoy' : '🧠 Obtener análisis técnico de hoy'}
             </button>
-            <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--gray-muted)' }}>Lee los últimos {dias} días del gráfico</span>
+            <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--gray-muted)' }}>Lee las ventas y el ticket de los últimos {dias} días</span>
             {errorAnalisis && <div role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--alerta)' }}>No pude hacer el análisis: {errorAnalisis}</div>}
             {analisis && (
               <div style={{ marginTop: 10, background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 'var(--radius)', padding: '12px 16px', opacity: cargandoAnalisis ? 0.6 : 1 }}>
                 <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--charcoal)' }}>
-                  {analisis.texto.split('\n').map((linea, i) => (
-                    linea.trim() === '' ? <div key={i} style={{ height: 8 }} />
-                      : /^[A-ZÁÉÍÓÚÑ0-9 ()/:,.-]{4,}$/.test(linea.trim())
-                        ? <div key={i} style={{ fontWeight: 700, marginTop: 4 }}>{linea}</div>
-                        : <div key={i}>{linea}</div>
-                  ))}
+                  {analisis.lecturas
+                    ? LECTURAS.filter((l) => analisis.lecturas[l.key]).map((l, i) => (
+                      <section key={l.key} style={i ? { marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-line)' } : undefined}>
+                        <h4 style={{ margin: '0 0 4px', fontSize: 15 }}>{l.titulo}</h4>
+                        <TextoAnalisis texto={analisis.lecturas[l.key]} />
+                      </section>
+                    ))
+                    : <TextoAnalisis texto={analisis.texto} />}
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gray-muted)' }}>
                   Generado a las {new Date(analisis.generado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · últimos {analisis.dias} días
@@ -305,15 +416,17 @@ export default function TicketPromedioView({ onUnauthorized }) {
             <div style={{ overflowX: 'auto', marginTop: 8 }}>
               <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13, color: 'var(--charcoal)' }}>
                 <thead>
-                  <tr>{['Día', 'Ventas', 'Vendido', 'Ticket promedio', 'Más alto', 'Más bajo', ...(fullPrendida ? ['Plata en Full'] : [])].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
+                  <tr>{['Día', 'Ventas', 'Productos', 'Vendido', 'Ticket promedio', 'Por producto', 'Más alto', 'Más bajo', ...(fullPrendida ? ['Plata en Full'] : [])].map((t) => <th key={t} style={{ textAlign: 'right', padding: '4px 10px', borderBottom: '1px solid var(--gray-line)' }}>{t}</th>)}</tr>
                 </thead>
                 <tbody>
                   {[...filas].reverse().map((f) => (
                     <tr key={f.fecha}>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{conDia(f.fecha)}{f.parcial ? ' *' : ''}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.ventas}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 10px', color: 'var(--gray-muted)' }}>{f.ordenes}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.facturacion)}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px', fontWeight: 700 }}>{pesos(f.ticket_promedio)}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 10px', color: 'var(--gray-muted)' }}>{pesos(f.ticket_por_orden)}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.ticket_max)}</td>
                       <td style={{ textAlign: 'right', padding: '4px 10px' }}>{pesos(f.ticket_min)}</td>
                       {fullPrendida && <td style={{ textAlign: 'right', padding: '4px 10px' }}>{f.full_valor == null ? 'sin foto' : pesos(f.full_valor)}</td>}
