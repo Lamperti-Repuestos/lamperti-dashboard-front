@@ -15,7 +15,7 @@ const GUARDADO = 'dashboard_ticket_series'
 const GUARDADO_GRAFICO = 'dashboard_ticket_grafico'   // { tipo: 'lineas'|'velas', campo, modo }
 
 const leerGrafico = () => {
-  const porDefecto = { tipo: 'lineas', campo: 'ticket_promedio', modo: 'diaria' }
+  const porDefecto = { tipo: 'lineas', campo: 'ticket_promedio', modo: 'diaria', patrones: true }
   try { return { ...porDefecto, ...JSON.parse(localStorage.getItem(GUARDADO_GRAFICO) || '{}') } } catch { return porDefecto }
 }
 
@@ -106,6 +106,7 @@ function LectorVela({ v, señalada, campo, modo }) {
       </div>
       <div style={gris}>
         Máximo <strong style={{ color: 'var(--charcoal)' }}>{fmt(v.high)}</strong> · Mínimo <strong style={{ color: 'var(--charcoal)' }}>{fmt(v.low)}</strong>
+        {v.media != null && <> · Media 7 días <strong style={{ color: 'var(--charcoal)' }}>{fmt(v.media)}</strong></>}
       </div>
     </div>
   )
@@ -228,6 +229,17 @@ export default function TicketPromedioView({ onUnauthorized }) {
     [filas, bases],
   )
   const elegido = useMemo(() => filas.find((f) => f.fecha === fecha), [filas, fecha])
+  // Lo que se dibuja sobre las velas: patrones de velas siempre; figuras y media de 7 días solo en las velas por día.
+  const patronesDelGrafico = useMemo(() => {
+    const p = data?.patrones?.[grafico.campo === 'ventas' ? 'ventas' : 'ticket']
+    if (!p) return {}
+    if (grafico.modo === 'semanal') return { patrones: p.velas_semanales.patrones }
+    return {
+      patrones: p.velas_diarias.patrones.filter((x) => !x.lo_explica_el_dia_de_la_semana),
+      figuras: p.figuras,
+      media: p.media_7,
+    }
+  }, [data, grafico.campo, grafico.modo])
   const hito = data?.hitos?.[0]
   const delta = hito?.antes?.ticket_promedio && hito?.desde?.ticket_promedio
     ? ((hito.desde.ticket_promedio - hito.antes.ticket_promedio) / hito.antes.ticket_promedio) * 100
@@ -313,6 +325,11 @@ export default function TicketPromedioView({ onUnauthorized }) {
                       <button key={k} type="button" className={`sort-btn ${grafico.modo === k ? 'active-outline' : ''}`} aria-pressed={grafico.modo === k} onClick={() => cambiarGrafico({ modo: k })}>{t}</button>
                     ))}
                   </div>
+                  {data.patrones && (
+                    <button type="button" className={`sort-btn ${grafico.patrones ? 'active-outline' : ''}`} aria-pressed={grafico.patrones} onClick={() => cambiarGrafico({ patrones: !grafico.patrones })}>
+                      📐 Patrones
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -321,6 +338,7 @@ export default function TicketPromedioView({ onUnauthorized }) {
                 <VelasChart
                   key={`${grafico.campo}-${grafico.modo}-${dias}`}
                   velas={data.velas[grafico.modo][grafico.campo]}
+                  {...(grafico.patrones ? patronesDelGrafico : {})}
                   formatoEje={grafico.campo === 'ventas' ? (v) => `${Math.round(v)}` : (v) => `$${Math.round(v / 1000)}k`}
                   formatoFecha={dias <= 30 && grafico.modo === 'diaria' ? conDiaCorto : corta}
                   hitos={data.hitos || []}
@@ -330,6 +348,21 @@ export default function TicketPromedioView({ onUnauthorized }) {
                   {grafico.modo === 'diaria'
                     ? <div>Cada vela es un día: abre donde cerró el día anterior y cierra en el valor del día. <span style={{ color: 'var(--ok)' }}>Verde</span> = subió, <span style={{ color: 'var(--alerta)' }}>roja</span> = bajó.</div>
                     : <div>Cada vela es una semana (lunes a domingo): abre con el promedio {grafico.campo === 'ventas' ? 'de ventas por día' : 'del ticket'} de la semana anterior y cierra con el de esta. La mecha marca el mejor y el peor día. <span style={{ color: 'var(--ok)' }}>Verde</span> = mejor que la semana anterior, <span style={{ color: 'var(--alerta)' }}>roja</span> = peor.</div>}
+                  {grafico.patrones && patronesDelGrafico.figuras?.length > 0 && (
+                    <div style={{ margin: '4px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {patronesDelGrafico.figuras.map((f) => (
+                        <div key={f.nombre} style={{ color: 'var(--charcoal)' }}>
+                          📐 <strong>{f.nombre[0].toUpperCase() + f.nombre.slice(1)}</strong> ({f.tipo}) · {f.estado} · desde {corta(f.desde)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {grafico.patrones && grafico.modo === 'diaria' && data.patrones && (
+                    <div>📐 Las figuras se buscan sobre la <strong>media de 7 días</strong> (línea punteada), que saca el efecto del día de la semana. Arriba de las velas van los patrones de velas; no se marcan los que explica el día de la semana (por ejemplo, domingo flojo y lunes fuerte).</div>
+                  )}
+                  {grafico.patrones && grafico.modo === 'semanal' && data.patrones && (
+                    <div>📐 En las velas por semana se marcan los patrones de velas; las figuras (cuñas, hombro-cabeza-hombro, etc.) se ven en "Por día".</div>
+                  )}
                   <div>La vela hueca y gris es la que está en curso: puede cambiar hasta que termine{grafico.modo === 'semanal' ? ' (el día de hoy no se cuenta)' : ''}.</div>
                   {(data.hitos || []).map((h) => <div key={h.fecha}>⚑ {larga(h.fecha)} — {h.texto}</div>)}
                 </div>
