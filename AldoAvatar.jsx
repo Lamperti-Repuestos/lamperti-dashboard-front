@@ -257,15 +257,17 @@ function Gla() {
   return (
     <Auto
       id="gla"
-      color="#C0C4C8"
+      color="#1B1C1F"
       cuerpo="M28,174 L28,148 Q30,134 48,130 L90,125 L120,95 Q128,87 146,87 L232,87 Q250,87 260,101 L276,123 L298,129 Q314,133 314,150 L314,174 Z"
       vidrio="M98,124 L124,97 Q131,91 147,91 L229,91 Q244,91 252,103 L267,124 Z"
       cintura={125}
       aldo={<Aldo x={214} y={98} s={1.1} animo="contento" volante mano={[20, 18]} />}
       extras={<g stroke={T} strokeWidth="1.2">
         <path d="M190,91 L188,124" strokeWidth="3" />
-        <path d="M28,166 L314,166 L314,174 L28,174 Z" fill="#3A3D42" />
-        <rect x="170" y="138" width="14" height="3" rx="1.5" fill="#888" />
+        <path d="M96,125 L268,125" stroke="#C9CDD2" strokeWidth="1.6" />
+        <path d="M44,146 Q170,140 300,142" stroke="#4A4D52" strokeWidth="1.4" fill="none" />
+        <path d="M28,166 L314,166 L314,174 L28,174 Z" fill="#2E3034" />
+        <rect x="170" y="138" width="14" height="3" rx="1.5" fill="#C9CDD2" />
         <path d="M298,134 L312,138 L312,144 L300,142 Z" fill="#E8F4FF" />
         <path d="M28,144 L38,142 L38,150 L28,150 Z" fill="#FF5A5A" />
       </g>}
