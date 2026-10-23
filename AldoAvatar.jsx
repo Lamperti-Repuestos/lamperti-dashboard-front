@@ -84,9 +84,9 @@ function Aldo({ x, y, s = 1, animo = 'contento', lentes = false, mano = [36, 42]
       <ellipse cx="-15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
       <ellipse cx="15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
       <ellipse cx="0" cy="0" rx="15" ry="18.5" fill={PIEL} stroke={T} strokeWidth="1.5" />
-      {/* pelo corto canoso, completo arriba (59 años, no 90) */}
-      <path d="M-15.5,0 Q-17,-12 -12,-17 Q-6,-22.5 2,-22 Q11,-21.5 15,-15 Q17,-9 15.5,0 Q14,-8 11,-11 Q4,-14 -3,-13.5 Q-10,-13 -13,-8 Q-14.5,-5 -15.5,0 Z" fill="#BFC0C2" stroke="#7E7F82" strokeWidth="1" strokeLinejoin="round" />
-      <path d="M-9,-17 Q-4,-19 1,-18.5 M3,-19.5 Q8,-18.5 11,-15.5 M-12,-12 Q-9,-15 -5,-15.5" stroke="#8E8F92" strokeWidth="1" fill="none" strokeLinecap="round" />
+      {/* pelo canoso corto, pegado al cráneo, con flequillo cortito */}
+      <path d="M-14.8,-3 C-16,-12 -10,-20 0,-19.8 C10,-20 16,-12 14.8,-3 L13.2,-5 Q12.5,-9 10,-11 L8,-10.2 L6.5,-12 L4,-11 L2,-12.6 L-0.5,-11.2 L-3,-12.6 L-5.5,-11 L-7.5,-12 L-9.5,-10.4 Q-12.5,-9 -13.2,-5 Z" fill="#D2D3D5" stroke="#A3A4A7" strokeWidth="0.7" strokeLinejoin="round" />
+      <path d="M-7,-16.5 L-5.5,-14 M-2,-17.5 L-1,-14.5 M3,-17.5 L3.5,-14.5 M8,-16 L8.5,-13.5" stroke="#B4B5B8" strokeWidth="0.8" strokeLinecap="round" />
       <path d={CEJAS[animo] || CEJAS.contento} stroke="#6F6A66" strokeWidth="2.4" fill="none" strokeLinecap="round" />
       {lentes && (
         <g>
