@@ -24,6 +24,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
   const [finalizando, setFinalizando] = useState(false)
   const [mostrarHistorial, setMostrarHistorial] = useState(false)
   const [historial, setHistorial] = useState(null)
+  const [expandidos, setExpandidos] = useState(new Set())
 
   const [msg, setMsg] = useState(null)
   const [limpiando, setLimpiando] = useState(false)
@@ -362,20 +363,170 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
     return soloNoEncontrados ? base.filter((it) => it.no_encontrado) : base
   }, [items, query, ocultarEmbalados, filtroTipo, soloNoEncontrados])
 
-  const embalados = items.filter((it) => it.checked).length
+  // Una venta multiproducto (carrito) son varias filas con el mismo envío y sale en UNA
+  // sola etiqueta: para contar y mostrar se juntan por envío, igual que en ML. Sin envío
+  // conocido, se agrupa por pedido.
+  const grupos = useMemo(() => {
+    const porClave = new Map()
+    items.forEach((it) => {
+      const clave = it.envio_id ? `e${it.envio_id}` : `o${it.order_id}`
+      if (!porClave.has(clave)) porClave.set(clave, { clave, filas: [] })
+      porClave.get(clave).filas.push(it)
+    })
+    return [...porClave.values()]
+  }, [items])
+
+  const gruposVisibles = useMemo(() => {
+    const idsVisibles = new Set(filtered.map((it) => it.id))
+    return grupos.filter((g) => g.filas.some((f) => idsVisibles.has(f.id)))
+  }, [grupos, filtered])
+
+  const grupoEmbalado = (g) => g.filas.every((f) => f.checked)
+  const embalados = grupos.filter(grupoEmbalado).length
 
   // Cuánto falta embalar de cada tipo, sobre lo YA importado al control
   // (no sobre lo que hay en ML sin importar todavía) - se recalcula solo
   // cada vez que se tilda algo o se importa una tanda nueva, porque las
   // dos cosas actualizan 'items'.
   const pendientesPorTipo = useMemo(() => {
-    const sinEmbalar = items.filter((it) => !it.checked)
+    const sinEmbalar = grupos.filter((g) => !grupoEmbalado(g))
     return {
-      colecta: sinEmbalar.filter((it) => it.tipo_envio === 'colecta').length,
-      flex: sinEmbalar.filter((it) => it.tipo_envio === 'flex').length,
+      colecta: sinEmbalar.filter((g) => g.filas[0].tipo_envio === 'colecta').length,
+      flex: sinEmbalar.filter((g) => g.filas[0].tipo_envio === 'flex').length,
       todos: sinEmbalar.length,
     }
-  }, [items])
+  }, [grupos])
+
+  const toggleGrupo = (g) => {
+    const nuevo = !grupoEmbalado(g)
+    g.filas.filter((f) => f.checked !== nuevo).forEach((f) => toggleChecked(f))
+  }
+
+  const toggleExpandido = (clave) =>
+    setExpandidos((prev) => {
+      const nuevo = new Set(prev)
+      if (nuevo.has(clave)) nuevo.delete(clave)
+      else nuevo.add(clave)
+      return nuevo
+    })
+
+  const renderFila = (item, anidada = false) => (
+    <div
+      key={item.id}
+      className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}
+      style={anidada ? {
+        marginLeft: 24,
+        background: 'var(--bg-activo)',
+        borderLeft: '4px solid var(--info)',
+        paddingLeft: 12,
+      } : undefined}
+    >
+      <input
+        type="checkbox"
+        className="pick-checkbox"
+        checked={item.checked}
+        onChange={() => toggleChecked(item)}
+      />
+      {fotoPorSku[item.sku] && (
+        <img
+          src={fotoPorSku[item.sku].chica}
+          alt=""
+          className="pick-thumb"
+          onClick={() => setZoomUrl(fotoPorSku[item.sku].grande)}
+        />
+      )}
+      <div className="pick-title">
+        {item.titulo}
+        <span className="id-cell mono">
+          SKU: {item.sku} · Cantidad: {item.cantidad}
+          {item.comprador && ` · Comprador: ${item.comprador}`}
+        </span>
+        {item.tipo_envio && (
+          <span className={`badge badge-${item.tipo_envio === 'colecta' ? 'colecta' : 'flex'}`}>
+            {item.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}
+          </span>
+        )}
+        {item.combo_con && (
+          <span className="sale-together">También se vendió con: {item.combo_con}</span>
+        )}
+        {item.faltante_en_picking && (
+          <span className="badge badge-sin-explicar">⚠ Marcado como faltante en "Para separar"</span>
+        )}
+        {!item.faltante_en_picking && item.separado_en_picking && (
+          <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
+        )}
+        {item.no_encontrado && (
+          <span className="badge badge-sin-explicar">🔍 No se encontró esta venta al embalar</span>
+        )}
+        {item.etiqueta_impresa && (
+          <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
+        )}
+        <button
+          type="button"
+          className={`faltante-btn ${item.faltante_en_picking ? 'faltante-btn-active' : ''}`}
+          onClick={() => toggleFaltante(item)}
+          title="Marcar como faltante en el local"
+        >
+          {item.faltante_en_picking ? '⚠ Faltante' : 'Faltante'}
+        </button>
+        <button
+          type="button"
+          className={`faltante-btn ${item.no_encontrado ? 'faltante-btn-active' : ''}`}
+          onClick={() => toggleNoEncontrado(item)}
+          title="No encontré ESTA venta al ir a embalarla (sin tocar Para separar ni otras ventas del mismo producto)"
+        >
+          {item.no_encontrado ? '🔍 No encontrado' : 'No encontrado'}
+        </button>
+      </div>
+    </div>
+  )
+
+  const renderGrupo = (g) => {
+    if (g.filas.length === 1) return renderFila(g.filas[0])
+    const primera = g.filas[0]
+    const abierto = expandidos.has(g.clave)
+    const unidades = g.filas.reduce((suma, f) => suma + (f.cantidad || 1), 0)
+    const embalado = grupoEmbalado(g)
+    return (
+      <div key={g.clave}>
+        <div className={`pick-row ${embalado ? 'pick-row-checked' : ''}`}>
+          <input
+            type="checkbox"
+            className="pick-checkbox"
+            checked={embalado}
+            onChange={() => toggleGrupo(g)}
+          />
+          <div className="pick-title">
+            Venta multiproducto · {unidades} unidades
+            <span className="id-cell mono">
+              {g.filas.length} productos
+              {primera.comprador && ` · Comprador: ${primera.comprador}`}
+              {primera.envio_id && ` · Envío #${primera.envio_id}`}
+            </span>
+            {primera.tipo_envio && (
+              <span className={`badge badge-${primera.tipo_envio === 'colecta' ? 'colecta' : 'flex'}`}>
+                {primera.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}
+              </span>
+            )}
+            <span className="badge badge-multi">📦 Multiproducto</span>
+            {g.filas.some((f) => f.faltante_en_picking) && (
+              <span className="badge badge-sin-explicar">⚠ Hay faltantes en esta venta</span>
+            )}
+            {g.filas.some((f) => f.no_encontrado) && (
+              <span className="badge badge-sin-explicar">🔍 Hay productos no encontrados</span>
+            )}
+            {g.filas.some((f) => f.etiqueta_impresa) && (
+              <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
+            )}
+            <button type="button" className="faltante-btn" onClick={() => toggleExpandido(g.clave)}>
+              {abierto ? '▲ Ocultar productos' : '▼ Ver productos'}
+            </button>
+          </div>
+        </div>
+        {abierto && g.filas.map((f) => renderFila(f, true))}
+      </div>
+    )
+  }
 
   return (
     <>
@@ -494,7 +645,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
       {!loading && !error && (
         <div className="summary">
           <div className="summary-item">
-            <div className="value mono">{items.length}</div>
+            <div className="value mono">{grupos.length}</div>
             <div className="label">Total en control</div>
           </div>
           <div className="summary-item">
@@ -502,7 +653,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
             <div className="label">Embalados</div>
           </div>
           <div className="summary-item warn">
-            <div className="value mono">{items.length - embalados}</div>
+            <div className="value mono">{grupos.length - embalados}</div>
             <div className="label">Sin embalar</div>
           </div>
         </div>
@@ -518,67 +669,7 @@ export default function ControlEmbalajeView({ onUnauthorized }) {
           </div>
         )}
 
-        {!loading && !error && filtered.map((item) => (
-          <div key={item.id} className={`pick-row ${item.checked ? 'pick-row-checked' : ''}`}>
-            <input
-              type="checkbox"
-              className="pick-checkbox"
-              checked={item.checked}
-              onChange={() => toggleChecked(item)}
-            />
-            {fotoPorSku[item.sku] && (
-              <img
-                src={fotoPorSku[item.sku].chica}
-                alt=""
-                className="pick-thumb"
-                onClick={() => setZoomUrl(fotoPorSku[item.sku].grande)}
-              />
-            )}
-            <div className="pick-title">
-              {item.titulo}
-              <span className="id-cell mono">
-                SKU: {item.sku} · Cantidad: {item.cantidad}
-                {item.comprador && ` · Comprador: ${item.comprador}`}
-              </span>
-              {item.tipo_envio && (
-                <span className={`badge badge-${item.tipo_envio === 'colecta' ? 'colecta' : 'flex'}`}>
-                  {item.tipo_envio === 'colecta' ? 'Colecta' : 'Flex'}
-                </span>
-              )}
-              {item.combo_con && (
-                <span className="sale-together">También se vendió con: {item.combo_con}</span>
-              )}
-              {item.faltante_en_picking && (
-                <span className="badge badge-sin-explicar">⚠ Marcado como faltante en "Para separar"</span>
-              )}
-              {!item.faltante_en_picking && item.separado_en_picking && (
-                <span className="badge badge-explicada">✅ Ya está separado (visto en "Para separar")</span>
-              )}
-              {item.no_encontrado && (
-                <span className="badge badge-sin-explicar">🔍 No se encontró esta venta al embalar</span>
-              )}
-              {item.etiqueta_impresa && (
-                <span className="badge badge-explicada">🖨 Etiqueta impresa - listo para despachar</span>
-              )}
-              <button
-                type="button"
-                className={`faltante-btn ${item.faltante_en_picking ? 'faltante-btn-active' : ''}`}
-                onClick={() => toggleFaltante(item)}
-                title="Marcar como faltante en el local"
-              >
-                {item.faltante_en_picking ? '⚠ Faltante' : 'Faltante'}
-              </button>
-              <button
-                type="button"
-                className={`faltante-btn ${item.no_encontrado ? 'faltante-btn-active' : ''}`}
-                onClick={() => toggleNoEncontrado(item)}
-                title="No encontré ESTA venta al ir a embalarla (sin tocar Para separar ni otras ventas del mismo producto)"
-              >
-                {item.no_encontrado ? '🔍 No encontrado' : 'No encontrado'}
-              </button>
-            </div>
-          </div>
-        ))}
+        {!loading && !error && gruposVisibles.map((g) => renderGrupo(g))}
       </div>
 
       <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />

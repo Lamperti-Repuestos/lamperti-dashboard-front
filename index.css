@@ -1062,7 +1062,13 @@ button {
   padding: 3px 8px;
   border-radius: 6px;
   color: var(--white);
-  white-space: nowrap;
+  /* en celular un rótulo largo tiene que partirse en renglones, no salirse de la pantalla */
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .badge-colecta { background: var(--navy); }
@@ -1602,7 +1608,11 @@ button {
   padding: 3px 9px;
   border-radius: 999px;
   color: #fff;
-  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 .vf-badge-ok { background: var(--ok); }
 .vf-badge-alerta { background: var(--alerta); }
@@ -1691,3 +1701,10 @@ button {
 .cr-titulo { font-weight: 700; }
 .cr-lapiz { background: none; border: 0; cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0.6; }
 .cr-lapiz:hover, .cr-lapiz:focus-visible { opacity: 1; }
+
+/* Aldo manejando según el ticket promedio (Resumen) */
+.aldo-avatar { animation: aldoEntra 0.5s ease-out; }
+.aldo-escena { animation: aldoTraqueteo 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+@keyframes aldoEntra { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@keyframes aldoTraqueteo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@media (prefers-reduced-motion: reduce) { .aldo-avatar, .aldo-escena { animation: none; } }
