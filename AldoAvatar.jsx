@@ -280,9 +280,7 @@ export default function AldoAvatar({ ticket }) {
 
   const idx = nivelPorTicket(valor)
   const nivel = NIVELES[idx]
-  const siguiente = NIVELES[idx + 1]
   const Escena = ESCENAS[nivel.key]
-  const pesos = (n) => `$${Math.round(n).toLocaleString('es-AR')}`
 
   return (
     <div className="aldo-avatar" key={nivel.key}>
@@ -312,12 +310,6 @@ export default function AldoAvatar({ ticket }) {
         </g>
         <text x="170" y="232" fontFamily="'Arial Black', 'Arial', sans-serif" fontWeight="900" fontSize="26" fill="#FFD21F" stroke="#2B2B2B" strokeWidth="5" paintOrder="stroke" strokeLinejoin="round" textAnchor="middle">Lamperti</text>
       </svg>
-      <div style={{ fontSize: 12, color: 'var(--gray-muted)', marginTop: 2 }}>
-        Aldo en <strong style={{ color: 'var(--charcoal)' }}>{nivel.vehiculo}</strong>
-        {siguiente
-          ? <> · próximo: {siguiente.vehiculo} desde {pesos(siguiente.desde)} de ticket (faltan {pesos(siguiente.desde - Math.round(valor || 0))})</>
-          : <> · tope de gama, no hay nada más arriba</>}
-      </div>
     </div>
   )
 }
