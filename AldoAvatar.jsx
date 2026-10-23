@@ -18,15 +18,16 @@ export function nivelPorTicket(ticket) {
 }
 
 const T = '#3A2A22' // trazo
-const PIEL = '#F2C6A0'
-const CAMPERA = '#2E5E9E'
+const PIEL = '#E3A97E'
+const CAMPERA = '#4F7DAF' // buzo polar azul acero de medio cierre
+const CHOMBA = '#1F3F8F' // cuello de la chomba que asoma
 
 const CEJAS = {
-  llorando: 'M-11,-5 Q-7,-6 -2,-10 M2,-10 Q7,-6 11,-5',
-  triste: 'M-10,-5 Q-6,-6 -2,-8.5 M2,-8.5 Q6,-6 10,-5',
-  neutral: 'M-10,-6.5 L-2,-6.5 M2,-6.5 L10,-6.5',
-  contento: 'M-10,-6 Q-6,-9 -2,-6 M2,-6 Q6,-9 10,-6',
-  euforico: 'M-10,-8 Q-6,-12 -2,-8 M2,-8 Q6,-12 10,-8',
+  llorando: 'M-10.5,-4.5 Q-7,-5.5 -2.5,-9 M2.5,-9 Q7,-5.5 10.5,-4.5',
+  triste: 'M-10,-5 Q-6.5,-5.5 -2.5,-7.8 M2.5,-7.8 Q6.5,-5.5 10,-5',
+  neutral: 'M-10,-6 Q-6,-6.8 -2.5,-6 M2.5,-6 Q6,-6.8 10,-6',
+  contento: 'M-10,-6 Q-6,-8.5 -2.5,-6.5 M2.5,-6.5 Q6,-8.5 10,-6',
+  euforico: 'M-10,-7.5 Q-6,-11 -2.5,-8 M2.5,-8 Q6,-11 10,-7.5',
 }
 
 function Boca({ animo }) {
@@ -39,7 +40,12 @@ function Boca({ animo }) {
       <path d="M-7,8.5 L7,8.5 L6,10.5 L-6,10.5 Z" fill="#fff" />
     </g>
   )
-  return <path d="M-7,10 Q0,15.5 7,10 Q0,12.5 -7,10 Z" fill="#fff" stroke="#6B3A2A" strokeWidth="1.5" strokeLinejoin="round" />
+  return (
+    <g>
+      <path d="M-8,9.5 Q0,17 8,9.5 Q0,12 -8,9.5 Z" fill="#fff" stroke="#6B3A2A" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M-7.5,10.4 Q0,12.6 7.5,10.4" stroke="#D9D2CC" strokeWidth="0.6" fill="none" />
+    </g>
+  )
 }
 
 function Ojos({ animo }) {
@@ -51,43 +57,65 @@ function Ojos({ animo }) {
       <circle cx="13" cy="19" r="1.5" fill="#6EC1F0" />
     </g>
   )
+  const caido = animo === 'triste'
   return (
     <g>
-      <ellipse cx="-6" cy="-1" rx="1.8" ry={animo === 'triste' ? 1.6 : 2.2} fill="#2B2B2B" />
-      <ellipse cx="6" cy="-1" rx="1.8" ry={animo === 'triste' ? 1.6 : 2.2} fill="#2B2B2B" />
-      {animo === 'triste' && <path d="M-8.5,-2.5 L-3.5,-2.5 M3.5,-2.5 L8.5,-2.5" stroke="#B88A6A" strokeWidth="1" />}
+      {[-6, 6].map((ex) => (
+        <g key={ex}>
+          <ellipse cx={ex} cy="-0.8" rx="2.9" ry={caido ? 1.3 : 1.8} fill="#fff" stroke="#6B3A2A" strokeWidth="0.5" />
+          <circle cx={ex + 0.2} cy="-0.7" r="1.4" fill="#5A3B26" />
+          <circle cx={ex + 0.2} cy="-0.7" r="0.55" fill="#1D1D1D" />
+          <path d={caido ? `M${ex - 3},-0.9 Q${ex},-2.4 ${ex + 3},-1.3` : `M${ex - 3},-1.4 Q${ex},-3.2 ${ex + 3},-1.4`} stroke={T} strokeWidth="0.9" fill="none" strokeLinecap="round" />
+        </g>
+      ))}
     </g>
   )
 }
 
-function Aldo({ x, y, s = 1, animo = 'contento', lentes = false, mano = [36, 42], parado = false }) {
+function Aldo({ x, y, s = 1, animo = 'contento', lentes = false, mano = [36, 42], parado = false, volante = false }) {
+  const sonrie = animo === 'contento' || animo === 'euforico'
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
       {parado && (
         <g stroke={T} strokeWidth="1.5">
-          <path d="M-20,56 L-18,100 L-4,100 L-2,60 L2,60 L4,100 L18,100 L20,56 Z" fill="#244C82" />
-          <path d="M-16,62 L-15,98 M16,62 L15,98" stroke="#8DB8E8" strokeWidth="2.5" />
+          <path d="M-20,56 L-18,100 L-4,100 L-2,60 L2,60 L4,100 L18,100 L20,56 Z" fill="#5E645F" />
+          <rect x="-19" y="74" width="7" height="9" rx="1.5" fill="#545A55" />
+          <rect x="12" y="74" width="7" height="9" rx="1.5" fill="#545A55" />
           <path d="M-21,100 L-3,100 L-2,107 L-25,107 Q-26,102 -21,100 Z" fill="#F4F4F4" />
           <path d="M3,100 L21,100 Q26,102 25,107 L2,107 Z" fill="#F4F4F4" />
-                    <path d="M-14,42 Q-38,50 -40,62" stroke={CAMPERA} strokeWidth="9" strokeLinecap="round" fill="none" />
+          <path d="M-14,42 Q-38,50 -40,62" stroke={CAMPERA} strokeWidth="9" strokeLinecap="round" fill="none" />
           <path d="M-40,66 Q-46,60 -42,56 Q-36,58 -36,64 Z" fill={PIEL} strokeWidth="1.2" />
         </g>
       )}
-      <rect x="-5" y="10" width="10" height="10" fill={PIEL} stroke={T} strokeWidth="1.2" />
-      <path d="M-24,60 Q-26,24 -10,17 L10,17 Q26,24 24,60 Z" fill={CAMPERA} stroke={T} strokeWidth="1.5" />
-      <path d="M-20,26 L-22,60 M20,26 L22,60" stroke="#8DB8E8" strokeWidth="3" />
-      <path d="M-8,17 L0,27 L8,17 Z" fill="#244C82" stroke={T} strokeWidth="1.2" />
-      <path d="M0,27 L0,60" stroke="#D8E6F5" strokeWidth="1.5" />
+      <rect x="-5" y="12" width="10" height="9" fill={PIEL} stroke={T} strokeWidth="1.2" />
+      {/* buzo celeste de medio cierre con banda azul abajo */}
+      <path d="M-24,60 Q-26,26 -10,19 L10,19 Q26,26 24,60 Z" fill={CAMPERA} stroke={T} strokeWidth="1.5" />
+      <path d="M-4,19.5 L0,26 L4,19.5 L2,18 L0,21 L-2,18 Z" fill={CHOMBA} stroke={T} strokeWidth="0.8" />
+      <path d="M-9,19.5 L-8,13 Q0,16.5 8,13 L9,19.5 Q4,22 0,21.5 Q-4,22 -9,19.5 Z" fill={CAMPERA} stroke={T} strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M0,22 L0,36" stroke="#E8EEF5" strokeWidth="1.5" />
+      <rect x="-1.2" y="34" width="2.4" height="3.5" rx="1" fill="#E8EEF5" />
+      <g stroke="#B5262B" strokeWidth="1.2" fill="#2A2A2A" fillOpacity="0.35">
+        <path d="M-0.5,27 L3,31" fill="none" />
+        <rect x="1.5" y="30.5" width="5" height="3.5" rx="1.2" transform="rotate(35 4 32)" />
+        <rect x="4.5" y="35" width="5" height="3.5" rx="1.2" transform="rotate(35 7 36.7)" />
+      </g>
+      {volante && (
+        <ellipse cx={mano[0] + 2} cy={mano[1] + 2} rx="3.5" ry="11" fill="none" stroke="#222" strokeWidth="2.6" transform={`rotate(-18 ${mano[0] + 2} ${mano[1] + 2})`} />
+      )}
       <path d={`M14,24 Q${(14 + mano[0]) / 2 + 6},${(24 + mano[1]) / 2 - 2} ${mano[0]},${mano[1]}`} stroke={CAMPERA} strokeWidth="9" strokeLinecap="round" fill="none" />
       <circle cx={mano[0]} cy={mano[1]} r="5" fill={PIEL} stroke={T} strokeWidth="1.2" />
-      {/* cabeza */}
-      <ellipse cx="-15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
-      <ellipse cx="15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
-      <ellipse cx="0" cy="0" rx="15" ry="18.5" fill={PIEL} stroke={T} strokeWidth="1.5" />
-      {/* pelo canoso corto, pegado al cráneo, con flequillo cortito */}
-      <path d="M-14.8,-3 C-16,-12 -10,-20 0,-19.8 C10,-20 16,-12 14.8,-3 L13.2,-5 Q12.5,-9 10,-11 L8,-10.2 L6.5,-12 L4,-11 L2,-12.6 L-0.5,-11.2 L-3,-12.6 L-5.5,-11 L-7.5,-12 L-9.5,-10.4 Q-12.5,-9 -13.2,-5 Z" fill="#D2D3D5" stroke="#A3A4A7" strokeWidth="0.7" strokeLinejoin="round" />
-      <path d="M-7,-16.5 L-5.5,-14 M-2,-17.5 L-1,-14.5 M3,-17.5 L3.5,-14.5 M8,-16 L8.5,-13.5" stroke="#B4B5B8" strokeWidth="0.8" strokeLinecap="round" />
-      <path d={CEJAS[animo] || CEJAS.contento} stroke="#6F6A66" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      {volante && <circle cx={mano[0] + 3} cy={mano[1] + 9} r="4.5" fill={PIEL} stroke={T} strokeWidth="1.2" />}
+      {/* cabeza: cara larga, mandíbula cuadrada */}
+      <ellipse cx="-14.5" cy="1" rx="3.8" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
+      <ellipse cx="14.5" cy="1" rx="3.8" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
+      <path d="M-14.5,-4 Q-15,-17 0,-19.5 Q15,-17 14.5,-4 L13.8,6 Q12.5,15.5 6.5,19 Q0,21.5 -6.5,19 Q-12.5,15.5 -13.8,6 Z" fill={PIEL} stroke={T} strokeWidth="1.5" strokeLinejoin="round" />
+      {/* pelo gris, frente alta con entradas, peinado para atrás */}
+      {/* pelado arriba (con brillo); pelo gris corto a los costados y atrás */}
+      {/* mechones grises a los costados, sobre las orejas (estilo pelado de dibujito) */}
+      <path d="M-13,-10 Q-16.5,-10.5 -17.2,-6.8 Q-19,-4.6 -17.6,-2 Q-18.6,0.6 -16,1.9 Q-14.6,2.6 -13.5,1.4 Q-12.6,-4 -13,-10 Z" fill="#A3A3A6" stroke="#7A7A7D" strokeWidth="0.8" strokeLinejoin="round" />
+      <path d="M13,-10 Q16.5,-10.5 17.2,-6.8 Q19,-4.6 17.6,-2 Q18.6,0.6 16,1.9 Q14.6,2.6 13.5,1.4 Q12.6,-4 13,-10 Z" fill="#A3A3A6" stroke="#7A7A7D" strokeWidth="0.8" strokeLinejoin="round" />
+      <ellipse cx="-4" cy="-14.5" rx="5" ry="2.2" fill="#fff" opacity="0.35" transform="rotate(-15 -4 -14.5)" />
+      <path d={CEJAS[animo] || CEJAS.contento} stroke="#6E6A66" strokeWidth="2.6" fill="none" strokeLinecap="round" />
       {lentes && (
         <g>
           <rect x="-11.5" y="-4.5" width="9.5" height="6.5" rx="2.5" fill="#111" />
@@ -97,15 +125,16 @@ function Aldo({ x, y, s = 1, animo = 'contento', lentes = false, mano = [36, 42]
         </g>
       )}
       {!lentes && <Ojos animo={animo} />}
-      <path d="M0,-1 Q3.5,6 -1,7" stroke="#B07A55" strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      <circle cx="-9" cy="6" r="3" fill="#E9A38A" opacity="0.5" />
-      <circle cx="9" cy="6" r="3" fill="#E9A38A" opacity="0.5" />
+      <path d="M0.8,-3 L2.8,5.2 Q1.2,7.2 -1.8,6.4" stroke="#B27A55" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {sonrie && <path d="M-6.5,4.5 Q-9.5,8.5 -8,12 M6.5,4.5 Q9.5,8.5 8,12" stroke="#C9926C" strokeWidth="0.9" fill="none" strokeLinecap="round" />}
+      <circle cx="-9" cy="6" r="2.8" fill="#E39A80" opacity="0.4" />
+      <circle cx="9" cy="6" r="2.8" fill="#E39A80" opacity="0.4" />
       <Boca animo={animo} />
       {parado && (
         <g stroke={T} strokeWidth="1.2">
-          {/* bolsillos de la campera dados vuelta */}
-          <path d="M-22,48 L-12,48 L-15,60 Q-19,62 -22,58 Z" fill="#F4F4F4" />
-          <path d="M12,48 L22,48 L22,58 Q19,62 15,60 Z" fill="#F4F4F4" />
+          {/* bolsillos del pantalón dados vuelta */}
+          <path d="M-20,60 L-12,60 L-14,72 Q-18,74 -20,70 Z" fill="#F4F4F4" />
+          <path d="M12,60 L20,60 L20,70 Q18,74 14,72 Z" fill="#F4F4F4" />
         </g>
       )}
     </g>
@@ -196,23 +225,30 @@ function Auto({ id, cuerpo, vidrio, color, aldo, ruedas, extras, cintura, suelo 
 }
 
 function Cronos() {
+  // Sedán compacto: capot alto y corto, techo en arco, baúl corto y alto, tres vidrios laterales.
   return (
     <Auto
       id="cronos"
-      color="#C8102E"
-      cuerpo="M30,172 L30,152 Q32,140 50,136 L96,131 L130,106 Q140,99 160,99 L214,99 Q232,99 246,112 L266,130 L296,136 Q312,140 312,154 L312,172 Z"
-      vidrio="M104,130 L134,108 Q142,103 158,103 L211,103 Q227,103 239,114 L256,130 Z"
-      cintura={131}
-      aldo={<Aldo x={214} y={104} s={1.25} animo="neutral" mano={[30, 26]} />}
+      color="#8D9298"
+      cuerpo="M32,178 L30,146 Q30,132 40,128 L80,124 L118,99 Q160,88 204,95 L240,124 L288,131 Q308,135 311,146 L312,170 Q311,178 302,178 Z"
+      vidrio="M90,123 L120,103 Q158,93 202,99 L230,123 Z"
+      cintura={124}
+      aldo={<Aldo x={194} y={103} s={1.05} animo="neutral" volante mano={[20, 16]} />}
       extras={<g stroke={T} strokeWidth="1.2">
-        <path d="M182,103 L180,130" strokeWidth="3" />
-        <path d="M120,134 L118,170 M200,134 L198,170" fill="none" opacity="0.6" />
-        <rect x="160" y="140" width="14" height="3" rx="1.5" fill="#7A0A1C" />
-        <path d="M296,140 L310,144 L310,150 L298,148 Z" fill="#FFF4C2" />
-        <path d="M30,146 L40,144 L40,152 L30,152 Z" fill="#FF5A5A" />
-        <path d="M30,160 L312,160" stroke="#8E0B21" strokeWidth="1" />
+        <path d="M172,95 L172,123" strokeWidth="3.5" />
+        <path d="M106,123 L114,104" strokeWidth="2.5" />
+        <path d="M88,124 L232,124" stroke="#D8DADC" strokeWidth="1.6" />
+        <path d="M172,124 L172,170 M112,126 Q108,150 112,170 M238,125 Q228,150 230,170" fill="none" opacity="0.55" />
+        <path d="M58,150 Q180,144 302,146" stroke="#B4B9BE" strokeWidth="1.4" fill="none" />
+        <rect x="146" y="133" width="12" height="3" rx="1.5" fill="#5E6268" />
+        <rect x="208" y="132" width="12" height="3" rx="1.5" fill="#5E6268" />
+        <path d="M228,120 L240,118 L242,125 L232,126 Z" fill="#3A3D42" />
+        <path d="M286,133 L306,137 Q309,140 308,142 L290,139 Z" fill="#EAF2F8" />
+        <path d="M306,147 L312,148 L312,156 L306,155 Z" fill="#2B2B2B" />
+        <path d="M30,134 L46,131 L46,139 L30,141 Z" fill="#D63A3A" />
+        <path d="M32,166 L84,166 M282,166 L312,166" stroke="#3A3D42" strokeWidth="3" />
       </g>}
-      ruedas={[[86, 172, 20], [256, 172, 20]]}
+      ruedas={[[95, 176, 20], [258, 176, 20]]}
     />
   )
 }
@@ -225,7 +261,7 @@ function Gla() {
       cuerpo="M28,174 L28,148 Q30,134 48,130 L90,125 L120,95 Q128,87 146,87 L232,87 Q250,87 260,101 L276,123 L298,129 Q314,133 314,150 L314,174 Z"
       vidrio="M98,124 L124,97 Q131,91 147,91 L229,91 Q244,91 252,103 L267,124 Z"
       cintura={125}
-      aldo={<Aldo x={222} y={96} s={1.25} animo="contento" mano={[30, 26]} />}
+      aldo={<Aldo x={214} y={98} s={1.1} animo="contento" volante mano={[20, 18]} />}
       extras={<g stroke={T} strokeWidth="1.2">
         <path d="M190,91 L188,124" strokeWidth="3" />
         <path d="M28,166 L314,166 L314,174 L28,174 Z" fill="#3A3D42" />
@@ -256,7 +292,7 @@ function Bugatti() {
         cuerpo="M26,176 L28,160 Q32,150 62,146 L122,138 Q152,118 186,114 Q216,112 240,124 L290,142 Q318,148 318,164 L316,176 Z"
         vidrio="M146,137 Q164,122 187,119 Q211,117 232,128 L240,137 Z"
         cintura={138}
-        aldo={<Aldo x={196} y={110} s={1.25} animo="euforico" lentes mano={[30, 26]} />}
+        aldo={<Aldo x={192} y={114} s={1.05} animo="euforico" lentes volante mano={[20, 16]} />}
         extras={<g stroke={T} strokeWidth="1.2">
           <path d="M126,172 Q104,152 134,146 L178,146" stroke="#C9CDD2" strokeWidth="3" fill="none" />
           <path d="M30,140 L66,140 L62,146 L28,148 Z" fill="#141414" />
