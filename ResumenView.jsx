@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
 import TicketPromedioView from './TicketPromedioView.jsx'
+import AldoAvatar from './AldoAvatar.jsx'
 
 function Tile({ valor, label, activo, colorActivo, onClick, alerta }) {
   return (
@@ -186,6 +187,9 @@ export default function ResumenView({ onUnauthorized, onIrA }) {
               )}
               <div style={cumplido ? { fontWeight: 700 } : undefined}>
                 {cumplido ? <>🏆 ¡Objetivo cumplido! → {obj.premio}</> : <>→ {obj.premio} 🎉</>}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <AldoAvatar ticket={ventas.total > 0 ? ventas.ticket_promedio : 0} />
               </div>
             </div>
           )}
