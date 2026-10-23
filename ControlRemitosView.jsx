@@ -255,6 +255,19 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
   const color = c.estado === 'conforme' ? 'ok' : c.estado === 'diferencia' ? 'alerta' : c.estado === 'sin_remito' ? 'atencion' : 'info'
   const etiqueta = c.estado === 'conforme' ? 'Conforme' : c.estado === 'diferencia' ? 'Con diferencia' : c.estado === 'sin_remito' ? 'Sin control de remito' : 'Para controlar'
 
+  // "FCA 00001-00000123" -> "00001-00000123" (el número que se pega en Contabilium)
+  const numeroFactura = (c.titulo || '').match(/\d{4,5}-\d{8}/)?.[0] || ''
+  const [copiado, setCopiado] = useState(false)
+  const copiarNumero = async () => {
+    try {
+      await navigator.clipboard.writeText(numeroFactura)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 1500)
+    } catch {
+      window.prompt('Copiá el número (Ctrl+C):', numeroFactura)
+    }
+  }
+
   return (
     <div className={`vf-card vf-borde-${color}`}>
       <div className="vf-card-cab">
@@ -269,6 +282,12 @@ function Tarjeta({ c, onCambio, onUnauthorized }) {
         )}
         {c.fecha && <span className="vf-fecha">{c.fecha}</span>}
       </div>
+      {numeroFactura && (
+        <div className="cr-numero">
+          <span>N° <strong>{numeroFactura}</strong></span>
+          <button className="sort-btn" onClick={copiarNumero} title="Copiar el número de factura">{copiado ? '✓ Copiado' : '📋 Copiar'}</button>
+        </div>
+      )}
       <div className="vf-archivo">{c.archivo} · llegó {horaExacta(c.leido_en, false)}</div>
 
       {!c.confiable && <p className="vf-aviso">⚠️ No pude leer esta factura con seguridad. Controlala mirando el PDF.</p>}
