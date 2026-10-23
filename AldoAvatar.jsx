@@ -56,7 +56,6 @@ function Ojos({ animo }) {
       <ellipse cx="-6" cy="-1" rx="1.8" ry={animo === 'triste' ? 1.6 : 2.2} fill="#2B2B2B" />
       <ellipse cx="6" cy="-1" rx="1.8" ry={animo === 'triste' ? 1.6 : 2.2} fill="#2B2B2B" />
       {animo === 'triste' && <path d="M-8.5,-2.5 L-3.5,-2.5 M3.5,-2.5 L8.5,-2.5" stroke="#B88A6A" strokeWidth="1" />}
-      <path d="M-11,1 L-13,0 M11,1 L13,0" stroke="#C99474" strokeWidth="0.8" />
     </g>
   )
 }
@@ -85,11 +84,10 @@ function Aldo({ x, y, s = 1, animo = 'contento', lentes = false, mano = [36, 42]
       <ellipse cx="-15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
       <ellipse cx="15" cy="2" rx="4" ry="5.5" fill={PIEL} stroke={T} strokeWidth="1.2" />
       <ellipse cx="0" cy="0" rx="15" ry="18.5" fill={PIEL} stroke={T} strokeWidth="1.5" />
-      <path d="M-15,-1 Q-17,-14 -9,-17 Q-12,-10 -13,0 Z" fill="#DADADA" stroke="#9A9A9A" strokeWidth="0.8" />
-      <path d="M15,-1 Q17,-14 9,-17 Q12,-10 13,0 Z" fill="#DADADA" stroke="#9A9A9A" strokeWidth="0.8" />
-      <path d="M-10,-16.5 Q0,-22 10,-16.5 Q4,-18.5 0,-18.5 Q-5,-18.5 -10,-16.5 Z" fill="#DADADA" stroke="#9A9A9A" strokeWidth="0.8" />
-      <path d="M-6,-12 Q0,-13.5 6,-12" stroke="#D4A07F" strokeWidth="1" fill="none" />
-      <path d={CEJAS[animo] || CEJAS.contento} stroke="#8C8C8C" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      {/* pelo corto canoso, completo arriba (59 años, no 90) */}
+      <path d="M-15.5,0 Q-17,-12 -12,-17 Q-6,-22.5 2,-22 Q11,-21.5 15,-15 Q17,-9 15.5,0 Q14,-8 11,-11 Q4,-14 -3,-13.5 Q-10,-13 -13,-8 Q-14.5,-5 -15.5,0 Z" fill="#BFC0C2" stroke="#7E7F82" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M-9,-17 Q-4,-19 1,-18.5 M3,-19.5 Q8,-18.5 11,-15.5 M-12,-12 Q-9,-15 -5,-15.5" stroke="#8E8F92" strokeWidth="1" fill="none" strokeLinecap="round" />
+      <path d={CEJAS[animo] || CEJAS.contento} stroke="#6F6A66" strokeWidth="2.4" fill="none" strokeLinecap="round" />
       {lentes && (
         <g>
           <rect x="-11.5" y="-4.5" width="9.5" height="6.5" rx="2.5" fill="#111" />
