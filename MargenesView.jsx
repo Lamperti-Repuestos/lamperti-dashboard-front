@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiFetch } from './api.js'
 
 // Margen de cada venta de ML = Total que muestra ML (precio − cargo por vender − costo fijo − impuestos)
@@ -82,6 +83,22 @@ function FilaFaltaCodigo({ fila, onGuardado, onUnauthorized }) {
   )
 }
 
+const fechaCorta = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+
+// De dónde salió el costo: leído al vender, tomado del histórico a la fecha de la venta, o leído después (aproximado).
+function FuenteCosto({ i }) {
+  if (i.fuente_costo === 'historial') {
+    return <div style={{ color: 'var(--gray-muted)', paddingLeft: 12 }}>costo que regía desde el {fechaCorta(i.historial_desde)} (hoy: {pesosExactos(i.costo_actual_sin_iva)} + IVA)</div>
+  }
+  if (i.fuente_costo === 'posterior') {
+    return <div style={{ color: 'var(--atencion)', paddingLeft: 12 }}>⚠️ costo leído {i.dias_despues} días después de la venta (todavía no había histórico de esa fecha)</div>
+  }
+  if (i.costo_leido) {
+    return <div style={{ color: 'var(--gray-muted)', paddingLeft: 12 }}>costo al momento de la venta (leído el {fechaCorta(i.costo_leido)})</div>
+  }
+  return null
+}
+
 function FilaVenta({ v }) {
   const [abierta, setAbierta] = useState(false)
   const estado = ESTADOS[v.estado]
@@ -111,6 +128,7 @@ function FilaVenta({ v }) {
               {i.costo_con_iva != null
                 ? <> en {i.proveedor}: <span className="mono">{pesosExactos(i.costo_sin_iva)}</span> + IVA = <span className="mono">{pesosExactos(i.costo_con_iva)}</span></>
                 : <> — {ESTADOS[i.estado]?.texto || i.estado}{i.error ? ` (${i.error})` : ''}</>}
+              {i.costo_con_iva != null && <FuenteCosto i={i} />}
             </div>
           ))}
           {v.margen != null && <div><strong>= Margen: <span className="mono">{pesosExactos(v.margen)}</span> ({v.margen_pct}% del precio)</strong></div>}
@@ -121,7 +139,7 @@ function FilaVenta({ v }) {
   )
 }
 
-export default function MargenesView({ onUnauthorized }) {
+function VentasMargenes({ onUnauthorized }) {
   const [desde, setDesde] = useState(hoy())
   const [hasta, setHasta] = useState(hoy())
   const [data, setData] = useState(null)
@@ -224,6 +242,132 @@ export default function MargenesView({ onUnauthorized }) {
           {data.ventas.length === 0 && !cargando && <div className="empty-state">Sin ventas pagadas en estas fechas.</div>}
         </div>
       )}
+    </>
+  )
+}
+
+// Histórico de costos: un renglón por cada precio distinto que tuvo el producto en el proveedor. Se arma solo: cada
+// venta lee el costo y una vez por día se vuelven a consultar todos los productos seguidos.
+function HistoricoProducto({ sku, onUnauthorized }) {
+  const [historial, setHistorial] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    apiFetch(`/margenes/costos/${encodeURIComponent(sku)}`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setHistorial(d.historial)
+      })
+      .catch((e) => setError(e.message))
+  }, [sku])
+
+  if (error) return <div className="error-state">Error: {error}</div>
+  if (!historial) return <div className="loading-state">Cargando…</div>
+
+  // Escalones: cada costo rige desde su fecha hasta el siguiente; el último, hasta la última vez que se confirmó.
+  const puntos = historial.map((h) => ({ t: new Date(h.desde).getTime(), costo: h.costo_sin_iva }))
+  const ultimo = historial[historial.length - 1]
+  if (ultimo) puntos.push({ t: new Date(ultimo.visto_hasta).getTime(), costo: ultimo.costo_sin_iva })
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 6 }}>
+      {historial.length > 1 && (
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={puntos} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-line)" />
+            <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={fechaCorta} tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={(n) => pesos(n)} tick={{ fontSize: 11 }} width={72} domain={['auto', 'auto']} />
+            <Tooltip labelFormatter={fechaCorta} formatter={(n) => [pesosExactos(n), 'Costo sin IVA']} />
+            <Line type="stepAfter" dataKey="costo" stroke="var(--navy)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+      <div style={{ fontSize: 12, display: 'grid', gap: 2 }}>
+        {[...historial].reverse().map((h, k, arr) => {
+          const anterior = arr[k + 1]
+          const cambio = anterior ? ((h.costo_sin_iva / anterior.costo_sin_iva - 1) * 100).toFixed(1) : null
+          return (
+            <div key={h.desde}>
+              Desde el {fechaCorta(h.desde)}: <span className="mono">{pesosExactos(h.costo_sin_iva)}</span> + IVA = <span className="mono">{pesosExactos(h.costo_con_iva)}</span>
+              {cambio != null && <span style={{ color: cambio > 0 ? 'var(--alerta)' : 'var(--ok)' }}> ({cambio > 0 ? '+' : ''}{cambio}%)</span>}
+              <span style={{ color: 'var(--gray-muted)' }}> · confirmado hasta el {fechaCorta(h.visto_hasta)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function HistoricoCostos({ onUnauthorized }) {
+  const [productos, setProductos] = useState(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [abierto, setAbierto] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    apiFetch('/margenes/costos', {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setProductos(d.productos)
+      })
+      .catch((e) => setError(e.message))
+  }, [])
+
+  const filtro = busqueda.trim().toLowerCase()
+  const visibles = (productos || []).filter((p) => !filtro || [p.sku, p.codigo, p.descripcion].some((x) => (x || '').toLowerCase().includes(filtro)))
+  const conCambios = visibles.filter((p) => p.cambios > 0).length
+
+  return (
+    <>
+      <div className="controls" style={{ marginBottom: 12 }}>
+        <input className="search-input" placeholder="Buscar por SKU, código o descripción…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+      </div>
+      {error && <div className="error-state">Error: {error}</div>}
+      {!productos && !error && <div className="loading-state">Cargando…</div>}
+      {productos && (
+        <div className="list">
+          <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
+            {visibles.length} productos seguidos · {conCambios} cambiaron de costo. Se suman solos cuando se venden.
+          </p>
+          {visibles.map((p) => (
+            <div key={`${p.proveedor}-${p.sku}`} className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, cursor: 'pointer' }}
+              onClick={() => setAbierto(abierto === p.sku ? null : p.sku)}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div className="title-cell">{p.descripcion || p.sku}</div>
+                <span className="mono" style={{ whiteSpace: 'nowrap' }}>{pesosExactos(p.costo_sin_iva)}</span>
+                {p.cambio_pct != null && (
+                  <span className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 700, color: p.cambio_pct > 0 ? 'var(--alerta)' : 'var(--ok)' }}>
+                    {p.cambio_pct > 0 ? '▲ +' : '▼ '}{p.cambio_pct}%
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
+                {p.proveedor} · <span className="mono">{p.codigo || p.sku}</span> · sin IVA, rige desde el {fechaCorta(p.desde)}
+                {p.costo_anterior_sin_iva != null && <> · antes {pesosExactos(p.costo_anterior_sin_iva)}</>}
+                {p.cambios > 1 && <> · {p.cambios} cambios</>}
+              </div>
+              {abierto === p.sku && <HistoricoProducto sku={p.sku} onUnauthorized={onUnauthorized} />}
+            </div>
+          ))}
+          {visibles.length === 0 && <div className="empty-state">Todavía no hay costos guardados{filtro ? ' con esa búsqueda' : ''}.</div>}
+        </div>
+      )}
+    </>
+  )
+}
+
+export default function MargenesView({ onUnauthorized }) {
+  const [pestania, setPestania] = useState('ventas')
+  return (
+    <>
+      <div className="tabs" style={{ padding: '16px var(--pad) 0' }}>
+        <button className={`tab ${pestania === 'ventas' ? 'active' : ''}`} onClick={() => setPestania('ventas')}>Margen por venta</button>
+        <button className={`tab ${pestania === 'costos' ? 'active' : ''}`} onClick={() => setPestania('costos')}>Histórico de costos</button>
+      </div>
+      {pestania === 'ventas' ? <VentasMargenes onUnauthorized={onUnauthorized} /> : <HistoricoCostos onUnauthorized={onUnauthorized} />}
     </>
   )
 }
