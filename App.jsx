@@ -25,12 +25,13 @@ import PedidorView from './PedidorView.jsx'
 import FacturasEstadoView from './FacturasEstadoView.jsx'
 import ControlRemitosView from './ControlRemitosView.jsx'
 import FacturacionVentasView from './FacturacionVentasView.jsx'
+import HistoricoFacturasView from './HistoricoFacturasView.jsx'
 import LoginForm from './LoginForm.jsx'
 import GagSancor, { gagSancorVigente } from './GagSancor.jsx'
 import { getAuthHeader, clearAuthHeader, apiFetch } from './api.js'
 import logo70 from './logo-70.webp'
 
-const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'precioadicional', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'margenes', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos', 'facturacionventas']
+const VIEWS = ['resumen', 'picking', 'publications', 'altarapida', 'publicador', 'precioadicional', 'stock', 'full', 'pedidos', 'control', 'cotejo', 'logistica', 'notas', 'devoluciones', 'postventa', 'metricas', 'publicidad', 'costos', 'margenes', 'ventasfull', 'subagente', 'pedidor', 'facturasestado', 'controlremitos', 'facturacionventas', 'historicofacturas']
 
 const GRUPOS = [
   {
@@ -58,6 +59,7 @@ const GRUPOS = [
     nombre: 'Facturación',
     vistas: [
       { id: 'facturacionventas', label: 'Facturar ventas' },
+      { id: 'historicofacturas', label: 'Histórico de facturas' },
       { id: 'controlremitos', label: 'Control de remitos' },
       { id: 'facturasestado', label: 'Estado de facturas' },
     ],
@@ -295,6 +297,7 @@ export default function App() {
         {view === 'facturasestado' && <FacturasEstadoView onUnauthorized={handleUnauthorized} />}
         {view === 'controlremitos' && <ControlRemitosView onUnauthorized={handleUnauthorized} />}
         {view === 'facturacionventas' && <FacturacionVentasView onUnauthorized={handleUnauthorized} />}
+        {view === 'historicofacturas' && <HistoricoFacturasView onUnauthorized={handleUnauthorized} />}
         {view === 'postventa' && <PostventaView onUnauthorized={handleUnauthorized} />}
         {view === 'metricas' && <MetricasView onUnauthorized={handleUnauthorized} />}
         {view === 'publicidad' && <PublicidadView onUnauthorized={handleUnauthorized} />}
