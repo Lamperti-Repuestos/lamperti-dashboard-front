@@ -390,6 +390,15 @@ export default function FacturacionVentasView({ onUnauthorized }) {
     } catch { /* se reintenta tocando de nuevo */ }
   }
 
+  const forzarCierreLote = async () => {
+    if (!lote) return
+    if (!window.confirm('Esto cierra el lote ya. La venta que se estaba facturando queda en "revisar": mirá en Contabilium si salió antes de volver a facturarla. ¿Cerrar igual?')) return
+    try {
+      const res = await apiFetch(`/facturacion/lote/${lote.id}/forzar-cierre`, { method: 'POST' }, onUnauthorized)
+      if (res.ok) setLote(await res.json())
+    } catch { /* se reintenta tocando de nuevo */ }
+  }
+
   const cerrarLote = () => {
     if (lote) guardar('lote_cerrado', String(lote.id))
     setLote(null)
@@ -534,7 +543,12 @@ export default function FacturacionVentasView({ onUnauthorized }) {
           </div>
           <div style={{ marginTop: 8 }}>
             {lote.estado === 'en_curso' ? (
-              <button className="sort-btn" disabled={lote.cancelar} onClick={cancelarLote}>Cancelar las que faltan</button>
+              <>
+                <button className="sort-btn" disabled={lote.cancelar} onClick={cancelarLote}>Cancelar las que faltan</button>
+                {lote.cancelar && (
+                  <button className="sort-btn" style={{ marginLeft: 8 }} onClick={forzarCierreLote}>Forzar cierre (si no termina)</button>
+                )}
+              </>
             ) : (
               <button className="sort-btn" onClick={cerrarLote}>Cerrar</button>
             )}
