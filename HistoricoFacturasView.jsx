@@ -17,6 +17,14 @@ const fechaCorta = (iso) => {
 }
 const soloFecha = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
+// "12.000", "12000", "12.000,50" o "$ 12000" -> número (null si está vacío o no se entiende)
+const aNumero = (texto) => {
+  const limpio = String(texto || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')
+  if (!limpio) return null
+  const n = Number(limpio)
+  return Number.isFinite(n) ? n : null
+}
+
 const RANGOS_RAPIDOS = [
   { label: 'Últimos 30 días', desde: () => haceDiasISO(30) },
   { label: 'Últimos 90 días', desde: () => haceDiasISO(90) },
@@ -99,6 +107,8 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
   const [producto, setProducto] = useState('')
   const [desde, setDesde] = useState(haceDiasISO(30))
   const [hasta, setHasta] = useState(hoyISO())
+  const [montoMin, setMontoMin] = useState('')
+  const [montoMax, setMontoMax] = useState('')
   const [resultado, setResultado] = useState(null)       // la última respuesta (totales, avisos); las facturas van acumuladas en `facturas`
   const [facturas, setFacturas] = useState([])
   const [cargando, setCargando] = useState(false)
@@ -107,10 +117,12 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
 
   // Trae una página. Sin `seguir`, empieza de cero; con `seguir`, agrega las siguientes 50 a las que ya se ven.
   const buscar = (override = {}, seguir = false) => {
-    const p = { cliente, producto, desde, hasta, ...override }
+    const p = { cliente, producto, desde, hasta, montoMin, montoMax, ...override }
     setCargando(true)
     setError(null)
     const qs = new URLSearchParams({ cliente: p.cliente.trim(), producto: p.producto.trim(), desde: p.desde, hasta: p.hasta })
+    if (aNumero(p.montoMin) != null) qs.set('monto_min', String(aNumero(p.montoMin)))
+    if (aNumero(p.montoMax) != null) qs.set('monto_max', String(aNumero(p.montoMax)))
     if (seguir && resultado?.siguiente != null) qs.set('desde_fila', String(resultado.siguiente))
     apiFetch(`/facturacion/historico?${qs}`, {}, onUnauthorized)
       .then(async (res) => {
@@ -145,7 +157,9 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
   const limpiar = () => {
     setCliente('')
     setProducto('')
-    buscar({ cliente: '', producto: '' })
+    setMontoMin('')
+    setMontoMax('')
+    buscar({ cliente: '', producto: '', montoMin: '', montoMax: '' })
   }
 
   const cob = resultado?.cobertura
@@ -157,7 +171,7 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
     <div style={{ padding: '0 12px 24px' }}>
       <h2 style={{ margin: '0 0 4px', color: 'var(--charcoal)' }}>🔎 Histórico de facturas</h2>
       <div style={{ fontSize: 13, color: 'var(--gray-muted)', marginBottom: 12 }}>
-        Todo lo que facturaste, de ML y de afuera. Buscá lo que le facturaste a un cliente o a quién le facturaste un producto. Podés usar solo uno de los dos filtros.
+        Todo lo que facturaste, de ML y de afuera. Buscá lo que le facturaste a un cliente o a quién le facturaste un producto. Podés usar solo uno de los filtros o combinarlos, también con el monto (sobre el total de cada comprobante).
       </div>
 
       <form
@@ -185,9 +199,22 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
             Hasta
             <input type="date" className="corte-input" style={{ width: 150, maxWidth: 'none' }} value={hasta} min={desde} max={hoyISO()} onChange={(e) => setHasta(e.target.value)} />
           </label>
+          <label style={{ fontSize: 12, color: 'var(--gray-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            Monto mín. ($)
+            <input className="corte-input" style={{ width: 110, maxWidth: 'none' }} inputMode="decimal" placeholder="Ej: 10.000" value={montoMin}
+              onChange={(e) => setMontoMin(e.target.value)} onKeyDown={enter} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--gray-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            Monto máx. ($)
+            <input className="corte-input" style={{ width: 110, maxWidth: 'none' }} inputMode="decimal" placeholder="Ej: 50.000" value={montoMax}
+              onChange={(e) => setMontoMax(e.target.value)} onKeyDown={enter} />
+          </label>
           <button type="submit" className="scan-btn" disabled={cargando}>{cargando && facturas.length === 0 ? 'Buscando…' : 'Buscar'}</button>
           <button type="button" className="sort-btn" onClick={limpiar}>Limpiar</button>
         </div>
+        {aNumero(montoMin) != null && aNumero(montoMax) != null && aNumero(montoMin) > aNumero(montoMax) && (
+          <div role="alert" style={{ fontSize: 12, color: 'var(--atencion)' }}>⚠ El monto mínimo es mayor que el máximo: no va a encontrar nada.</div>
+        )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {RANGOS_RAPIDOS.map((r) => (
             <button key={r.label} type="button" className="sort-btn" onClick={() => rangoRapido(r)}>{r.label}</button>
