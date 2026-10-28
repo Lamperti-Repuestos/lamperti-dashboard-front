@@ -24,7 +24,119 @@ function colorMargen(pct) {
   return 'var(--ok)'
 }
 
+// Si el SKU termina en TAPA (ej C12140730ASTAPA), lo de antes suele ser el SKU del depósito: se ofrece de entrada.
+function componentesSugeridos(sku) {
+  const m = /^(.+?)TAPA[A-Z]*$/i.exec(sku || '')
+  return [{ sku: m ? m[1] : '', cantidad: 1 }, { sku: '', cantidad: 1 }]
+}
+
+// Un SKU que se vende como combo (ej: depósito + tapa): se cargan los SKU de cada producto y cuántos lleva.
+// El costo del combo es la suma de los costos de esos productos (cada uno con su proveedor y su código).
+function FormCombo({ sku, inicial, onGuardado, onUnauthorized }) {
+  const [filas, setFilas] = useState(inicial?.length ? inicial : componentesSugeridos(sku))
+  const [guardando, setGuardando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const validas = filas.filter((f) => f.sku.trim())
+
+  const cambiar = (k, campo, valor) => setFilas(filas.map((f, i) => (i === k ? { ...f, [campo]: valor } : f)))
+
+  const guardar = () => {
+    setGuardando(true)
+    setMensaje(null)
+    apiFetch('/margenes/combos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku, componentes: validas.map((f) => ({ sku: f.sku.trim(), cantidad: Number(f.cantidad) || 1 })) }),
+    }, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setMensaje('Combo guardado. Se recalcula ahora.')
+        onGuardado()
+      })
+      .catch((e) => setMensaje(`Error: ${e.message}`))
+      .finally(() => setGuardando(false))
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 8, background: 'var(--bg-activo)' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ fontSize: 12 }}>Productos que forman <span className="mono">{sku}</span> (SKU de cada uno, como está en Contabilium):</div>
+      {filas.map((f, k) => (
+        <div key={k} style={{ display: 'flex', gap: 6 }}>
+          <input className="search-input" style={{ flex: '1 1 140px' }} placeholder={k === 0 ? 'SKU (ej: el depósito)' : 'SKU (ej: la tapa)'}
+            value={f.sku} onChange={(e) => cambiar(k, 'sku', e.target.value.toUpperCase())} />
+          <input className="search-input" style={{ flex: '0 0 64px' }} type="number" min="1" title="Cantidad en el combo"
+            value={f.cantidad} onChange={(e) => cambiar(k, 'cantidad', e.target.value)} />
+          {filas.length > 1 && (
+            <button className="sort-btn" title="Quitar" onClick={() => setFilas(filas.filter((_, i) => i !== k))}>✕</button>
+          )}
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="sort-btn" onClick={() => setFilas([...filas, { sku: '', cantidad: 1 }])}>+ Otro producto</button>
+        <button className="scan-btn" onClick={guardar} disabled={guardando || validas.length === 0}>
+          {guardando ? 'Guardando…' : 'Guardar combo'}
+        </button>
+      </div>
+      {mensaje && <div style={{ fontSize: 12, color: mensaje.startsWith('Error') ? 'var(--alerta)' : 'var(--gray-muted)' }}>{mensaje}</div>}
+    </div>
+  )
+}
+
+// Los SKU ya cargados como combo, para revisarlos, corregirlos o quitarlos.
+function CombosCargados({ onCambio, onUnauthorized }) {
+  const [abierto, setAbierto] = useState(false)
+  const [combos, setCombos] = useState(null)
+  const [editando, setEditando] = useState(null)
+  const [error, setError] = useState(null)
+
+  const cargar = () => {
+    apiFetch('/margenes/combos', {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        setCombos(d.combos)
+      })
+      .catch((e) => setError(e.message))
+  }
+
+  useEffect(() => { if (abierto) cargar() }, [abierto])
+
+  const quitar = (sku) => {
+    apiFetch(`/margenes/combos/${encodeURIComponent(sku)}`, { method: 'DELETE' }, onUnauthorized)
+      .then(() => { cargar(); onCambio() })
+  }
+
+  const guardado = () => { setEditando(null); cargar(); onCambio() }
+
+  return (
+    <div className="list" style={{ flex: 'none' }}>
+      <button className="sort-btn" onClick={() => setAbierto(!abierto)}>🧩 {abierto ? 'Ocultar' : 'Ver'} combos cargados</button>
+      {abierto && error && <div className="error-state">Error: {error}</div>}
+      {abierto && combos && (
+        <div style={{ marginTop: 8 }}>
+          {combos.length === 0 && <div className="empty-state">Todavía no hay combos cargados.</div>}
+          {combos.map((c) => (
+            <div key={c.sku} className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="title-cell mono">{c.sku}</div>
+                <button className="sort-btn" onClick={() => setEditando(editando === c.sku ? null : c.sku)}>Editar</button>
+                <button className="sort-btn" onClick={() => quitar(c.sku)}>Quitar</button>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--gray-muted)' }}>
+                = {c.componentes.map((x) => `${x.cantidad > 1 ? `${x.cantidad} × ` : ''}${x.sku}`).join(' + ')}
+              </div>
+              {editando === c.sku && <FormCombo sku={c.sku} inicial={c.componentes} onGuardado={guardado} onUnauthorized={onUnauthorized} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FilaFaltaCodigo({ fila, onGuardado, onUnauthorized }) {
+  const [esCombo, setEsCombo] = useState(false)
   const [codigo, setCodigo] = useState(fila.codigo_proveedor || '')
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState(null)
@@ -62,8 +174,16 @@ function FilaFaltaCodigo({ fila, onGuardado, onUnauthorized }) {
         SKU <span className="mono">{fila.sku || 'sin SKU'}</span>
         {' · '}{fila.proveedor ? `Proveedor: ${fila.proveedor}` : 'Sin proveedor en Contabilium'}
         {fila.codigo_proveedor && <> · el código cargado (<span className="mono">{fila.codigo_proveedor}</span>) no está en Expoyer</>}
+        {fila.parte_de?.length > 0 && <> · es parte del combo <span className="mono">{fila.parte_de.join(', ')}</span></>}
       </div>
-      {fila.sku && (
+      {fila.sku && !fila.parte_de?.length && (
+        <label style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={esCombo} onChange={(e) => setEsCombo(e.target.checked)} />
+          Es un combo (varios productos, ej: depósito + tapa)
+        </label>
+      )}
+      {esCombo && <FormCombo sku={fila.sku} onGuardado={onGuardado} onUnauthorized={onUnauthorized} />}
+      {fila.sku && !esCombo && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             className="search-input"
@@ -99,8 +219,9 @@ function FuenteCosto({ i }) {
   return null
 }
 
-function FilaVenta({ v }) {
+function FilaVenta({ v, onRecalcular, onUnauthorized }) {
   const [abierta, setAbierta] = useState(false)
+  const [comboDe, setComboDe] = useState(null)
   const estado = ESTADOS[v.estado]
   const errorOrden = v.items.find((i) => i.error_orden)?.error_orden
   const items = v.items.filter((i) => !i.error_orden)
@@ -124,11 +245,27 @@ function FilaVenta({ v }) {
           <div><strong>= Total ML: <span className="mono">{pesosExactos(v.total_ml)}</span></strong></div>
           {items.map((i, k) => (
             <div key={k}>
-              − {i.cantidad} × <span className="mono">{i.codigo_comercial || i.sku || 'sin SKU'}</span>
+              − {i.cantidad} × <span className="mono">{i.componentes ? i.sku : (i.codigo_comercial || i.sku || 'sin SKU')}</span>
               {i.costo_con_iva != null
-                ? <> en {i.proveedor}: <span className="mono">{pesosExactos(i.costo_sin_iva)}</span> + IVA = <span className="mono">{pesosExactos(i.costo_con_iva)}</span></>
+                ? <>{i.componentes ? ' (combo)' : ` en ${i.proveedor}`}: <span className="mono">{pesosExactos(i.costo_sin_iva)}</span> + IVA = <span className="mono">{pesosExactos(i.costo_con_iva)}</span></>
                 : <> — {ESTADOS[i.estado]?.texto || i.estado}{i.error ? ` (${i.error})` : ''}</>}
-              {i.costo_con_iva != null && <FuenteCosto i={i} />}
+              {i.costo_con_iva != null && !i.componentes && <FuenteCosto i={i} />}
+              {i.componentes?.map((c, n) => (
+                <div key={n} style={{ paddingLeft: 12 }}>
+                  · {c.por_combo} × <span className="mono">{c.sku}</span>
+                  {c.costo_con_iva != null
+                    ? <> ({c.proveedor} <span className="mono">{c.codigo_comercial}</span>): <span className="mono">{pesosExactos(c.costo_sin_iva)}</span> + IVA = <span className="mono">{pesosExactos(c.costo_con_iva)}</span></>
+                    : <> — {ESTADOS[c.estado]?.texto || c.estado}{c.error ? ` (${c.error})` : ''}</>}
+                  {c.costo_con_iva != null && <FuenteCosto i={c} />}
+                </div>
+              ))}
+              {i.estado !== 'ok' && !i.componentes && i.sku && (
+                <button className="sort-btn" style={{ marginLeft: 8, padding: '2px 8px', fontSize: 12 }}
+                  onClick={(e) => { e.stopPropagation(); setComboDe(comboDe === i.sku ? null : i.sku) }}>
+                  ¿Es un combo?
+                </button>
+              )}
+              {comboDe === i.sku && <FormCombo sku={i.sku} onGuardado={onRecalcular} onUnauthorized={onUnauthorized} />}
             </div>
           ))}
           {v.margen != null && <div><strong>= Margen: <span className="mono">{pesosExactos(v.margen)}</span> ({v.margen_pct}% del precio)</strong></div>}
@@ -238,10 +375,12 @@ function VentasMargenes({ onUnauthorized }) {
       {data && (
         <div className="list">
           <h2 className="section-title" style={{ margin: '0 0 6px 12px' }}>Ventas ({data.ventas.length})</h2>
-          {data.ventas.map((v) => <FilaVenta key={v.order_id} v={v} />)}
+          {data.ventas.map((v) => <FilaVenta key={v.order_id} v={v} onRecalcular={cargar} onUnauthorized={onUnauthorized} />)}
           {data.ventas.length === 0 && !cargando && <div className="empty-state">Sin ventas pagadas en estas fechas.</div>}
         </div>
       )}
+
+      <CombosCargados onCambio={cargar} onUnauthorized={onUnauthorized} />
     </>
   )
 }
