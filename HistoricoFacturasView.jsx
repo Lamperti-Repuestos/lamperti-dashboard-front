@@ -84,6 +84,57 @@ function FilaFactura({ f, onUnauthorized }) {
   )
 }
 
+function DiagnosticoContabilium({ onUnauthorized }) {
+  const [fecha, setFecha] = useState(haceDiasISO(7))
+  const [datos, setDatos] = useState(null)
+  const [error, setError] = useState(null)
+  const [cargando, setCargando] = useState(false)
+  const [copiado, setCopiado] = useState(false)
+
+  const ver = () => {
+    setCargando(true)
+    setError(null)
+    setDatos(null)
+    setCopiado(false)
+    apiFetch(`/facturacion/diagnostico-comprobantes?fecha=${fecha}`, {}, onUnauthorized)
+      .then(async (res) => {
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.detail || 'Error')
+        return d
+      })
+      .then(setDatos)
+      .catch((e) => setError(e.message))
+      .finally(() => setCargando(false))
+  }
+
+  const texto = datos ? JSON.stringify(datos, null, 2) : ''
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(true)
+    } catch {
+      setCopiado(false)
+    }
+  }
+
+  return (
+    <details style={{ marginTop: 18, fontSize: 13, color: 'var(--charcoal)' }}>
+      <summary style={{ cursor: 'pointer', color: 'var(--gray-muted)' }}>🔧 Diagnóstico: qué trae Contabilium de las facturas (para sumar las que no son de ML)</summary>
+      <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label>Un día con facturas:{' '}
+          <input type="date" className="corte-input" style={{ width: 150, maxWidth: 'none' }} value={fecha} max={hoyISO()} onChange={(e) => setFecha(e.target.value)} />
+        </label>
+        <button type="button" className="sort-btn" onClick={ver} disabled={cargando}>{cargando ? 'Consultando…' : 'Ver qué trae'}</button>
+        {datos && <button type="button" className="sort-btn" onClick={copiar}>{copiado ? '✔ Copiado' : 'Copiar resultado'}</button>}
+      </div>
+      {error && <div role="alert" style={{ marginTop: 6, color: 'var(--alerta)' }}>No pude consultar: {error}</div>}
+      {datos && (
+        <pre style={{ marginTop: 8, maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: 'var(--card-bg)', border: '1px solid var(--gray-line)', borderRadius: 8, padding: 10 }}>{texto}</pre>
+      )}
+    </details>
+  )
+}
+
 export default function HistoricoFacturasView({ onUnauthorized }) {
   const [cliente, setCliente] = useState('')
   const [producto, setProducto] = useState('')
@@ -214,6 +265,8 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
           </div>
         </div>
       )}
+
+      <DiagnosticoContabilium onUnauthorized={onUnauthorized} />
 
       {avance && avance.total > 0 && (
         <div style={{ marginTop: 14, fontSize: 12, color: 'var(--gray-muted)' }}>
