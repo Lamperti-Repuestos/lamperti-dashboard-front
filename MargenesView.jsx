@@ -60,7 +60,7 @@ function FormCombo({ sku, inicial, onGuardado, onUnauthorized }) {
 
   return (
     <div style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 8, background: 'var(--bg-activo)' }} onClick={(e) => e.stopPropagation()}>
-      <div style={{ fontSize: 12 }}>Productos que forman <span className="mono">{sku}</span> (SKU de cada uno, como está en Contabilium):</div>
+      <div style={{ fontSize: 12 }}>Productos que forman <span className="mono">{sku}</span> (SKU de cada uno; con o sin guion, da igual):</div>
       {filas.map((f, k) => (
         <div key={k} style={{ display: 'flex', gap: 6 }}>
           <input className="search-input" style={{ flex: '1 1 140px' }} placeholder={k === 0 ? 'SKU (ej: el depósito)' : 'SKU (ej: la tapa)'}
