@@ -16,7 +16,7 @@ function fechaAR(iso) {
 }
 
 const MAX_LOTE = 100
-const ICONO_ESTADO = { pendiente: '⌛', procesando: '⏳', ok: '✅', simulada: '🧪', error: '❌', omitida: '⏭️', revisar: '⚠️' }
+const ICONO_ESTADO = { pendiente: '⌛', procesando: '⏳', ok: '✅', simulada: '🧪', error: '❌', omitida: '⏭️', revisar: '⚠️', resuelta: '☑️' }
 const guardado = (k) => { try { return localStorage.getItem(k) } catch { return null } }
 const guardar = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sin almacenamiento: no pasa nada */ } }
 
@@ -120,6 +120,9 @@ export default function FacturacionVentasView({ onUnauthorized }) {
   const [facturando, setFacturando] = useState(false)
   const [adjuntando, setAdjuntando] = useState(null) // número de ML (o 'todas') mientras se adjunta
   const [aviso, setAviso] = useState(null)
+  const [paraRevisar, setParaRevisar] = useState(null) // ventas de lotes anteriores sin resolver: se muestran en un cuadro para resolverlas ahí
+  const [resolviendo, setResolviendo] = useState(false)
+  const reelegirAlCargar = useRef(false) // si estaban todas elegidas, al cambiar el rango se eligen todas las del rango nuevo
 
   // Facturación por lotes: se procesa en el servidor; acá solo se elige y se mira cómo va.
   const [seleccion, setSeleccion] = useState([]) // números de venta elegidos
@@ -359,6 +362,50 @@ export default function FacturacionVentasView({ onUnauthorized }) {
     }
   }
 
+  // Al cambiar el rango de días la selección no puede quedar con ventas del rango anterior: si estaban todas elegidas se
+  // eligen todas las del rango nuevo cuando carga; si no, se limpia.
+  const cambiarDias = (n) => {
+    reelegirAlCargar.current = seleccion.length > 0 && visiblesSeleccionables.every((v) => selSet.has(v.id_orden_ml))
+    setSeleccion([])
+    setAvisoSeleccion(null)
+    setDias(n)
+  }
+  useEffect(() => {
+    if (reelegirAlCargar.current && data && !cargando) {
+      reelegirAlCargar.current = false
+      elegirTodas()
+    }
+  }, [data, cargando]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const abrirParaRevisar = async () => {
+    try {
+      const res = await apiFetch('/facturacion/lote/para-revisar', {}, onUnauthorized)
+      if (!res.ok) throw new Error(await leerError(res))
+      setParaRevisar((await res.json()).items)
+    } catch (err) {
+      setAviso(`No se pudieron traer las ventas para revisar:\n${err.message}`)
+    }
+  }
+
+  const resolverParaRevisar = async (numeros, salio) => {
+    if (resolviendo || numeros.length === 0) return
+    setResolviendo(true)
+    try {
+      const res = await apiFetch('/facturacion/lote/para-revisar/resolver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numeros, salio }),
+      }, onUnauthorized)
+      if (!res.ok) throw new Error(await leerError(res))
+      setParaRevisar((lista) => (lista || []).filter((i) => !numeros.includes(i.numero_ml)))
+      setRecarga((n) => n + 1)
+    } catch (err) {
+      setAviso(`No se pudo guardar:\n${err.message}`)
+    } finally {
+      setResolviendo(false)
+    }
+  }
+
   acciones.current = { alternar, preparar, adjuntar }
 
   const iniciarLote = async () => {
@@ -370,7 +417,15 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ventas: elegidas.map((v) => ({ numero_ml: v.id_orden_ml, fecha: fechaAR(v.fecha), comprador: v.comprador, total: v.total })) }),
       }, onUnauthorized)
-      if (!res.ok) throw new Error(await leerError(res))
+      if (!res.ok) {
+        const detalle = await leerError(res)
+        if (res.status === 409 && detalle.includes('para revisar')) {
+          setConfirmandoLote(false)
+          await abrirParaRevisar()
+          return
+        }
+        throw new Error(detalle)
+      }
       setLote(await res.json())
       setSeleccion([])
       setConfirmandoLote(false)
@@ -415,7 +470,7 @@ export default function FacturacionVentasView({ onUnauthorized }) {
       <div className="controls">
         <label className="corte-label">
           Últimos días
-          <select className="corte-input" value={dias} onChange={(e) => setDias(Number(e.target.value))}>
+          <select className="corte-input" value={dias} onChange={(e) => cambiarDias(Number(e.target.value))}>
             {[1, 3, 7, 15, 30, 60, 90].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
@@ -710,6 +765,40 @@ export default function FacturacionVentasView({ onUnauthorized }) {
         </Modal>
       )}
 
+      {paraRevisar && (
+        <Modal
+          titulo={`⚠️ Ventas para revisar (${paraRevisar.length})`}
+          onCerrar={() => setParaRevisar(null)}
+          footer={<button className="sort-btn" onClick={() => setParaRevisar(null)}>Cerrar</button>}
+        >
+          {paraRevisar.length === 0 ? (
+            <p>Listo, no queda ninguna para revisar. Ya podés tocar de nuevo "Facturar".</p>
+          ) : (
+            <>
+              <p>
+                Estas ventas se cortaron a mitad de una factura en un lote anterior y no se sabe si salió. Buscalas en Contabilium
+                por el número de venta y decí qué pasó con cada una; después volvé a tocar "Facturar".
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                <button className="sort-btn" disabled={resolviendo} onClick={() => resolverParaRevisar(paraRevisar.map((i) => i.numero_ml), false)}>
+                  Revisé todas: ninguna salió
+                </button>
+              </div>
+              {paraRevisar.map((i) => (
+                <div key={i.id} className="row" style={{ flexWrap: 'wrap' }}>
+                  <div className="title-cell">
+                    {i.comprador || '—'} · {i.total != null ? formatoPesos.format(i.total) : ''}
+                    <span className="id-cell mono">#{i.numero_ml}{i.fecha ? ` · ${i.fecha}` : ''} · lote {i.lote_id}</span>
+                    {i.mensaje && <span className="id-cell mono" style={{ color: '#B23A2E' }}>{i.mensaje}</span>}
+                  </div>
+                  <button className="sort-btn" disabled={resolviendo} onClick={() => resolverParaRevisar([i.numero_ml], false)}>No salió: se puede facturar</button>
+                  <button className="sort-btn" disabled={resolviendo} onClick={() => resolverParaRevisar([i.numero_ml], true)}>Sí salió: no facturar</button>
+                </div>
+              ))}
+            </>
+          )}
+        </Modal>
+      )}
       {aviso && <AlertModal mensaje={aviso} onCerrar={() => setAviso(null)} />}
     </>
   )
