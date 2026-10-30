@@ -44,7 +44,7 @@ function FilaFaltaCodigo({ fila, onGuardado, onUnauthorized }) {
       })
       .then((d) => {
         setMensaje(d.simulado
-          ? `Simulado (Contabilium en modo prueba): no se guardó. Expoyer: ${d.producto.codigo_comercial}, costo ${pesosExactos(d.producto.costo_sin_iva)} + IVA`
+          ? `Prueba: no se guardó. Expoyer: ${d.producto.codigo_comercial}, costo ${pesosExactos(d.producto.costo_sin_iva)} + IVA`
           : `Guardado: ${d.producto.codigo_comercial}, costo ${pesosExactos(d.producto.costo_sin_iva)} + IVA`)
         if (!d.simulado) onGuardado()
       })
@@ -227,7 +227,7 @@ function VentasMargenes({ onUnauthorized }) {
           <h2 className="section-title" style={{ margin: '0 0 6px 12px' }}>Falta código de proveedor ({data.falta_codigo.length})</h2>
           <p style={{ fontSize: 12, color: 'var(--gray-muted)', margin: '0 0 8px 12px' }}>
             Se guarda en el campo Código de proveedor de Contabilium (y Expoyer como proveedor si no tenía ninguno).
-            {data.contabilium_simulado && ' ⚠️ Contabilium está en modo prueba: no se va a guardar nada.'}
+            {data.contabilium_simulado && ' ⚠️ Modo de prueba: no se va a guardar nada.'}
           </p>
           {data.falta_codigo.map((f) => (
             <FilaFaltaCodigo key={f.sku || f.titulo} fila={f} onGuardado={cargar} onUnauthorized={onUnauthorized} />

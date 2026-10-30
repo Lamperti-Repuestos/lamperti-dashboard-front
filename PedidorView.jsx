@@ -193,8 +193,7 @@ export default function PedidorView({ onUnauthorized }) {
     <>
       <div className="paste-box">
         <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: '0 0 10px' }}>
-          Lee en vivo la planilla de pedidos - una pestaña por proveedor. Cargar el pedido en
-          el sitio del proveedor se hace en una sesión aparte con Claude. Acá: pendientes de
+          Lee en vivo la planilla de pedidos - una pestaña por proveedor. Acá: pendientes de
           hoy (con marcado de "en carrito" que escribe directo en la planilla), y métricas -
           cada cuánto se pide un código, cuánto, y a qué destino.
         </p>
@@ -347,9 +346,9 @@ export default function PedidorView({ onUnauthorized }) {
       <>
         <div className="paste-box" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <p style={{ fontSize: 13, color: 'var(--gray-muted)', margin: 0, flex: '1 1 100%' }}>
-            El gasto real no se actualiza solo (el sitio del proveedor exige login) - se
-            actualiza a pedido, en una sesión con Claude. Los cupos (tramos de descuento que
-            manda el corredor) se cargan acá a mano, una vez por mes.
+            El gasto real no se actualiza solo (el sitio del proveedor exige login): se actualiza
+            a pedido. Los cupos (tramos de descuento que manda el corredor) se cargan acá a mano,
+            una vez por mes.
           </p>
           <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
             Mes:

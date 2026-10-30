@@ -15,7 +15,7 @@ const QUE_HACER = {
 }
 
 function queHacer(a) {
-  if (a.accion === 'error') return 'Se reintenta solo en la próxima corrida. Si se repite varias veces, avisar.'
+  if (a.accion === 'error') return 'Se reintenta solo en la próxima corrida. Si se repite varias veces, avisale a Tom.'
   if ((a.motivo || '').includes('se carga a mano')) return 'Pasarla a mano en Contabilium, como siempre. Cuando quede cargada, el programa la archiva solo.'
   if ((a.motivo || '').includes('dirigida a Lamperti')) return 'Revisar si es una factura de Lamperti. Si lo es, pasarla a mano.'
   return QUE_HACER[a.estado] || 'Revisar a mano.'
@@ -258,7 +258,7 @@ export default function FacturasEstadoView({ onUnauthorized }) {
 
       {simulacion && data.actualizado && (
         <p className="vf-aviso">
-          🧪 El programa está en <strong>modo prueba</strong>: mira la carpeta y anota qué haría, pero no manda ni mueve nada todavía.
+          🧪 El programa está en <strong>modo prueba</strong>: mira la carpeta y anota qué haría, pero no manda ni mueve nada.
         </p>
       )}
       {error && <p className="vf-aviso" style={{ color: 'var(--alerta)' }}>No se pudo actualizar ({error}). Se muestra lo último que se pudo cargar.</p>}

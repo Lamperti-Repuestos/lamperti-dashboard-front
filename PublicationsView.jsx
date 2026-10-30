@@ -33,7 +33,7 @@ export default function PublicationsView({ onUnauthorized }) {
     setLoading(true)
     apiFetch('/ml/items', {}, onUnauthorized)
       .then((res) => {
-        if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
+        if (!res.ok) throw new Error(`No se pudo cargar (error ${res.status}). Probá de nuevo; si sigue, avisale a Tom.`)
         return res.json()
       })
       .then((data) => {

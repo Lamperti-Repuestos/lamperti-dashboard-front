@@ -144,7 +144,7 @@ export default function CostosView({ onUnauthorized }) {
         setMsgActualizarPorPublicacion(
           d.ya_estaba_corriendo
             ? '⏳ Ya había una actualización en curso - esperá a que termine.'
-            : '✅ Calculando... ML solo deja 5 pedidos/minuto a este endpoint, puede tardar varios minutos. Se actualiza solo cuando termina.'
+            : '✅ Calculando... Puede tardar varios minutos (ML limita cuántas consultas deja hacer por minuto). Se actualiza solo cuando termina.'
         )
         setActualizandoPorPublicacion(false)
       })
