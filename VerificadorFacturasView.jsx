@@ -258,7 +258,7 @@ export default function VerificadorFacturasView({ onUnauthorized }) {
 
       {!configurado && (
         <p className="vf-aviso">
-          ⚠️ Falta configurar en el backend las variables CONTABILIUM_WEB_USER y CONTABILIUM_WEB_PASS.
+          ⚠️ Falta conectar el acceso web de Contabilium. Avisale a Tom.
         </p>
       )}
 

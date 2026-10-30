@@ -129,12 +129,12 @@ export default function PublicadorView({ onUnauthorized }) {
 
       {status && status.dry_run && (
         <div style={{ background: 'var(--bg-aviso)', color: '#2E2E2E', padding: 10, borderRadius: 'var(--radius)', marginBottom: 12 }}>
-          Modo prueba: solo valida contra ML, no publica nada (PUBLICADOR_DRY_RUN=true en el backend).
+          Modo de prueba: valida contra ML pero no publica nada.
         </div>
       )}
       {status && !status.contabilium_configurado && (
         <div style={{ background: 'var(--bg-faltante)', color: '#2E2E2E', padding: 10, borderRadius: 'var(--radius)', marginBottom: 12 }}>
-          Contabilium no está configurado en el backend.
+          Contabilium no está conectado. Avisale a Tom.
         </div>
       )}
 

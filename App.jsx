@@ -51,7 +51,7 @@ const GRUPOS = [
       { id: 'logistica', label: 'Logística' },
       { id: 'notas', label: 'Notas' },
       { id: 'devoluciones', label: 'Devoluciones a proveedores' },
-      { id: 'pedidor', label: 'Pedidor (beta)' },
+      { id: 'pedidor', label: 'Pedidor' },
     ],
   },
   {
@@ -220,7 +220,7 @@ export default function App() {
           <button
             className={`view-tab header-ayuda ${view === 'subagente' ? 'active' : ''}`}
             onClick={() => { setView('subagente'); setGrupoAbierto(null) }}
-            title="Asistente (beta)"
+            title="Asistente"
           >
             🤖
           </button>

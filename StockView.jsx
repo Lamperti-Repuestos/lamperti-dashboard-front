@@ -113,7 +113,7 @@ export default function StockView({ onUnauthorized }) {
         setMsgActualizarDiscrepancias(
           d.ya_estaba_corriendo
             ? '⏳ Ya había una actualización en curso - esperá a que termine.'
-            : '✅ Actualización disparada. Corre en el servidor y puede tardar varios minutos (por el límite de Contabilium) - volvé a entrar acá en un rato para ver el resultado.'
+            : '✅ Actualización en marcha. Puede tardar varios minutos: volvé a entrar acá en un rato para ver el resultado.'
         )
         setActualizandoDiscrepancias(false)
       })
@@ -131,7 +131,7 @@ export default function StockView({ onUnauthorized }) {
     })
     apiFetch(`/ml/stock/alerts?${params}`, {}, onUnauthorized)
       .then((res) => {
-        if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
+        if (!res.ok) throw new Error(`No se pudo cargar (error ${res.status}). Probá de nuevo; si sigue, avisale a Tom.`)
         return res.json()
       })
       .then((json) => {
@@ -156,7 +156,7 @@ export default function StockView({ onUnauthorized }) {
     setScanProgreso(null)
     apiFetch(`/ml/stock/scan?umbral=${umbral}`, { method: 'POST' }, onUnauthorized)
       .then((res) => {
-        if (!res.ok) throw new Error(`El backend respondió ${res.status}`)
+        if (!res.ok) throw new Error(`No se pudo cargar (error ${res.status}). Probá de nuevo; si sigue, avisale a Tom.`)
         return res.json()
       })
       .then((json) => {
@@ -261,7 +261,7 @@ export default function StockView({ onUnauthorized }) {
         if (!c || !c.intentado) {
           setRevertirInfo('Revertido en ML. Contabilium no está conectado todavía - actualizalo a mano ahí.')
         } else if (c.ok && c.simulado) {
-          setRevertirInfo(`Revertido en ML. Contabilium en modo simulación (no escribió nada real).`)
+          setRevertirInfo(`Revertido en ML. En Contabilium no se cambió nada (modo de prueba).`)
         } else if (c.ok) {
           setRevertirInfo('Revertido en ML y en Contabilium. ✅')
         } else {

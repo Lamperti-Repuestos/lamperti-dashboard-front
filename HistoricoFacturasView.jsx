@@ -267,7 +267,7 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
             <div style={{ marginTop: 8, fontSize: 13, color: 'var(--atencion)' }}>
               ⚠ Las facturas de afuera de ML se están cargando desde Contabilium hacia atrás
               {cob.contabilium_cargado_desde ? ` (ya están cargadas desde el ${soloFecha(cob.contabilium_cargado_desde)})` : ' (todavía no empezó)'}.
-              Antes de esa fecha solo ves las de ML por ahora.
+              Antes de esa fecha solo ves las de ML.
             </div>
           )}
           {producto.trim() && cob.pendientes > 0 && (
