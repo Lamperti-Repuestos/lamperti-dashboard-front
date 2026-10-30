@@ -302,15 +302,16 @@ export default function HistoricoFacturasView({ onUnauthorized }) {
         </div>
       )}
 
-      {avance && (avance.total > 0 || (comp && comp.total > 0)) && (
+      {/* el contador de carga solo se ve mientras falta traer algo; con todo cargado desaparece */}
+      {avance && ((avance.total > 0 && avance.pendiente > 0) || (comp && comp.total > 0 && comp.pendiente > 0)) && (
         <div style={{ marginTop: 16, fontSize: 12, color: 'var(--gray-muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {avance.total > 0 && (
+          {avance.total > 0 && avance.pendiente > 0 && (
             <div>
               Ventas de ML: productos cargados en {avance.completas} de {avance.total} facturas
               {avance.pendiente > 0 ? ` · quedan ${avance.pendiente}` : ''}.
             </div>
           )}
-          {comp && comp.total > 0 && (
+          {comp && comp.total > 0 && comp.pendiente > 0 && (
             <div>
               Todas las facturas de Contabilium: {comp.total} cargadas{comp.cubre_desde ? ` (desde el ${soloFecha(comp.cubre_desde)})` : ''}
               {' '}· productos en {comp.ok + comp.sin_datos} de {comp.total}{comp.pendiente > 0 ? ` · quedan ${comp.pendiente}` : ''}.
