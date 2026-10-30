@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from './api.js'
+import PdfVisor from './PdfVisor.jsx'
 
 const DIAS_SEM = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 
@@ -42,11 +43,13 @@ function letra(tipoFc) {
 function FilaFactura({ f, onUnauthorized }) {
   const [abriendo, setAbriendo] = useState(false)
   const [errorPdf, setErrorPdf] = useState(null)
+  const [pdfDatos, setPdfDatos] = useState(null) // bytes del PDF, para dibujarlo en pantalla
   const [pdfUrl, setPdfUrl] = useState(null) // la factura se ve en un recuadro dentro de Miguelito, sin abrir otra pestaña
 
   const cerrarPdf = () => {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl)
     setPdfUrl(null)
+    setPdfDatos(null)
   }
 
   useEffect(() => {
@@ -62,8 +65,9 @@ function FilaFactura({ f, onUnauthorized }) {
     try {
       const res = await apiFetch(f.pdf_ruta, {}, onUnauthorized)
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'No pude traer el PDF')
-      const blob = await res.blob()
-      setPdfUrl(URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })))
+      const bytes = await res.arrayBuffer()
+      setPdfDatos(bytes)
+      setPdfUrl(URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })))
     } catch (e) {
       setErrorPdf(e.message)
     } finally {
@@ -118,7 +122,7 @@ function FilaFactura({ f, onUnauthorized }) {
               <strong>{letra(f.tipo_fc)} {f.numero_factura || ''} · {f.comprador || ''}</strong>
               <button className="modal-close" onClick={cerrarPdf} aria-label="Cerrar">✕</button>
             </div>
-            <iframe title="Factura" src={pdfUrl} style={{ flex: 1, width: '100%', border: 0, minHeight: 0 }} />
+            <PdfVisor datos={pdfDatos} />
             <div className="modal-footer">
               <a className="sort-btn" href={pdfUrl} download={`factura_${f.numero_factura || f.id}.pdf`}>Descargar PDF</a>
               <button className="sort-btn" onClick={cerrarPdf}>Cerrar</button>
