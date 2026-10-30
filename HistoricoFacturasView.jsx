@@ -42,6 +42,19 @@ function letra(tipoFc) {
 function FilaFactura({ f, onUnauthorized }) {
   const [abriendo, setAbriendo] = useState(false)
   const [errorPdf, setErrorPdf] = useState(null)
+  const [pdfUrl, setPdfUrl] = useState(null) // la factura se ve en un recuadro dentro de Miguelito, sin abrir otra pestaña
+
+  const cerrarPdf = () => {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+    setPdfUrl(null)
+  }
+
+  useEffect(() => {
+    if (!pdfUrl) return undefined
+    const alTeclear = (e) => { if (e.key === 'Escape') cerrarPdf() }
+    document.addEventListener('keydown', alTeclear)
+    return () => document.removeEventListener('keydown', alTeclear)
+  }, [pdfUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrirPdf = async () => {
     setAbriendo(true)
@@ -49,8 +62,8 @@ function FilaFactura({ f, onUnauthorized }) {
     try {
       const res = await apiFetch(f.pdf_ruta, {}, onUnauthorized)
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'No pude traer el PDF')
-      const url = URL.createObjectURL(await res.blob())
-      window.open(url, '_blank')
+      const blob = await res.blob()
+      setPdfUrl(URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })))
     } catch (e) {
       setErrorPdf(e.message)
     } finally {
@@ -92,12 +105,27 @@ function FilaFactura({ f, onUnauthorized }) {
       </div>
 
       <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {f.url_comprobante && <a className="sort-btn" href={f.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>}
-        {!f.url_comprobante && f.pdf_ruta && (
+        {f.url_comprobante && !f.pdf_ruta && <a className="sort-btn" href={f.url_comprobante} target="_blank" rel="noreferrer">Ver factura</a>}
+        {f.pdf_ruta && (
           <button type="button" className="sort-btn" onClick={abrirPdf} disabled={abriendo}>{abriendo ? 'Abriendo…' : 'Ver factura'}</button>
         )}
         {errorPdf && <span role="alert" style={{ fontSize: 12, color: 'var(--alerta)' }}>{errorPdf}</span>}
       </div>
+      {pdfUrl && (
+        <div className="modal-overlay" onClick={cerrarPdf}>
+          <div className="modal" style={{ maxWidth: 900, height: '90vh', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <strong>{letra(f.tipo_fc)} {f.numero_factura || ''} · {f.comprador || ''}</strong>
+              <button className="modal-close" onClick={cerrarPdf} aria-label="Cerrar">✕</button>
+            </div>
+            <iframe title="Factura" src={pdfUrl} style={{ flex: 1, width: '100%', border: 0, minHeight: 0 }} />
+            <div className="modal-footer">
+              <a className="sort-btn" href={pdfUrl} download={`factura_${f.numero_factura || f.id}.pdf`}>Descargar PDF</a>
+              <button className="sort-btn" onClick={cerrarPdf}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
